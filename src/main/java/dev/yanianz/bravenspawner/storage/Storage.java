@@ -7,6 +7,7 @@ import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -14,8 +15,20 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Logger;
 
-/** Persistence contract plus the serialisation shared by every backend. */
+/**
+ * Persistence contract plus the serialisation shared by every backend.
+ *
+ * <p>Writes are tracked as a dirty set so a periodic checkpoint can decide whether
+ * a durable pass is needed at all. Backends update that set from
+ * {@link #upsert(Spawner)} and {@link #delete(UUID)}; {@link #flushAll(Collection)}
+ * clears it only after a successful write.
+ *
+ * <p>{@link #isHealthy()} is a fail-closed gate: a backend that could not read its
+ * previous state must never be asked to overwrite it, because the caller would
+ * otherwise persist an empty or partial map over real data.
+ */
 public interface Storage extends AutoCloseable {
 
     void init();
@@ -28,40 +41,106 @@ public interface Storage extends AutoCloseable {
 
     void flushAll(Collection<Spawner> spawners);
 
+    /**
+     * False when the last load failed. A checkpoint must not flush while this is
+     * false, otherwise the in-memory map (possibly empty) would replace durable
+     * records that simply could not be read yet.
+     */
+    boolean isHealthy();
+
+    /** True when records changed since the last successful flush. */
+    boolean isDirty();
+
+    /** Number of record ids waiting to be made durable; used for diagnostics. */
+    int pendingWrites();
+
     @Override
     void close();
+
+    /**
+     * Unchecked failure from a backend. Storage methods are called from listeners
+     * and the checkpoint thread, so a checked exception would be forced into a
+     * catch-all anyway; callers log these at SEVERE instead of losing them.
+     */
+    final class StorageException extends RuntimeException {
+
+        public StorageException(String message) {
+            super(message);
+        }
+
+        public StorageException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 
     /** Item stacks <-> base64, using Bukkit's own object streams. */
     final class Codec {
 
+        /**
+         * Upper bound on a decoded inventory. A corrupted length prefix must fail
+         * closed instead of allocating an arbitrary list from an untrusted blob.
+         */
+        private static final int MAX_ITEMS = 4096;
+
+        private static final Logger LOG = Logger.getLogger("BravenSpawner");
+
         private Codec() {}
 
+        /**
+         * Encodes a full inventory. Failure is thrown rather than encoded as an
+         * empty string: an empty blob is a valid empty inventory and silently
+         * substituting one would erase the stored contents on the next save.
+         */
         public static String encodeItems(List<ItemStack> items) {
+            if (items == null) throw new IllegalArgumentException("items must not be null");
             try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
                  BukkitObjectOutputStream out = new BukkitObjectOutputStream(bytes)) {
                 out.writeInt(items.size());
-                for (ItemStack item : items) out.writeObject(item);
+                for (ItemStack item : items) {
+                    if (item == null) throw new IllegalArgumentException("inventory contains a null item");
+                    out.writeObject(item);
+                }
                 out.flush();
                 return Base64.getEncoder().encodeToString(bytes.toByteArray());
-            } catch (Exception e) {
-                return "";
+            } catch (IOException | RuntimeException e) {
+                throw new IllegalStateException("could not encode " + items.size() + " item stack(s)", e);
             }
         }
 
+        /** Decodes a blob without a record id; see {@link #decodeItems(String, String)}. */
         public static List<ItemStack> decodeItems(String blob) {
-            List<ItemStack> out = new ArrayList<>();
-            if (blob == null || blob.isBlank()) return out;
+            return decodeItems(blob, "unknown");
+        }
+
+        /**
+         * Decodes a stored inventory; returns {@code null} when the blob is
+         * malformed. Callers must quarantine that record instead of passing an
+         * empty list to {@code replaceContents}, which would destroy the stored
+         * contents on the next flush.
+         *
+         * @param recordId spawner id used in the diagnostic, when the backend has one
+         */
+        public static List<ItemStack> decodeItems(String blob, String recordId) {
+            if (blob == null || blob.isBlank()) return new ArrayList<>();
             try (ByteArrayInputStream bytes = new ByteArrayInputStream(Base64.getDecoder().decode(blob));
                  BukkitObjectInputStream in = new BukkitObjectInputStream(bytes)) {
                 int n = in.readInt();
+                if (n < 0 || n > MAX_ITEMS) {
+                    throw new IOException("inventory length " + n + " outside 0.." + MAX_ITEMS);
+                }
+                List<ItemStack> out = new ArrayList<>(n);
                 for (int i = 0; i < n; i++) {
                     Object o = in.readObject();
-                    if (o instanceof ItemStack stack) out.add(stack);
+                    if (!(o instanceof ItemStack stack)) {
+                        throw new IOException("unexpected inventory element " + (o == null ? "null" : o.getClass()));
+                    }
+                    out.add(stack);
                 }
-            } catch (Exception ignored) {
-                // a corrupt blob yields an empty store rather than an exception
+                return out;
+            } catch (Exception e) {
+                LOG.warning("quarantined malformed inventory for record " + recordId + ": " + e);
+                return null;
             }
-            return out;
         }
 
         public static String encodeTrusted(Set<UUID> trusted) {

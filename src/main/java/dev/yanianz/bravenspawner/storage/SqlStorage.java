@@ -4,31 +4,81 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.yanianz.bravenspawner.model.Spawner;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * SQLite / MySQL backend behind one dialect switch.
  *
- * <p>Hikari owns the pool; {@link #flushAll} runs in a single transaction so a
- * half-written table is impossible. SQLite is opened in WAL mode so a save never
- * blocks a read.
+ * <p>Hikari owns the pool. Every write is an incremental UPSERT; the table is never
+ * cleared before a flush, so a failure halfway through a batch rolls back only that
+ * batch and leaves every previously committed row intact.
+ *
+ * <p>A {@code braven_schema_version} row records the applied schema version and
+ * {@link #applyMigration(Connection, int)} is the hook future column additions plug
+ * into, so an upgrade never requires dropping the table.
+ *
+ * <p>Load failures are thrown and flip {@link #isHealthy()} to false: the caller
+ * must not persist an empty map over records that could not be read. Rows whose
+ * inventory blob is malformed are skipped (quarantined in place) instead of being
+ * rewritten with empty storage.
  */
 public final class SqlStorage implements Storage {
 
     public enum Dialect { SQLITE, MYSQL }
 
+    /** Bump together with a new {@code applyMigration} branch. */
+    private static final int SCHEMA_VERSION = 1;
+
+    private static final String TABLE = "braven_spawners";
+    private static final String VERSION_TABLE = "braven_schema_version";
+
+    private static final String COLUMNS =
+            "id,owner,world,x,y,z,kind,product,stack,tier,hologram,corrupted,xp,produced,trusted,items,revision,updated_at";
+    private static final String PLACEHOLDERS = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?";
+
+    private static final String SQLITE_UPSERT =
+            "INSERT INTO " + TABLE + " (" + COLUMNS + ") VALUES (" + PLACEHOLDERS + ")"
+                    + " ON CONFLICT(id) DO UPDATE SET"
+                    + " owner=excluded.owner, world=excluded.world, x=excluded.x, y=excluded.y, z=excluded.z,"
+                    + " kind=excluded.kind, product=excluded.product, stack=excluded.stack, tier=excluded.tier,"
+                    + " hologram=excluded.hologram, corrupted=excluded.corrupted, xp=excluded.xp,"
+                    + " produced=excluded.produced, trusted=excluded.trusted, items=excluded.items,"
+                    + " revision=" + TABLE + ".revision + 1, updated_at=excluded.updated_at";
+
+    private static final String MYSQL_UPSERT =
+            "INSERT INTO " + TABLE + " (" + COLUMNS + ") VALUES (" + PLACEHOLDERS + ")"
+                    + " ON DUPLICATE KEY UPDATE"
+                    + " owner=VALUES(owner), world=VALUES(world), x=VALUES(x), y=VALUES(y), z=VALUES(z),"
+                    + " kind=VALUES(kind), product=VALUES(product), stack=VALUES(stack), tier=VALUES(tier),"
+                    + " hologram=VALUES(hologram), corrupted=VALUES(corrupted), xp=VALUES(xp),"
+                    + " produced=VALUES(produced), trusted=VALUES(trusted), items=VALUES(items),"
+                    + " revision=revision + 1, updated_at=VALUES(updated_at)";
+
     private final Plugin plugin;
     private final ConfigurationSection section;
     private final Dialect dialect;
-    private HikariDataSource dataSource;
+
+    private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> tombstones = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> pendingDeletes = ConcurrentHashMap.newKeySet();
+
+    private volatile boolean healthy = true;
+    private volatile HikariDataSource dataSource;
 
     public SqlStorage(Plugin plugin, ConfigurationSection section, Dialect dialect) {
         this.plugin = plugin;
@@ -63,27 +113,12 @@ public final class SqlStorage implements Storage {
         }
 
         dataSource = new HikariDataSource(cfg);
-        try (Connection c = dataSource.getConnection(); var st = c.createStatement()) {
-            st.executeUpdate("""
-                    CREATE TABLE IF NOT EXISTS braven_spawners (
-                      id VARCHAR(36) PRIMARY KEY,
-                      owner VARCHAR(36) NOT NULL,
-                      world VARCHAR(64) NOT NULL,
-                      x INT NOT NULL, y INT NOT NULL, z INT NOT NULL,
-                      kind VARCHAR(8) NOT NULL,
-                      product VARCHAR(64) NOT NULL,
-                      stack INT NOT NULL DEFAULT 1,
-                      tier INT NOT NULL DEFAULT 0,
-                      hologram BOOLEAN NOT NULL,
-                      corrupted BOOLEAN NOT NULL DEFAULT 0,
-                      xp INT NOT NULL DEFAULT 0,
-                      produced BIGINT NOT NULL DEFAULT 0,
-                      trusted TEXT,
-                      items %s
-                    )""".formatted(dialect == Dialect.MYSQL ? "LONGTEXT" : "TEXT"));
+        try (Connection c = dataSource.getConnection()) {
+            migrate(c);
         } catch (Exception e) {
             throw new IllegalStateException("schema creation failed: " + e.getMessage(), e);
         }
+        healthy = true;
     }
 
     /**
@@ -106,49 +141,286 @@ public final class SqlStorage implements Storage {
         }
     }
 
+    // ---------------------------------------------------------------- schema
+
+    /**
+     * Forward-only migration runner. A database that predates the version table
+     * reports version 0 and is upgraded in place; a newer database is refused
+     * rather than silently written by an older build.
+     */
+    private void migrate(Connection c) throws SQLException {
+        try (var st = c.createStatement()) {
+            st.executeUpdate("CREATE TABLE IF NOT EXISTS " + VERSION_TABLE
+                    + " (id INT PRIMARY KEY, version INT NOT NULL, updated_at BIGINT NOT NULL)");
+        }
+        int current = readVersion(c);
+        if (current > SCHEMA_VERSION) {
+            throw new SQLException("database schema version " + current
+                    + " is newer than this build (" + SCHEMA_VERSION + ")");
+        }
+        for (int next = current + 1; next <= SCHEMA_VERSION; next++) {
+            applyMigration(c, next);
+        }
+        writeVersion(c, SCHEMA_VERSION);
+    }
+
+    /**
+     * Migration hook: add a branch for every new {@code SCHEMA_VERSION}. Branches
+     * must be additive (create table / add column) so an existing install keeps
+     * its rows.
+     */
+    private void applyMigration(Connection c, int version) throws SQLException {
+        switch (version) {
+            case 1 -> {
+                createSpawnersTable(c);
+                // 1.0.x databases already have braven_spawners but no bookkeeping
+                // columns; add them without touching the existing rows.
+                ensureColumn(c, TABLE, "revision", "BIGINT NOT NULL DEFAULT 0");
+                ensureColumn(c, TABLE, "updated_at", "BIGINT NOT NULL DEFAULT 0");
+            }
+            default -> throw new SQLException("no migration registered for schema version " + version);
+        }
+    }
+
+    private void createSpawnersTable(Connection c) throws SQLException {
+        try (var st = c.createStatement()) {
+            st.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS braven_spawners (
+                      id VARCHAR(36) PRIMARY KEY,
+                      owner VARCHAR(36) NOT NULL,
+                      world VARCHAR(64) NOT NULL,
+                      x INT NOT NULL, y INT NOT NULL, z INT NOT NULL,
+                      kind VARCHAR(8) NOT NULL,
+                      product VARCHAR(64) NOT NULL,
+                      stack INT NOT NULL DEFAULT 1,
+                      tier INT NOT NULL DEFAULT 0,
+                      hologram BOOLEAN NOT NULL,
+                      corrupted BOOLEAN NOT NULL DEFAULT 0,
+                      xp INT NOT NULL DEFAULT 0,
+                      produced BIGINT NOT NULL DEFAULT 0,
+                      trusted TEXT,
+                      items %s,
+                      revision BIGINT NOT NULL DEFAULT 0,
+                      updated_at BIGINT NOT NULL DEFAULT 0
+                    )""".formatted(dialect == Dialect.MYSQL ? "LONGTEXT" : "TEXT"));
+        }
+    }
+
+    private int readVersion(Connection c) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT version FROM " + VERSION_TABLE + " WHERE id=1");
+             ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    private void writeVersion(Connection c, int version) throws SQLException {
+        String sql = dialect == Dialect.MYSQL
+                ? "INSERT INTO " + VERSION_TABLE + " (id,version,updated_at) VALUES (1,?,?)"
+                        + " ON DUPLICATE KEY UPDATE version=VALUES(version), updated_at=VALUES(updated_at)"
+                : "INSERT INTO " + VERSION_TABLE + " (id,version,updated_at) VALUES (1,?,?)"
+                        + " ON CONFLICT(id) DO UPDATE SET version=excluded.version, updated_at=excluded.updated_at";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, version);
+            ps.setLong(2, System.currentTimeMillis());
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Adds a column only when the catalog says it is missing. Metadata is used
+     * instead of catching a duplicate-column error so a genuine DDL failure is
+     * never mistaken for "already applied".
+     */
+    private void ensureColumn(Connection c, String table, String column, String definition)
+            throws SQLException {
+        if (hasColumn(c, table, column)) return;
+        try (var st = c.createStatement()) {
+            st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        }
+    }
+
+    private boolean hasColumn(Connection c, String table, String column) throws SQLException {
+        DatabaseMetaData meta = c.getMetaData();
+        for (String candidate : new String[]{
+                table, table.toUpperCase(Locale.ROOT), table.toLowerCase(Locale.ROOT)}) {
+            try (ResultSet rs = meta.getColumns(c.getCatalog(), null, candidate, null)) {
+                while (rs.next()) {
+                    if (column.equalsIgnoreCase(rs.getString("COLUMN_NAME"))) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ load
+
     @Override
     public List<Spawner> loadAll() {
+        HikariDataSource pool = requireDataSource();
         List<Spawner> out = new ArrayList<>();
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT * FROM braven_spawners");
+        try (Connection c = pool.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT * FROM " + TABLE);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                Spawner spawner = new Spawner(
-                        UUID.fromString(rs.getString("id")),
-                        UUID.fromString(rs.getString("owner")),
-                        rs.getString("world"),
-                        rs.getInt("x"), rs.getInt("y"), rs.getInt("z"),
-                        Storage.Codec.kindOf(rs.getString("kind")),
-                        rs.getString("product"),
-                        rs.getInt("stack"),
-                        rs.getInt("tier"),
-                        rs.getBoolean("hologram"));
-                spawner.trusted().addAll(Storage.Codec.decodeTrusted(rs.getString("trusted")));
-                spawner.replaceContents(Storage.Codec.decodeItems(rs.getString("items")));
-                spawner.addXp(rs.getInt("xp"));
-                spawner.produced(rs.getLong("produced"));
-                if (rs.getBoolean("corrupted")) spawner.corrupt();
-                out.add(spawner);
+                Spawner spawner = readRow(rs);
+                if (spawner != null) out.add(spawner);
             }
-        } catch (Exception e) {
-            plugin.getLogger().severe("load failed: " + e.getMessage());
+        } catch (SQLException e) {
+            healthy = false;
+            plugin.getLogger().severe("spawner load failed; storage marked unhealthy: " + e.getMessage());
+            throw new StorageException("spawner load failed", e);
         }
+        healthy = true;
         return out;
     }
 
-    @Override
-    public void upsert(Spawner spawner) {
-        try (Connection c = dataSource.getConnection()) {
-            write(c, spawner);
-        } catch (Exception e) {
-            plugin.getLogger().warning("upsert failed: " + e.getMessage());
+    /**
+     * Reads one row, or skips it when its inventory cannot be decoded. The row is
+     * left untouched in the database, which is the quarantine: no later UPSERT of
+     * the live set can replace it, because it is not part of that set.
+     */
+    private Spawner readRow(ResultSet rs) throws SQLException {
+        String rawId = rs.getString("id");
+        UUID id;
+        try {
+            id = UUID.fromString(rawId);
+        } catch (RuntimeException e) {
+            plugin.getLogger().warning("quarantined spawner row with malformed id " + rawId);
+            return null;
+        }
+        List<ItemStack> items = Storage.Codec.decodeItems(rs.getString("items"), rawId);
+        if (items == null) {
+            plugin.getLogger().warning("quarantined spawner row " + rawId + ": inventory is unreadable");
+            return null;
+        }
+        try {
+            Spawner spawner = new Spawner(
+                    id,
+                    UUID.fromString(rs.getString("owner")),
+                    rs.getString("world"),
+                    rs.getInt("x"), rs.getInt("y"), rs.getInt("z"),
+                    Storage.Codec.kindOf(rs.getString("kind")),
+                    rs.getString("product"),
+                    rs.getInt("stack"),
+                    rs.getInt("tier"),
+                    rs.getBoolean("hologram"));
+            spawner.trusted().addAll(Storage.Codec.decodeTrusted(rs.getString("trusted")));
+            spawner.replaceContents(items);
+            spawner.addXp(rs.getInt("xp"));
+            spawner.produced(rs.getLong("produced"));
+            if (rs.getBoolean("corrupted")) spawner.corrupt();
+            return spawner;
+        } catch (RuntimeException e) {
+            plugin.getLogger().warning("quarantined malformed spawner row " + rawId + ": " + e.getMessage());
+            return null;
         }
     }
 
-    private void write(Connection c, Spawner s) throws Exception {
-        String sql = dialect == Dialect.MYSQL
-                ? "REPLACE INTO braven_spawners (id,owner,world,x,y,z,kind,product,stack,tier,hologram,corrupted,xp,produced,trusted,items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-                : "INSERT OR REPLACE INTO braven_spawners (id,owner,world,x,y,z,kind,product,stack,tier,hologram,corrupted,xp,produced,trusted,items) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    // ----------------------------------------------------------------- write
+
+    @Override
+    public void upsert(Spawner spawner) {
+        if (spawner == null) return;
+        tombstones.remove(spawner.id());
+        HikariDataSource pool = requireDataSource();
+        try (Connection c = pool.getConnection()) {
+            inTransaction(c, () -> writeRow(c, spawner));
+        } catch (Exception e) {
+            dirty.add(spawner.id());
+            plugin.getLogger().severe("upsert failed for spawner " + spawner.id() + ": " + e.getMessage());
+            throw new StorageException("upsert failed for spawner " + spawner.id(), e);
+        }
+        // Still marked dirty: the record is durable, but later in-memory changes
+        // are only captured by the next checkpoint pass.
+        dirty.add(spawner.id());
+    }
+
+    @Override
+    public void delete(UUID id) {
+        if (id == null) return;
+        tombstones.add(id);
+        HikariDataSource pool = requireDataSource();
+        try (Connection c = pool.getConnection()) {
+            inTransaction(c, () -> deleteRow(c, id));
+        } catch (Exception e) {
+            pendingDeletes.add(id);
+            dirty.add(id);
+            plugin.getLogger().severe("delete failed for spawner " + id + ": " + e.getMessage());
+            throw new StorageException("delete failed for spawner " + id, e);
+        }
+        pendingDeletes.remove(id);
+        dirty.remove(id);
+    }
+
+    @Override
+    public void flushAll(Collection<Spawner> spawners) {
+        if (spawners == null) {
+            throw new StorageException("flush called without a spawner collection");
+        }
+        if (!healthy) {
+            // A failed load leaves the live map partial; writing it would erase the
+            // rows that were never read. Refuse until a load succeeds.
+            throw new StorageException("refusing to flush after a failed load");
+        }
+        HikariDataSource pool = requireDataSource();
+
+        Set<UUID> pending = new HashSet<>(dirty);
+        dirty.removeAll(pending);
+
+        Set<UUID> live = new HashSet<>();
+        for (Spawner s : spawners) {
+            if (!tombstones.contains(s.id())) live.add(s.id());
+        }
+
+        try (Connection c = pool.getConnection()) {
+            inTransaction(c, () -> {
+                for (UUID id : pendingDeletes) {
+                    if (!live.contains(id)) deleteRow(c, id);
+                }
+                for (Spawner s : spawners) {
+                    // A checkpoint may hold a snapshot taken before a delete; never
+                    // let that snapshot resurrect a row removed on purpose.
+                    if (tombstones.contains(s.id())) continue;
+                    writeRow(c, s);
+                }
+            });
+        } catch (Exception e) {
+            dirty.addAll(pending);
+            plugin.getLogger().severe("checkpoint flush failed; last committed rows kept: "
+                    + e.getMessage());
+            throw new StorageException("checkpoint flush failed", e);
+        }
+
+        // Committed: only now is it safe to forget the deletes this pass retried.
+        pendingDeletes.removeIf(id -> !live.contains(id));
+    }
+
+    /**
+     * Runs {@code body} inside one transaction and restores the connection's
+     * previous auto-commit flag. A mid-batch error rolls back the whole batch,
+     * never the rows committed by earlier calls.
+     */
+    private void inTransaction(Connection c, SqlWork body) throws SQLException {
+        boolean auto = c.getAutoCommit();
+        c.setAutoCommit(false);
+        try {
+            body.run();
+            c.commit();
+        } catch (SQLException | RuntimeException e) {
+            try {
+                c.rollback();
+            } catch (SQLException rollback) {
+                e.addSuppressed(rollback);
+            }
+            throw e;
+        } finally {
+            c.setAutoCommit(auto);
+        }
+    }
+
+    private void writeRow(Connection c, Spawner s) throws SQLException {
+        String sql = dialect == Dialect.MYSQL ? MYSQL_UPSERT : SQLITE_UPSERT;
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, s.id().toString());
             ps.setString(2, s.owner().toString());
@@ -166,45 +438,50 @@ public final class SqlStorage implements Storage {
             ps.setLong(14, s.produced());
             ps.setString(15, Storage.Codec.encodeTrusted(s.trusted()));
             ps.setString(16, Storage.Codec.encodeItems(s.contents()));
+            ps.setLong(17, System.currentTimeMillis());
             ps.executeUpdate();
         }
     }
 
-    @Override
-    public void delete(UUID id) {
-        try (Connection c = dataSource.getConnection();
-             PreparedStatement ps = c.prepareStatement("DELETE FROM braven_spawners WHERE id=?")) {
+    private void deleteRow(Connection c, UUID id) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + TABLE + " WHERE id=?")) {
             ps.setString(1, id.toString());
             ps.executeUpdate();
-        } catch (Exception e) {
-            plugin.getLogger().warning("delete failed: " + e.getMessage());
         }
     }
 
+    // ------------------------------------------------------------- lifecycle
+
+    private HikariDataSource requireDataSource() {
+        HikariDataSource pool = dataSource;
+        if (pool == null) throw new StorageException("storage is not initialised");
+        return pool;
+    }
+
     @Override
-    public void flushAll(Collection<Spawner> spawners) {
-        try (Connection c = dataSource.getConnection()) {
-            boolean auto = c.getAutoCommit();
-            c.setAutoCommit(false);
-            try {
-                try (var st = c.createStatement()) {
-                    st.executeUpdate("DELETE FROM braven_spawners");
-                }
-                for (Spawner s : spawners) write(c, s);
-                c.commit();
-            } catch (Exception e) {
-                c.rollback();
-                plugin.getLogger().severe("flush rolled back: " + e.getMessage());
-            } finally {
-                c.setAutoCommit(auto);
-            }
-        } catch (Exception e) {
-            plugin.getLogger().severe("flush failed: " + e.getMessage());
-        }
+    public boolean isHealthy() {
+        return healthy;
+    }
+
+    @Override
+    public boolean isDirty() {
+        return !dirty.isEmpty() || !pendingDeletes.isEmpty();
+    }
+
+    @Override
+    public int pendingWrites() {
+        return dirty.size() + pendingDeletes.size();
     }
 
     @Override
     public void close() {
-        if (dataSource != null) dataSource.close();
+        HikariDataSource pool = dataSource;
+        dataSource = null;
+        if (pool != null) pool.close();
+    }
+
+    @FunctionalInterface
+    private interface SqlWork {
+        void run() throws SQLException;
     }
 }

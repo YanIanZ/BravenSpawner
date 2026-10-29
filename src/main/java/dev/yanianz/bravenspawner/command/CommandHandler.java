@@ -7,9 +7,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,9 +28,50 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
     }
 
+    /**
+     * Binds this handler to every command declared in plugin.yml.
+     *
+     * <p>The bootstrap only wires {@code /bspawner} historically, while plugin.yml
+     * also declares {@code /bmodify} and {@code /bhtoggle}; the server then answers
+     * those two with "unknown command" even though the help text advertises them.
+     * Registering from one list keeps the yml, the switch below and tab completion
+     * in sync, and a missing declaration is logged rather than silently ignored.
+     */
+    public void register(Plugin owner) {
+        if (!(owner instanceof JavaPlugin javaPlugin)) {
+            throw new IllegalArgumentException("command registration needs a JavaPlugin");
+        }
+        for (String name : List.of("bspawner", "bmodify", "bhtoggle")) {
+            PluginCommand command = javaPlugin.getCommand(name);
+            if (command == null) {
+                javaPlugin.getLogger().warning("plugin.yml declares no /" + name + " command.");
+                continue;
+            }
+            command.setExecutor(this);
+            command.setTabCompleter(this);
+        }
+    }
+
+    /**
+     * Resolves a label or alias to the canonical command name.
+     *
+     * <p>Bukkit normally reports the primary name in {@link Command#getName()},
+     * but accepting the aliases too keeps the switch correct if an alias is ever
+     * registered independently or replayed by another plugin.
+     */
+    private static String canonical(String name) {
+        if (name == null) return "";
+        return switch (name.toLowerCase(Locale.ROOT)) {
+            case "bravenspawner", "vs", "bs" -> "bspawner";
+            case "bsmodify" -> "bmodify";
+            case "bstoggle" -> "bhtoggle";
+            default -> name.toLowerCase(Locale.ROOT);
+        };
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        return switch (command.getName().toLowerCase(Locale.ROOT)) {
+        return switch (canonical(command.getName())) {
             case "bspawner" -> admin(sender, args);
             case "bmodify" -> modify(sender, args);
             case "bhtoggle" -> toggle(sender);
@@ -53,7 +97,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             }
             case "booster" -> booster(sender, args);
             case "menu" -> {
-                if (sender instanceof Player p) plugin.gui().openMenu(p, nearest(p));
+                if (!(sender instanceof Player p)) {
+                    sender.sendMessage(Text.of("&cPlayers only."));
+                    return true;
+                }
+                Spawner spawner = nearest(p);
+                if (spawner != null) plugin.gui().openMenu(p, spawner);
             }
             case "corrupt" -> corrupt(sender);
             case "repair" -> repair(sender);
@@ -120,11 +169,19 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Text.of("&cPlayer not found."));
+            return;
+        }
         double multiplier;
         try {
             multiplier = Double.parseDouble(args[2]);
         } catch (NumberFormatException e) {
             sender.sendMessage(Text.of("&cInvalid multiplier."));
+            return;
+        }
+        if (!Double.isFinite(multiplier) || multiplier <= 0.0) {
+            sender.sendMessage(Text.of("&cMultiplier must be a positive number."));
             return;
         }
         long seconds = plugin.settings().boosterSeconds();
@@ -134,12 +191,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             } catch (NumberFormatException ignored) {
             }
         }
-        if (target == null) {
-            sender.sendMessage(Text.of("&cPlayer not found."));
-            return;
-        }
+        seconds = Math.max(5L, Math.min(86_400L, seconds));
         plugin.boosters().grantPlayer(target.getUniqueId(), multiplier, seconds);
-        sender.sendMessage(Text.of("&aBooster " + multiplier + "x for " + target.getName()));
+        sender.sendMessage(Text.of("&aBooster " + multiplier + "x for " + target.getName()
+                + " &7(" + seconds + "s)"));
     }
 
     private void corrupt(CommandSender sender) {
@@ -214,18 +269,24 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
-        if (command.getName().equalsIgnoreCase("bspawner")) {
-            if (args.length == 1) out.addAll(List.of("give", "list", "reload", "booster", "menu", "corrupt", "repair"));
-            else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
-                out.addAll(plugin.settings().mobs().keySet());
-                plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));
-            } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
-                Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
-            } else if (args.length == 2 && args[0].equalsIgnoreCase("booster")) {
-                Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+        switch (canonical(command.getName())) {
+            case "bspawner" -> {
+                if (!sender.hasPermission("bravenspawner.admin")) return List.of();
+                if (args.length == 1) {
+                    out.addAll(List.of("give", "list", "reload", "booster", "menu", "corrupt", "repair"));
+                } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
+                    out.addAll(plugin.settings().mobs().keySet());
+                    plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));
+                } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
+                    Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+                } else if (args.length == 2 && args[0].equalsIgnoreCase("booster")) {
+                    Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+                }
             }
-        } else if (command.getName().equalsIgnoreCase("bmodify") && args.length == 1) {
-            Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+            case "bmodify" -> {
+                if (args.length <= 1) Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+            }
+            default -> { }
         }
         String last = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);
         out.removeIf(s -> !s.toLowerCase(Locale.ROOT).startsWith(last));

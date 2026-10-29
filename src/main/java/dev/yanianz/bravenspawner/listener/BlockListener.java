@@ -2,6 +2,7 @@ package dev.yanianz.bravenspawner.listener;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.config.Settings;
+import dev.yanianz.bravenspawner.manager.StackService;
 import dev.yanianz.bravenspawner.mechanics.HopperLink;
 import dev.yanianz.bravenspawner.mechanics.Mending;
 import dev.yanianz.bravenspawner.mechanics.Ninja;
@@ -29,7 +30,6 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.UUID;
 
@@ -38,18 +38,25 @@ import java.util.UUID;
  *
  * <p>Every handler runs at HIGH and honours cancellation so protection plugins keep
  * the final word. Breaking respects silk touch, durability and the collection
- * switch; stacking respects the per-chunk limit and the stack cap.
+ * switch; stacking is delegated to {@link StackService}, which owns authorization,
+ * item identity and both caps.
+ *
+ * <p>Spawner items carry their virtual count in the persistent data container and
+ * keep a physical amount of 1. Place, merge and break all read and write that one
+ * field, so a count survives every transfer without drift.
  */
 public final class BlockListener implements Listener {
 
     private final BravenSpawner plugin;
     private final Ninja ninja;
     private final HopperLink hopperLink;
+    private final StackService stackService;
 
     public BlockListener(BravenSpawner plugin) {
         this.plugin = plugin;
         this.ninja = new Ninja(plugin);
         this.hopperLink = new HopperLink(plugin);
+        this.stackService = new StackService(plugin);
         this.ninja.start();
         this.hopperLink.start();
     }
@@ -60,12 +67,10 @@ public final class BlockListener implements Listener {
         ItemStack item = event.getItemInHand();
         Settings s = plugin.settings();
 
-        String product = item.getItemMeta() == null ? null
-                : item.getItemMeta().getPersistentDataContainer().get(plugin.itemProductKey(), PersistentDataType.STRING);
-        String kindRaw = item.getItemMeta() == null ? null
-                : item.getItemMeta().getPersistentDataContainer().get(plugin.itemKindKey(), PersistentDataType.STRING);
+        Spawner.Kind kind = StackService.kindOf(plugin, item);
+        String product = StackService.productOf(plugin, item);
 
-        if (product == null || kindRaw == null) {
+        if (kind == null || product == null) {
             if (s.convertSpawners && event.getBlockPlaced().getType() == Material.SPAWNER) {
                 convertVanilla(event, player);
             }
@@ -79,18 +84,21 @@ public final class BlockListener implements Listener {
             return;
         }
 
+        // The virtual count is the canonical value; the physical amount is always
+        // one. Clamping keeps a hand-edited item inside the configured cap.
+        int stack = StackService.canonicalCount(plugin, item, s.stackLimit);
+
         int chunkX = block.getX() >> 4;
         int chunkZ = block.getZ() >> 4;
         if (s.spawnerLimitInChunk > 0) {
-            int total = plugin.manager().stackedInChunk(block.getWorld(), chunkX, chunkZ);
-            if (total + 1 > s.spawnerLimitInChunk) {
+            long total = plugin.manager().stackedInChunk(block.getWorld(), chunkX, chunkZ);
+            if (total + stack > s.spawnerLimitInChunk) {
                 player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
                 event.setCancelled(true);
                 return;
             }
         }
 
-        Spawner spawner;
         Spawner existing = plugin.manager().at(block.getLocation());
         if (existing != null && player.isSneaking()) {
             // shift-right-click stacking is handled in onInteract; a place on top is a new spawner
@@ -98,10 +106,10 @@ public final class BlockListener implements Listener {
             return;
         }
 
-        spawner = new Spawner(
+        Spawner spawner = new Spawner(
                 UUID.randomUUID(), player.getUniqueId(),
                 block.getWorld().getName(), block.getX(), block.getY(), block.getZ(),
-                Spawner.Kind.valueOf(kindRaw), product, 1, 0, true);
+                kind, product, stack, 0, true);
 
         if (!plugin.manager().register(spawner)) {
             player.sendMessage(Text.of("&cA spawner already occupies this block."));
@@ -110,10 +118,12 @@ public final class BlockListener implements Listener {
         }
         plugin.holograms().update(spawner);
         if (s.enableLogger) {
-            plugin.getLogger().info(String.format("%s placed %s at %s %d,%d,%d",
-                    player.getName(), product, block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
+            plugin.getLogger().info(String.format("%s placed %s x%d at %s %d,%d,%d",
+                    player.getName(), product, spawner.stack(),
+                    block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
         }
-        player.sendMessage(Text.of("&aSpawner placed: &f" + product));
+        player.sendMessage(Text.of("&aSpawner placed: &f" + product
+                + (spawner.stack() > 1 ? " &7x" + spawner.stack() : "")));
     }
 
     private void convertVanilla(BlockPlaceEvent event, Player player) {
@@ -179,6 +189,8 @@ public final class BlockListener implements Listener {
 
         Location drop = event.getBlock().getLocation().add(0.5, 0.5, 0.5);
         spawner.contents().forEach(item -> event.getBlock().getWorld().dropItemNaturally(drop, item));
+        // createSpawnerItem stamps the model's virtual count into the PDC, which is
+        // the same field place and merge read back.
         if (s.blockCollectionInInventory) {
             ItemStack item = plugin.createSpawnerItem(spawner);
             var leftover = player.getInventory().addItem(item);
@@ -215,7 +227,7 @@ public final class BlockListener implements Listener {
         }
 
         if (player.isSneaking()) {
-            stack(player, spawner, event.getItem());
+            report(player, stackService.stack(player, spawner, event.getItem()), spawner);
             return;
         }
 
@@ -228,25 +240,23 @@ public final class BlockListener implements Listener {
         else plugin.gui().openMenu(player, spawner);
     }
 
-    private void stack(Player player, Spawner spawner, ItemStack item) {
-        Settings s = plugin.settings();
-        if (item == null || item.getType() != s.spawnerMaterial) return;
-        if (item.getItemMeta() == null) return;
-        String product = item.getItemMeta().getPersistentDataContainer()
-                .get(plugin.itemProductKey(), PersistentDataType.STRING);
-        if (product == null || !product.equals(spawner.product())) return;
-
-        int incoming = s.fullStack ? item.getAmount() : Math.min(item.getAmount(), 64);
-        int room = s.stackLimit - spawner.stack();
-        if (room <= 0) {
-            player.sendMessage(Text.of("&cThis spawner is fully stacked."));
-            return;
+    /** Turns a merge result into player-facing text; the model is untouched on failure. */
+    private void report(Player player, StackService.Result result, Spawner spawner) {
+        if (result == null) return;
+        switch (result.status()) {
+            case OK -> {
+                plugin.holograms().update(spawner);
+                player.sendMessage(Text.of("&aSpawner now holds &f" + result.stackAfter() + "&a."));
+            }
+            case NOT_AUTHORIZED -> player.sendMessage(Text.of("&cThat spawner is not yours."));
+            case NO_ITEM -> player.sendMessage(Text.of("&7Hold a spawner item to merge it."));
+            case WRONG_ITEM -> player.sendMessage(Text.of("&cOnly an identical spawner item can be merged."));
+            case CHUNK_LIMIT -> player.sendMessage(Text.of("&cChunk spawner limit reached ("
+                    + plugin.settings().spawnerLimitInChunk + ")."));
+            case STACK_LIMIT -> player.sendMessage(Text.of("&cThis spawner can hold &f"
+                    + result.room() + "&c more."));
+            default -> player.sendMessage(Text.of("&cThat merge is not possible."));
         }
-        int move = Math.min(incoming, room);
-        spawner.addStack(move);
-        item.setAmount(item.getAmount() - move);
-        plugin.holograms().update(spawner);
-        player.sendMessage(Text.of("&aSpawner now holds &f" + spawner.stack() + "&a."));
     }
 
     @EventHandler(ignoreCancelled = true)

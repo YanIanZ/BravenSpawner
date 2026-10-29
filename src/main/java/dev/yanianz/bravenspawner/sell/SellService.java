@@ -15,16 +15,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Converts stored spawner loot into money, on demand and on a timer.
  *
- * <p>Every sale is priced before it is paid and paid before anything is removed:
- * an item with no {@code sell-prices} entry is never sellable, a storage snapshot
- * keeps the quoted value and the removed amount identical, and a missing economy
- * leaves the storage exactly as it was. Items produced between the quote and the
- * removal are preserved because only the priced stacks are subtracted.
+ * <p>Every sale is a small state machine — {@code QUOTED → PAID → CLEARED}, or
+ * {@code QUOTED → FAILED} — so a quote can be deposited exactly once and its
+ * stock removed exactly once. A quote that was paid but whose slots could not be
+ * drained is quarantined per spawner and retried before any new quote, which is
+ * what stops a retry from paying the same stack twice.
+ *
+ * <p>Removal is a reservation drain, not a snapshot replace: the priced amount
+ * of each material is taken from live storage with {@link Spawner#drainSlot(int, int)},
+ * so loot produced between the quote and the commit survives. Only the exact
+ * amounts that were paid for are ever removed.
  *
  * <p>The service is a per-plugin singleton installed from the GUI constructor,
  * which is the only subsystem the bootstrap creates during onEnable; that keeps
@@ -34,20 +40,90 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SellService {
 
     /** Outcome of a sale attempt, so the caller can word the feedback without re-checking config. */
-    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED }
+    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED, PENDING }
 
-    /** A completed or refused sale: value is what was (or would have been) paid. */
-    public record Sale(Status status, double value, int items) {
-        static Sale refused(Status status) {
-            return new Sale(status, 0.0, 0);
+    /** A completed, refused or quarantined sale: value is what was (or would have been) paid. */
+    public record Sale(Status status, double value, int items, String reason) {
+        static Sale refused(Status status, String reason) {
+            return new Sale(status, 0.0, 0, reason);
         }
     }
 
-    private record Priced(List<ItemStack> sold, int items, double value) {}
+    /**
+     * One priced amount to remove. The template is the quoted identity (material
+     * plus item meta), so two stacks of the same material with different meta are
+     * never conflated and the drain cannot remove a different item than it priced.
+     */
+    private static final class Reservation {
+        private final ItemStack template;
+        private int remaining;
+
+        private Reservation(ItemStack template, int amount) {
+            this.template = template;
+            this.remaining = amount;
+        }
+    }
+
+    private record Priced(List<Reservation> reserved, int items, double value) {}
 
     private record PriceTable(Map<String, Double> unitPrices, double multiplier) {}
 
+    private record DrainStep(int index, Reservation reservation, int amount) {}
+
+    /** The only legal transitions: QUOTED→PAID→CLEARED, or QUOTED→FAILED. */
+    private enum Phase { QUOTED, PAID, CLEARED, FAILED }
+
+    /**
+     * One sale attempt carrying the quote it must pay for.
+     *
+     * <p>{@link #markPaid()} and {@link #markCleared()} refuse a second call, so
+     * even a buggy caller cannot turn one quote into two deposits or two drains.
+     * Methods are synchronized because the autosell pass and a GUI click share
+     * the service lock, but a future async settlement must not see a half state.
+     */
+    private static final class SaleAttempt {
+        private final UUID id = UUID.randomUUID();
+        private final UUID spawnerId;
+        private final List<Reservation> reservations;
+        private final int items;
+        private final double value;
+        private Phase phase = Phase.QUOTED;
+
+        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, int items, double value) {
+            this.spawnerId = spawnerId;
+            this.reservations = reservations;
+            this.items = items;
+            this.value = value;
+        }
+
+        synchronized boolean markPaid() {
+            if (phase != Phase.QUOTED) return false;
+            phase = Phase.PAID;
+            return true;
+        }
+
+        synchronized boolean markCleared() {
+            if (phase != Phase.PAID) return false;
+            phase = Phase.CLEARED;
+            return true;
+        }
+
+        synchronized void failBeforePayment() {
+            if (phase == Phase.QUOTED) phase = Phase.FAILED;
+        }
+
+        /** Units still owed to the buyer; shrinks as the drain succeeds. */
+        synchronized int outstanding() {
+            int left = 0;
+            for (Reservation reservation : reservations) left += Math.max(0, reservation.remaining);
+            return left;
+        }
+    }
+
     private static final long MIN_AUTOSELL_TICKS = 100L;
+
+    /** A paid quote is retried at most this many times before it stays quarantined. */
+    private static final int MAX_DRAIN_PASSES = 4;
 
     private static volatile SellService instance;
 
@@ -55,6 +131,9 @@ public final class SellService {
     private final ShopHook shop;
     private final Object saleLock = new Object();
     private final AtomicBoolean economyWarned = new AtomicBoolean();
+
+    /** Paid-but-uncleared attempts, keyed by spawner; guarded by {@link #saleLock}. */
+    private final Map<UUID, SaleAttempt> pendingPayouts = new HashMap<>();
 
     private volatile ScheduledTask autosellTask;
 
@@ -109,23 +188,24 @@ public final class SellService {
     /**
      * Sells a spawner's priced storage to the clicking player.
      *
-     * <p>Runs the same quote/pay/remove sequence as autosell so a manual click can
+     * <p>Runs the same quote/pay/drain sequence as autosell so a manual click can
      * never pay a different amount than the GUI advertised, and serialises per
      * service so a click and an autosell pass cannot both price the same stack.
+     * A previous payout that is still waiting for stock is finished first — that
+     * is the retry path, and it never calls the economy again.
      */
     public Sale sell(Player player, Spawner spawner) {
-        if (player == null || spawner == null) return Sale.refused(Status.NOTHING_TO_SELL);
-        if (!enabled()) return Sale.refused(Status.DISABLED);
-        if (!economyReady()) return Sale.refused(Status.NO_ECONOMY);
-
-        Priced priced;
-        synchronized (saleLock) {
-            priced = price(spawner.contents(), prices());
-            if (priced.items() <= 0 || priced.value() <= 0.0) return Sale.refused(Status.NOTHING_TO_SELL);
-            if (!pay(player, priced.value())) return Sale.refused(Status.FAILED);
-            clear(priced.sold(), spawner);
+        if (player == null || spawner == null) {
+            return Sale.refused(Status.NOTHING_TO_SELL, "no spawner selected");
         }
-        return new Sale(Status.SOLD, priced.value(), priced.items());
+        if (!enabled()) return Sale.refused(Status.DISABLED, "selling is disabled by config");
+        if (!economyReady()) return Sale.refused(Status.NO_ECONOMY, "no Vault economy provider is registered");
+
+        synchronized (saleLock) {
+            Sale outstanding = settleOutstanding(spawner);
+            if (outstanding != null) return outstanding;
+            return attemptSale(spawner, player, prices());
+        }
     }
 
     /** Money text using the same {@code money-decimals} rules as the rest of the plugin. */
@@ -153,6 +233,13 @@ public final class SellService {
         ScheduledTask task = autosellTask;
         autosellTask = null;
         if (task != null && !task.isCancelled()) task.cancel();
+        synchronized (saleLock) {
+            if (!pendingPayouts.isEmpty()) {
+                plugin.getLogger().warning(pendingPayouts.size()
+                        + " paid sale(s) still had unremoved stock at shutdown; they were not paid again.");
+            }
+            pendingPayouts.clear();
+        }
     }
 
     // ------------------------------------------------------------ autosell
@@ -194,15 +281,19 @@ public final class SellService {
     }
 
     private void autosellSpawner(Spawner spawner, PriceTable table) {
-        Priced priced;
+        Sale sale;
         synchronized (saleLock) {
-            priced = price(spawner.contents(), table);
-            if (priced.items() <= 0 || priced.value() <= 0.0) return;
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(spawner.owner());
-            if (!pay(owner, priced.value())) return;
-            clear(priced.sold(), spawner);
+            Sale outstanding = settleOutstanding(spawner);
+            if (outstanding != null) {
+                if (outstanding.status() == Status.PENDING) {
+                    plugin.getLogger().warning("payout for " + spawner.id()
+                            + " is still waiting for stock; autosell skipped it.");
+                }
+                return;
+            }
+            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), table);
         }
-        notifyOwner(spawner, priced);
+        if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
     }
 
     /**
@@ -212,13 +303,12 @@ public final class SellService {
      * autosell pass runs on the global region thread, which does not own the
      * player and must not talk to the connection directly.
      */
-    private void notifyOwner(Spawner spawner, Priced priced) {
+    private void notifyOwner(Spawner spawner, int items, double value) {
         if (plugin.getConfig().getBoolean("disable-autosell-notifications", false)) return;
         Player owner = Bukkit.getPlayer(spawner.owner());
         if (owner == null || !owner.isOnline()) return;
 
-        String text = "&aAutosold &f" + priced.items() + " &aitem(s) for &f"
-                + format(priced.value()) + "&a.";
+        String text = "&aAutosold &f" + items + " &aitem(s) for &f" + format(value) + "&a.";
         owner.getScheduler().execute(plugin, () -> owner.sendMessage(Text.of(text)), null, 1L);
     }
 
@@ -244,8 +334,15 @@ public final class SellService {
         return new PriceTable(Map.copyOf(units), multiplier);
     }
 
+    /**
+     * Prices the priced part of storage and turns it into per-identity reservations.
+     *
+     * <p>Aggregating similar stacks here means the commit removes a quantity, not
+     * a set of storage positions: positions shift whenever a producer appends and
+     * a position-based quote would either miss loot or take the wrong stack.
+     */
     private Priced price(List<ItemStack> contents, PriceTable table) {
-        List<ItemStack> sold = new ArrayList<>();
+        List<Reservation> reserved = new ArrayList<>();
         int items = 0;
         double total = 0.0;
 
@@ -253,56 +350,156 @@ public final class SellService {
             if (stack == null || stack.getType().isAir()) continue;
             Double unit = table.unitPrices().get(stack.getType().name());
             if (unit == null) continue;
-            ItemStack copy = stack.clone();
-            sold.add(copy);
-            items += copy.getAmount();
-            total += unit * copy.getAmount();
+            int amount = stack.getAmount();
+            if (amount <= 0) continue;
+
+            Reservation matching = null;
+            for (Reservation candidate : reserved) {
+                if (candidate.template.isSimilar(stack)) {
+                    matching = candidate;
+                    break;
+                }
+            }
+            if (matching == null) {
+                reserved.add(new Reservation(stack.clone(), amount));
+            } else {
+                matching.remaining += amount;
+            }
+            items += amount;
+            total += unit * amount;
         }
-        return new Priced(sold, items, total * table.multiplier());
+        return new Priced(List.copyOf(reserved), items, total * table.multiplier());
+    }
+
+    // ---------------------------------------------------------- settlement
+
+    /**
+     * Finishes a previously paid quote before a new one is quoted.
+     *
+     * <p>Returns null when there is nothing pending or the pending drain has just
+     * completed, so the caller may quote the remaining stock. Returns a
+     * {@link Status#PENDING} sale while the stock is still owed: the money already
+     * left the provider, and quoting again would pay for the same units twice.
+     */
+    private Sale settleOutstanding(Spawner spawner) {
+        SaleAttempt pending = pendingPayouts.get(spawner.id());
+        if (pending == null) return null;
+        if (drain(pending, spawner) && pending.markCleared()) {
+            pendingPayouts.remove(spawner.id(), pending);
+            plugin.getLogger().info("reconciled paid sale " + pending.id + " for spawner " + spawner.id());
+            return null;
+        }
+        return new Sale(Status.PENDING, pending.value, pending.items,
+                "a previous payout of " + format(pending.value) + " is still waiting for its items");
     }
 
     /**
-     * Removes exactly the priced stacks, leaving anything produced after the quote.
+     * Quotes, pays once and drains once.
      *
-     * <p>Re-reads the storage instead of clearing blindly so an autosell pass that
-     * overlapped a region tick cannot destroy loot it never paid for; the loop
-     * consumes the sold amounts across every matching live stack. Only the amount
-     * quoted is removed — an extra stack of the same material stays behind in full.
+     * <p>The order is deliberate: nothing leaves storage until the provider
+     * reports a successful deposit. A rejection fails the attempt with storage
+     * untouched; a successful deposit followed by a failed drain leaves the
+     * attempt in {@link Phase#PAID} and quarantines it, so the next pass removes
+     * the stock without calling the economy again.
      */
-    private void clear(List<ItemStack> sold, Spawner spawner) {
-        List<ItemStack> live = spawner.contents();
-        List<ItemStack> remaining = new ArrayList<>(live.size());
-
-        for (ItemStack stack : live) {
-            int keep = stack.getAmount();
-            for (ItemStack target : sold) {
-                if (keep <= 0) break;
-                if (!target.isSimilar(stack)) continue;
-                int take = Math.min(keep, target.getAmount());
-                target.setAmount(target.getAmount() - take);
-                keep -= take;
-            }
-            if (keep > 0) {
-                ItemStack copy = stack.clone();
-                copy.setAmount(keep);
-                remaining.add(copy);
-            }
+    private Sale attemptSale(Spawner spawner, OfflinePlayer target, PriceTable table) {
+        Priced priced = price(spawner.contents(), table);
+        if (priced.items() <= 0 || priced.value() <= 0.0) {
+            return Sale.refused(Status.NOTHING_TO_SELL, "nothing stored has a sell price");
         }
-        spawner.replaceContents(remaining);
+
+        SaleAttempt attempt = new SaleAttempt(spawner.id(), priced.reserved(), priced.items(), priced.value());
+        if (!deposit(target, attempt.value)) {
+            attempt.failBeforePayment();
+            return new Sale(Status.FAILED, attempt.value, attempt.items, "Vault rejected the deposit");
+        }
+        if (!attempt.markPaid()) {
+            // Only reachable if a future caller reuses the attempt; refusing here
+            // is what keeps one quote from being paid twice.
+            return new Sale(Status.FAILED, attempt.value, attempt.items, "sale was already paid");
+        }
+
+        if (!drain(attempt, spawner) || !attempt.markCleared()) {
+            pendingPayouts.put(spawner.id(), attempt);
+            plugin.getLogger().warning("payout " + attempt.id + " for spawner " + spawner.id()
+                    + " was sent but " + attempt.outstanding()
+                    + " item(s) could not be removed; the sale is quarantined until stock returns.");
+            return new Sale(Status.PENDING, attempt.value, attempt.items,
+                    "payout sent; " + attempt.outstanding() + " item(s) still to be removed");
+        }
+        return new Sale(Status.SOLD, attempt.value, attempt.items, "");
     }
 
     /**
-     * Pays through Vault and reports whether the money actually left the bank.
+     * Removes exactly the reserved amounts, taking stock by identity not by index.
      *
-     * <p>Vault's deposit call has no result object, so a thrown provider exception
-     * is the only observable failure; treating it as "not paid" keeps the storage
-     * untouched instead of deleting loot for money that never arrived.
+     * <p>Each pass snapshots live storage, plans which slots can satisfy which
+     * reservation and then drains in descending slot order, because
+     * {@link Spawner#drainSlot(int, int)} removes an emptied slot and would shift
+     * every higher index. A slot that changed identity underneath the plan is put
+     * back with {@link Spawner#store(ItemStack, int)} and the pass is abandoned;
+     * the attempt stays paid and its remaining count is retried later. Loot that
+     * appeared after the quote is never in the reservation, so it stays put.
      */
-    private boolean pay(OfflinePlayer target, double amount) {
+    private boolean drain(SaleAttempt attempt, Spawner spawner) {
+        for (int pass = 0; pass < MAX_DRAIN_PASSES; pass++) {
+            if (attempt.outstanding() <= 0) return true;
+
+            List<ItemStack> live = spawner.contents();
+            List<DrainStep> steps = new ArrayList<>();
+
+            for (Reservation reservation : attempt.reservations) {
+                int need = reservation.remaining;
+                if (need <= 0) continue;
+                for (int index = 0; index < live.size() && need > 0; index++) {
+                    ItemStack stack = live.get(index);
+                    if (stack == null || stack.getType().isAir()) continue;
+                    if (!reservation.template.isSimilar(stack)) continue;
+
+                    int alreadyPlanned = 0;
+                    for (DrainStep step : steps) {
+                        if (step.index() == index) alreadyPlanned += step.amount();
+                    }
+                    int available = stack.getAmount() - alreadyPlanned;
+                    if (available <= 0) continue;
+
+                    int take = Math.min(need, available);
+                    steps.add(new DrainStep(index, reservation, take));
+                    need -= take;
+                }
+            }
+
+            if (steps.isEmpty()) return false;
+            steps.sort((a, b) -> Integer.compare(b.index(), a.index()));
+
+            for (DrainStep step : steps) {
+                ItemStack removed = spawner.drainSlot(step.index(), step.amount());
+                if (removed == null || removed.getAmount() <= 0) return false;
+                if (!step.reservation().template.isSimilar(removed)) {
+                    // A concurrent mutation moved a different stack into this slot;
+                    // restore it untouched and re-plan from a fresh snapshot.
+                    spawner.store(removed, 0);
+                    return false;
+                }
+                step.reservation().remaining -= removed.getAmount();
+            }
+        }
+        return attempt.outstanding() <= 0;
+    }
+
+    /**
+     * Pays through Vault and reports whether the provider confirmed the credit.
+     *
+     * <p>{@link dev.yanianz.bravenspawner.econ.Economy#deposit} reads
+     * {@code EconomyResponse.transactionSuccess()}; a thrown provider exception or
+     * a failed response both read as "not paid", which keeps the storage untouched
+     * instead of deleting loot for money that never arrived.
+     */
+    private boolean deposit(OfflinePlayer target, double amount) {
+        if (target == null) return false;
         if (plugin.economy() == null || !plugin.economy().enabled()) return false;
         try {
-            plugin.economy().deposit(target, amount);
-            return true;
+            return plugin.economy().deposit(target, amount);
         } catch (RuntimeException e) {
             plugin.getLogger().warning("deposit of " + format(amount) + " failed: " + e.getMessage());
             return false;

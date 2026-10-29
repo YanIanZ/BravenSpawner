@@ -102,12 +102,8 @@ public final class BravenSpawner extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new dev.yanianz.bravenspawner.listener.GuiGuardListener(this), this);
 
-        var command = getCommand("bspawner");
-        if (command != null) {
-            CommandHandler handler = new CommandHandler(this);
-            command.setExecutor(handler);
-            command.setTabCompleter(handler);
-        }
+        new CommandHandler(this).register(this);
+
         boosters.start(settings);
         new CorruptionTask(this).start();
 

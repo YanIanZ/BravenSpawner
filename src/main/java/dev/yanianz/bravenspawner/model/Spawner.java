@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -19,6 +20,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * trust list, stored loot, accumulated XP, corruption state and a production
  * counter. Mutation is guarded by a single monitor so a region thread and an
  * async save can never interleave.
+ *
+ * <p>Stack mutation is exposed as an atomic check-and-add ({@link #tryAddStack})
+ * rather than a plain setter: stacking is a transfer of owned value, so the cap
+ * check and the write must happen under the same lock or a concurrent merge can
+ * push the stack past the configured limit.
  */
 public final class Spawner {
 
@@ -35,6 +41,7 @@ public final class Spawner {
     private final List<ItemStack> storage = new ArrayList<>();
     private final Set<UUID> trusted = Collections.synchronizedSet(new LinkedHashSet<>());
     private final AtomicLong produced = new AtomicLong();
+    private final AtomicInteger pending = new AtomicInteger();
 
     private volatile Kind kind;
     private volatile String product;
@@ -74,8 +81,38 @@ public final class Spawner {
     public void product(String value) { this.product = value; }
 
     public int stack() { return stack; }
-    public void stack(int value) { this.stack = Math.max(0, value); }
-    public void addStack(int delta) { this.stack = Math.max(0, this.stack + delta); }
+
+    public void stack(int value) {
+        synchronized (lock) { stack = Math.max(0, value); }
+    }
+
+    public void addStack(int delta) {
+        synchronized (lock) { stack = Math.max(0, stack + delta); }
+    }
+
+    /**
+     * Adds {@code delta} only when the resulting stack stays within {@code limit}.
+     *
+     * <p>Returns {@code false} and changes nothing when the mount does not fit, so
+     * callers can reject a merge before touching the player's item. An accepted
+     * merge reports {@code true} and a fully applied delta; there is no partial
+     * application, because a partial merge would need a second accounting path for
+     * the leftover.
+     */
+    public boolean tryAddStack(int delta, int limit) {
+        if (delta <= 0) return false;
+        synchronized (lock) {
+            long target = (long) stack + delta;
+            if (target > limit) return false;
+            stack = (int) target;
+            return true;
+        }
+    }
+
+    /** Head-room left before {@code limit}; never negative. */
+    public int roomFor(int limit) {
+        synchronized (lock) { return Math.max(0, limit - stack); }
+    }
 
     public int tier() { return tier; }
     public void tier(int value) { this.tier = Math.max(0, value); }
@@ -112,17 +149,44 @@ public final class Spawner {
 
     public boolean isOwner(UUID uuid) { return owner.equals(uuid); }
 
-    public boolean canUse(UUID uuid) { return isOwner(uuid) || trusted.contains(uuid); }
+    public boolean canUse(UUID uuid) { return isOwner(uuid) || (uuid != null && trusted.contains(uuid)); }
 
     public long produced() { return produced.get(); }
     public void produced(long delta) { produced.addAndGet(delta); }
 
+    /**
+     * Virtual production credits a mob spawner could not spend yet.
+     *
+     * <p>A stack of 200 000 must not mean 200 000 entity spawns in one cycle, so a
+     * capped number of real spawns happens per pass and the rest is carried here.
+     * Item spawners do not use this: their yield is aggregated in closed form.
+     */
+    public int pending() { return pending.get(); }
+
+    public void pending(int value) { pending.set(Math.max(0, value)); }
+
+    public void addPending(int delta) {
+        if (delta <= 0) return;
+        pending.updateAndGet(current -> {
+            long next = (long) current + delta;
+            return next > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) next;
+        });
+    }
+
+    /**
+     * A location snapshot for this spawner block.
+     *
+     * <p>The returned object may be built from any thread (world lookup is a map
+     * read), but it must only be used to dispatch work to the owning region — never
+     * as a licence to read blocks or entities from a foreign thread.
+     */
     public Location location() {
         var w = Bukkit.getWorld(world);
         if (w == null) return null;
         return new Location(w, x + 0.5, y + 1.0, z + 0.5);
     }
 
+    /** The block's own location; same thread-ownership rule as {@link #location()}. */
     public Location blockLocation() {
         var w = Bukkit.getWorld(world);
         if (w == null) return null;

@@ -13,7 +13,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Chest GUI: a paged storage view plus a control menu.
@@ -29,17 +32,73 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Everything is read-only except the three action buttons, so the inventory can
  * never be used to dupe or to move items the model still owns. Page navigation is
  * instant when configured, otherwise delayed by one tick.
+ *
+ * <p>Sessions are identified by the window itself, not by the player: every open
+ * inventory carries a typed {@link GuiHolder} with the spawner id and a monotonic
+ * generation, and an event is only honoured when its holder is still the current
+ * session. Titles are never parsed, so a rapid close/open cannot let the close of
+ * an old window clear the session of the new one.
  */
 public final class SpawnerGui implements Listener {
 
     private enum View { MENU, STORAGE }
 
-    private record Session(UUID spawnerId, View view, int page) {}
+    /**
+     * Identity of one open spawner window.
+     *
+     * <p>The generation is incremented for every window, so a stale holder left in
+     * an event queue is distinguishable from the current one even when both point
+     * at the same spawner. {@link #getInventory()} is filled in immediately after
+     * the inventory is created; Paper does not call it during creation.
+     */
+    public static final class GuiHolder implements InventoryHolder {
+
+        private final UUID spawnerId;
+        private final long generation;
+        private final View view;
+        private final int page;
+        private Inventory inventory;
+
+        private GuiHolder(UUID spawnerId, long generation, View view, int page) {
+            this.spawnerId = spawnerId;
+            this.generation = generation;
+            this.view = view;
+            this.page = page;
+        }
+
+        private void attach(Inventory inventory) {
+            this.inventory = inventory;
+        }
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
+
+        /** The spawner this window was built for. */
+        public UUID spawnerId() {
+            return spawnerId;
+        }
+
+        /** Monotonic window number; the current session always has the highest one. */
+        public long generation() {
+            return generation;
+        }
+
+        private boolean menu() {
+            return view == View.MENU;
+        }
+
+        private int page() {
+            return page;
+        }
+    }
 
     private final BravenSpawner plugin;
     private final GuiLock locks;
     private final SellService sellService;
-    private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
+    private final AtomicLong generations = new AtomicLong();
+    private final Map<UUID, GuiHolder> sessions = new ConcurrentHashMap<>();
 
     public SpawnerGui(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -47,8 +106,9 @@ public final class SpawnerGui implements Listener {
         this.sellService = SellService.install(plugin);
     }
 
-    public Session session(Player player) {
-        return sessions.get(player.getUniqueId());
+    /** The window the player currently owns, or null when they have no spawner GUI open. */
+    public GuiHolder session(Player player) {
+        return player == null ? null : sessions.get(player.getUniqueId());
     }
 
     public void openMenu(Player player, Spawner spawner) {
@@ -62,7 +122,9 @@ public final class SpawnerGui implements Listener {
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(null, 27, Text.of("&8Spawner — " + spawner.product()));
+        GuiHolder holder = new GuiHolder(spawner.id(), generations.incrementAndGet(), View.MENU, 0);
+        Inventory inv = Bukkit.createInventory(holder, 27, Text.of("&8Spawner — " + spawner.product()));
+        holder.attach(inv);
         inv.setItem(10, button(Material.CHEST, "&aStorage",
                 List.of("&7Stored: &f" + spawner.storedCount(),
                         "&7Slots: &f" + spawner.distinctSlots(),
@@ -79,9 +141,9 @@ public final class SpawnerGui implements Listener {
                 List.of("&7/bmodify <player>")));
         inv.setItem(16, button(Material.BARRIER, "&cClose", List.of()));
 
-        sessions.put(player.getUniqueId(), new Session(spawner.id(), View.MENU, 0));
+        if (!show(player, inv)) return;
+        sessions.put(player.getUniqueId(), holder);
         locks.markOpened(player.getUniqueId(), spawner.id());
-        player.openInventory(inv);
         if (s.enableLogger) {
             plugin.getLogger().info(player.getName() + " opened menu of " + spawner.id());
         }
@@ -101,8 +163,10 @@ public final class SpawnerGui implements Listener {
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(null, rows * 9,
+        GuiHolder holder = new GuiHolder(spawner.id(), generations.incrementAndGet(), View.STORAGE, safePage);
+        Inventory inv = Bukkit.createInventory(holder, rows * 9,
                 Text.of("&8Storage " + (safePage + 1) + "/" + pages));
+        holder.attach(inv);
 
         int start = safePage * perPage;
         for (int i = 0; i < perPage && start + i < contents.size(); i++) {
@@ -115,29 +179,65 @@ public final class SpawnerGui implements Listener {
         inv.setItem(navRow + 4, button(Material.HOPPER, "&aTake all", List.of("&7Withdraw everything.")));
         inv.setItem(navRow + 3, button(Material.BARRIER, "&cBack", List.of()));
 
-        sessions.put(player.getUniqueId(), new Session(spawner.id(), View.STORAGE, safePage));
+        if (!show(player, inv)) return;
+        sessions.put(viewer, holder);
         locks.markOpened(viewer, spawner.id());
-        player.openInventory(inv);
+    }
+
+    /**
+     * Opens the window and records the session only when the server accepted it.
+     *
+     * <p>Recording after {@link Player#openInventory(Inventory)} matters: that call
+     * fires the close event of the previous window first, and the close handler
+     * must still see the old holder as current — otherwise a page change would
+     * clear the brand-new session it is replacing.
+     */
+    private boolean show(Player player, Inventory inventory) {
+        player.openInventory(inventory);
+        return player.getOpenInventory().getTopInventory() == inventory;
     }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        Session session = sessions.get(player.getUniqueId());
-        if (session == null) return;
+        if (!(event.getView().getTopInventory().getHolder() instanceof GuiHolder holder)) return;
 
+        // Cancel before resolving anything: this covers shift-click, double-click,
+        // hotbar swaps and clicks in the player's own rows, so no item can move
+        // through a spawner window even from a stale one.
         event.setCancelled(true);
-        if (event.getClickedInventory() == null) return;
-        if (event.getClickedInventory() == event.getView().getBottomInventory()) return;
 
-        Spawner spawner = plugin.manager().byId(session.spawnerId());
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        GuiHolder current = sessions.get(player.getUniqueId());
+        if (current == null || current.generation() != holder.generation()) return;
+
+        Inventory clicked = event.getClickedInventory();
+        if (clicked == null || clicked != event.getView().getTopInventory()) return;
+
+        if (plugin.manager() == null) {
+            player.closeInventory();
+            return;
+        }
+        Spawner spawner = plugin.manager().byId(current.spawnerId());
         if (spawner == null) {
             player.closeInventory();
             return;
         }
         int slot = event.getSlot();
-        if (session.view() == View.MENU) handleMenu(player, spawner, slot);
-        else handleStorage(player, spawner, session.page(), slot);
+        if (current.menu()) handleMenu(player, spawner, slot);
+        else handleStorage(player, spawner, current.page(), slot);
+    }
+
+    /**
+     * Cancels drags that involve a spawner window.
+     *
+     * <p>Shift-drag can move items from the player inventory into the GUI in one
+     * event that never produces a plain click, so the click guard alone would let
+     * a player insert an item into a read-only view.
+     */
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof GuiHolder)) return;
+        event.setCancelled(true);
     }
 
     private void handleMenu(Player player, Spawner spawner, int slot) {
@@ -212,7 +312,10 @@ public final class SpawnerGui implements Listener {
             case NOTHING_TO_SELL -> player.sendMessage(Text.of("&7Nothing stored with a sell price."));
             case DISABLED -> player.sendMessage(Text.of("&cSelling is disabled on this server."));
             case NO_ECONOMY -> player.sendMessage(Text.of("&cEconomy not available — nothing was sold."));
-            case FAILED -> player.sendMessage(Text.of("&cSale failed — nothing was removed."));
+            case FAILED -> player.sendMessage(Text.of("&cSale failed — nothing was removed."
+                    + (sale.reason().isBlank() ? "" : " &7(" + sale.reason() + ")")));
+            case PENDING -> player.sendMessage(Text.of("&eA previous payout is still being settled; "
+                    + "no new sale was made."));
         }
         openMenu(player, spawner);
     }
@@ -257,10 +360,21 @@ public final class SpawnerGui implements Listener {
         return s.tiers.get(Math.min(spawner.tier(), s.tiers.size() - 1)).capacity;
     }
 
+    /**
+     * Ends the session only when the window that closed is the current one.
+     *
+     * <p>A rapid close/open fires the old close event after the new holder has
+     * already been recorded. Clearing by player id alone would then delete the new
+     * session and release its save lock, so the holder identity is the guard.
+     */
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
+        if (!(event.getInventory().getHolder() instanceof GuiHolder holder)) return;
         UUID player = event.getPlayer().getUniqueId();
-        sessions.remove(player);
+        GuiHolder current = sessions.get(player);
+        if (current == null || current.generation() != holder.generation()) return;
+
+        sessions.remove(player, holder);
         // Releases the save lock and starts the reconnect cooldown so a reopen
         // cannot race the persistence pass.
         locks.markClosed(player);

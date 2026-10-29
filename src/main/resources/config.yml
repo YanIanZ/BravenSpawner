@@ -110,6 +110,8 @@ upgrades:
       capacity: 180
 
 boosters:
+  # Duration granted by /bspawner booster and by consumable booster items, in
+  # seconds. Values outside 5..86400 are clamped when the config is loaded.
   duration-seconds: 600
   items:
     SUGAR: 1.5

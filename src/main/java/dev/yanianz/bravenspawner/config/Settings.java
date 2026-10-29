@@ -192,7 +192,11 @@ public final class Settings {
         b.stackLimit = Math.max(1, root.getInt("stack-limit", 200000));
 
         b.enableBoosters = root.getBoolean("enable-boosters", true);
-        b.boosterSeconds = root.getLong("boosters.duration-seconds", 600L);
+        // A zero/negative duration grants a booster that is already expired, and an
+        // unbounded one keeps a multiplier alive for years. Clamp to the documented
+        // 5..86400 second window instead of trusting the file.
+        long boosterSeconds = root.getLong("boosters.duration-seconds", 600L);
+        b.boosterSeconds = Math.max(5L, Math.min(86_400L, boosterSeconds));
         ConfigurationSection boostItems = root.getConfigurationSection("boosters.items");
         if (boostItems != null) {
             for (String key : boostItems.getKeys(false)) {
@@ -299,7 +303,8 @@ public final class Settings {
 
     public java.util.Map<String, Product> items() { return items; }
 
-    public long boosterSeconds() { return 600L; }
+    /** Configured booster duration in seconds, already clamped to 5..86400 while loading. */
+    public long boosterSeconds() { return boosterSeconds; }
 
     /** Multiplier for a booster item, or null when the material is not one. */
     public Double boosterItem(org.bukkit.Material material) {

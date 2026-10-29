@@ -35,8 +35,26 @@ public final class Economy {
         return response != null && response.transactionSuccess();
     }
 
-    public void deposit(OfflinePlayer player, double amount) {
-        if (amount > 0 && provider != null) provider.depositPlayer(player, amount);
+    /**
+     * Credits the player and reports whether the provider confirmed it.
+     *
+     * <p>Vault answers with an {@link EconomyResponse}, and a provider may reject
+     * or partially fail a deposit without throwing. Returning the response's own
+     * {@code transactionSuccess()} is what lets the caller keep stock it has not
+     * been paid for; swallowing the response made every non-zero amount look paid.
+     * A missing response is treated as a failure — fail closed.
+     */
+    public boolean deposit(OfflinePlayer player, double amount) {
+        if (amount <= 0) return true;
+        if (player == null || provider == null) return false;
+        EconomyResponse response = provider.depositPlayer(player, amount);
+        if (response == null) return false;
+        if (!response.transactionSuccess()) {
+            Bukkit.getLogger().warning("Vault deposit of " + amount + " for "
+                    + player.getUniqueId() + " was rejected: " + response.errorMessage);
+            return false;
+        }
+        return true;
     }
 
     public String format(double amount) {
