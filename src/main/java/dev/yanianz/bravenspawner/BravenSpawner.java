@@ -211,8 +211,8 @@ public final class BravenSpawner extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         getServer().getPluginManager().registerEvents(gui, this);
         getServer().getPluginManager().registerEvents(new GuiGuardListener(this), this);
-        if (wands != null) getServer().getPluginManager().registerEvents(
-                new dev.yanianz.bravenspawner.wand.SellWandListener(this, wands), this);
+        // SellWandService.install() registers its own listener; registering a
+        // second one would handle every wand click twice.
 
         new CommandHandler(this).register(this);
         boosters.start(settings);

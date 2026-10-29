@@ -5,6 +5,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-30
+
+### Fixed
+- The sell wand listener was registered twice — once by `SellWandService.install`
+  and once by the plugin — so a wand click ran the sale path twice. The plugin no
+  longer registers it.
+
 ## [1.1.0] - 2026-10-30
 
 ### Added
@@ -75,7 +82,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.1
 [1.0.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.2
 [1.0.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.1
 [1.0.0]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.0
