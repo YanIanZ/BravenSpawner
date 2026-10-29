@@ -1,0 +1,32 @@
+name: BravenSpawner
+version: '${version}'
+main: dev.yanianz.bravemspawner.BravemSpawner
+api-version: '1.20'
+author: yanianz
+description: Virtual spawners with stacking, chest GUI, upgrades, boosters, corruption and Folia support.
+load: POSTWORLD
+folia-supported: true
+softdepend:
+  - Vault
+  - WorldGuard
+  - Lands
+  - Towny
+  - PlaceholderAPI
+commands:
+  vspawner:
+    description: Manage BravenSpawner
+    aliases: [bravenspawner, vs, bs]
+    permission: bravenspawner.admin
+  vmodify:
+    description: Toggle trust on a spawner
+    permission: bravenspawner.use
+  shtoggle:
+    description: Toggle holograms on your spawners
+    permission: bravenspawner.use
+permissions:
+  bravenspawner.admin:
+    default: op
+  bravenspawner.use:
+    default: true
+  bravenspawner.item.extract:
+    default: true

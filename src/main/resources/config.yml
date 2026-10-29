@@ -1,0 +1,171 @@
+use_item_spawners: true
+item_spawner_optimization: false
+instant_page_navigation: true
+use_new_ticking_system: true
+skip-menu: false
+bedrock: false
+enable-logger: false
+restore-missing-spawners: false
+
+chest_gui:
+  enabled: true
+  protection:
+    reconnect_cooldown: 3000
+    spawner_lock_timeout: 5000
+    max_teleport_distance: 100.0
+
+cooldowns:
+  break: 300
+  stack: 150
+  gui_open: 1000
+
+blacklisted-worlds: []
+
+no-activation-range: false
+activation-radius: 10
+
+block-collection-in-inventory: true
+unlimited-storage: false
+spawner-limit-in-chunk: 100
+convert-spawners: true
+full-stack: false
+allow-hoppers: false
+enable-mending: false
+drop-xp-as-orbs: false
+placeholders-in-gui: false
+remove-durability-on-break: false
+silk-touch-only: false
+disable-explosion-damage-spawner: true
+multiple-drop: false
+stack-limit: 200000
+
+enable-boosters: true
+disable-autosell-notifications: false
+disable-item-stock: false
+disable-sell-feature: false
+
+ownership:
+  enabled: true
+
+corruption:
+  enabled: false
+  allow-breaking: false
+  solve-radius: 5
+  delay:
+    min: 3600
+    max: 21600
+
+ninja-spawners:
+  enable-invisibility: false
+  start-invisibility-distance: 128
+  refresh-rate: 1
+  visibility-distance: 15
+
+spawner-item:
+  material: SPAWNER
+  name: "&e%displayname%'s Spawner"
+  lore:
+    - "&7Place to activate."
+    - "&7Right-click to open storage."
+
+money-decimals:
+  enabled: true
+  apply-on-amount: true
+  formats:
+    "1": "%number%K"
+    "2": "%number%M"
+    "3": "%number%B"
+    "4": "%number%T"
+    "5": "%number%Q"
+    "6": "%number%Qt"
+
+economy:
+  enabled: false
+  purchase-price: 2500.0
+  sell-multiplier: 1.0
+  autosell: false
+
+sell:
+  # Seconds between autosell passes; only used when economy.autosell is true.
+  # Values below 5 are raised to 5 so a misconfiguration cannot spin the pass.
+  autosell-interval-seconds: 60
+
+upgrades:
+  tiers:
+    - name: base
+      cost: 0.0
+      interval-ticks: 1200
+      capacity: 45
+    - name: iron
+      cost: 5000.0
+      interval-ticks: 900
+      capacity: 90
+    - name: gold
+      cost: 15000.0
+      interval-ticks: 600
+      capacity: 135
+    - name: diamond
+      cost: 50000.0
+      interval-ticks: 300
+      capacity: 180
+
+boosters:
+  duration-seconds: 600
+  items:
+    SUGAR: 1.5
+    BLAZE_POWDER: 2.0
+    NETHER_STAR: 4.0
+
+hologram:
+  enabled: true
+  line: "&e%product% &7| &f%stored% &7stored"
+
+sell-prices:
+  ROTTEN_FLESH: 0.5
+  BONE: 0.5
+  ARROW: 0.2
+  BLAZE_ROD: 3.0
+  COBBLESTONE: 0.1
+  WHEAT: 0.4
+  DIAMOND: 25.0
+
+mobs:
+  ZOMBIE:
+    display: "&2Zombie"
+    xp: 5
+    drops:
+      - "ROTTEN_FLESH:2"
+      - "IRON_INGOT:1:0.10"
+  SKELETON:
+    display: "&7Skeleton"
+    xp: 5
+    drops:
+      - "BONE:2"
+      - "ARROW:2"
+  BLAZE:
+    display: "&6Blaze"
+    xp: 10
+    drops:
+      - "BLAZE_ROD:1"
+  IRON_GOLEM:
+    display: "&fIron Golem"
+    xp: 15
+    drops:
+      - "IRON_INGOT:3"
+
+items:
+  COBBLE:
+    display: "&7Cobblestone Generator"
+    drops:
+      - "COBBLESTONE:3"
+  WHEAT:
+    display: "&eWheat Farm"
+    drops:
+      - "WHEAT:3"
+      - "SEEDS:1:0.5"
+  DIAMOND:
+    display: "&bDiamond Vein"
+    drops:
+      - "DIAMOND:1:0.25"
+
+debug: false

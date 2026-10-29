@@ -1,0 +1,14 @@
+# YAML | SQLITE | MYSQL
+type: "sqlite"
+
+thread_pool_size: 5
+batch_size: 300
+
+mysql:
+  host: localhost
+  port: 3306
+  database: "bravemspawner"
+  user: root
+  password: ''
+  max-pool: 15
+  use-ssl: false
