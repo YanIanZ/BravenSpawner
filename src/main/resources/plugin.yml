@@ -1,6 +1,6 @@
 name: BravenSpawner
 version: '${version}'
-main: dev.yanianz.bravemspawner.BravemSpawner
+main: dev.yanianz.bravenspawner.BravenSpawner
 api-version: '1.20'
 author: yanianz
 description: Virtual spawners with stacking, chest GUI, upgrades, boosters, corruption and Folia support.

@@ -87,7 +87,7 @@ else at defaults.
 ## Architecture
 
 ```
-BravemSpawner       boot order: config → storage → manager → subsystems → load
+BravenSpawner       boot order: config → storage → manager → subsystems → load
 manager/            one tick pass, per-spawner region schedule
 storage/            interface + YAML / SQLite / MySQL, Codec for items
 gui/                sessions, click-cancel by construction

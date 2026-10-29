@@ -7,7 +7,7 @@ batch_size: 300
 mysql:
   host: localhost
   port: 3306
-  database: "bravemspawner"
+  database: "bravenspawner"
   user: root
   password: ''
   max-pool: 15
