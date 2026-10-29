@@ -132,3 +132,11 @@ Integration: SQLite and MySQL migrations, partial-load fail-close, injected tran
 Runtime: Paper and Folia exact supported build(s), separate region load/unload, movement/teleport across regions, hopper and hologram cleanup, simultaneous actions and crash recovery.
 
 See [TESTER_OWNER.md](TESTER_OWNER.md).
+
+## 10. Advanced module technical design (PROPOSED)
+
+See [catalogue](features/FEATURE_CATALOG.md). The [production engine](features/PRODUCTION_ENGINE.md) calculates aggregate yields and optional offline catch-up without per-unit physical entities. Versioned upgrade profiles and bounded effects are specified in [Upgrade System](features/UPGRADE_SYSTEM.md), while [Evolution](features/EVOLUTION.md) defines irreversible trait/fusion/prestige operations and ledger constraints.
+
+[Braven Core](features/BRAVEN_CORE.md) is a controller-owned single-writer network vault with durable inter-vault transfers. [Automation](features/AUTOMATION.md) interprets a limited rule DSL against immutable snapshots and requests stock-conserving processing, sell or export operations. [Progression](features/PROGRESSION.md) credits achievements based on committed production and lineage, preventing rewards through split/merge replay. [Insight](features/INSIGHT.md) computes privacy-scoped estimates from committed counters.
+
+All player interactions follow [GUI/UX](features/GUI_UX.md), all bonuses follow [Balancing](features/BALANCING.md), and external integrations follow [Public API](features/API_SPEC.md). No advanced module may mutate vault stock, external Vault balance or foreign Folia region state directly; operations pass through trusted services with revisions, role checks, operation IDs and durable recovery rules.

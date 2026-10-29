@@ -126,3 +126,18 @@ Proposed menu sections: **Overview** (type, owner, stack, tier, current state), 
 - Human-readable permissions and config migrations are mandatory.
 - Benchmark reports state server build, Java, CPU, RAM, worlds/chunks, spawner composition, player count, measured sample period, percentiles, and limitations.
 - Owner tests are documented in [TESTER_OWNER.md](TESTER_OWNER.md); engineering gates in [ROADMAP.md](ROADMAP.md).
+
+## 8. Advanced 2.0 requirement supplement (PROPOSED)
+
+The [Advanced feature catalogue](features/FEATURE_CATALOG.md) is the complete index. Its feature specifications establish new requirements, **not shipped capabilities**:
+
+- **CORE-01:** Virtual, physical, hybrid and optional bounded offline production, with production-cycle replay protection ([design](features/PRODUCTION_ENGINE.md)).
+- **UPGR-01:** Multi-path Speed/Capacity/Yield/Fortune/XP/Economy/Automation/Stability plus Compression/Distribution/Fuel/Recovery/Refinement/Offline/Synergy/Specialization upgrades ([design](features/UPGRADE_SYSTEM.md)).
+- **EVOL-01:** Genome traits, specialization Industrial/Prospector/Automator, Fusion, Evolution, voluntary Prestige/Rebirth with clear state retention ([design](features/EVOLUTION.md)).
+- **NET-01:** Braven Core controller, virtual network vaults, linked spawner nodes, configurable synergy, permissioned roles and durable transfers ([design](features/BRAVEN_CORE.md)).
+- **AUTO-01:** Safe declarative rules, processing/recipes, filters, autosell, fuel, Overdrive and optional heat/corruption ([design](features/AUTOMATION.md)).
+- **PROG-01:** Mastery, research prerequisites, blueprints, contracts, achievements and exploit-resistant rewards ([design](features/PROGRESSION.md)).
+- **INSI-01:** Measured analytics, bottleneck identification, fill-time and upgrade ROI estimation as **advisory**, with no external AI dependency ([design](features/INSIGHT.md)).
+- **UX/ECON/API-01:** Admin and player menu UX, economy balancing, plugin API and optional adapters ([GUI](features/GUI_UX.md), [balance](features/BALANCING.md), [API](features/API_SPEC.md)).
+
+All advanced systems are opt-in or independently configurable. Multi-source multipliers must be constrained by a shared cap; split/merge may not duplicate paid upgrade profiles or currency/producer entitlements.

@@ -80,3 +80,24 @@ Cancel/update leases before rebuilding schedules. Drain and confirm scheduled wr
 ## Implementation map
 
 See [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) for target package boundaries, transaction protocols, metrics, API and tests; [ROADMAP.md](ROADMAP.md) for release order; [MIGRATION.md](MIGRATION.md) for backwards compatibility and rollback.
+
+## Advanced ecosystem integration (PROPOSED)
+
+See [feature catalogue](features/FEATURE_CATALOG.md), [Production Engine](features/PRODUCTION_ENGINE.md), [Braven Core](features/BRAVEN_CORE.md), [Upgrade System](features/UPGRADE_SYSTEM.md) and [Public API](features/API_SPEC.md). The planned architecture uses independent bounded modules above a versioned spawner aggregate, virtual item vault and trusted operation coordinator:
+
+```mermaid
+flowchart TD
+  UI[GUI / Commands / API] --> AUTH[Permission and claim policy]
+  AUTH --> APP[Versioned application services]
+  APP --> PRODUCTION[Adaptive production]
+  APP --> PROFILE[Upgrades / Traits / Mastery]
+  APP --> CORE[Braven Core and rule engine]
+  PRODUCTION --> VAULT[Exact-count virtual vault]
+  CORE --> VAULT
+  PROFILE --> DB[(Durable ledger and SQL)]
+  VAULT --> DB
+  APP --> INSIGHT[Committed metrics / Braven Insight]
+  APP --> ECON[Confirmed payout coordinator]
+```
+
+The diagram is a **target**, not a verified runtime implementation. No cross-region world calls or unjournaled multi-vault changes are allowed.

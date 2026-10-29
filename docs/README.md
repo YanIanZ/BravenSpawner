@@ -20,6 +20,26 @@
 
 These two proposals are intentionally separate: **one placed spawner can represent many virtual producer units**, while **a vault stores exact quantities of item types instead of physical 64-item stacks**. Both need explicit conservation, authorization, durable handoffs and Folia-safe scheduling. They have not yet been implemented.
 
+## Complete proposed advanced feature suite
+
+> **Design only — not implemented.** Every proposed system below must pass authorization, durability, Folia thread-ownership, regression and owner sign-off gates before release.
+
+| Specification | Scope |
+| --- | --- |
+| [Advanced feature catalogue](features/FEATURE_CATALOG.md) | Module IDs, dependencies and delivery scope |
+| [Virtual Storage](features/VIRTUAL_STORAGE.md) | ItemKey-based long counts, vaults, overflow |
+| [Virtual Stacking](features/VIRTUAL_STACKING.md) | Virtual producer units, merge/split ledger |
+| [Adaptive Production Engine](features/PRODUCTION_ENGINE.md) | Virtual, physical and offline generation |
+| [Multi-path Upgrades](features/UPGRADE_SYSTEM.md) | Levels, pricing, caps, specialization |
+| [Evolution / Genome / Fusion](features/EVOLUTION.md) | Traits, prestige, rebirth and entitlements |
+| [Braven Core Network](features/BRAVEN_CORE.md) | Controller, network vault, synergy and roles |
+| [Automation and Processing](features/AUTOMATION.md) | Rules, refining, fuel and overdrive |
+| [Research and Mastery](features/PROGRESSION.md) | Blueprints, contracts, achievements |
+| [Braven Insight](features/INSIGHT.md) | Analytics, rates and advice |
+| [GUI / UX / Administration](features/GUI_UX.md) | Menu navigation, roles, accessibility |
+| [Economy and Balancing](features/BALANCING.md) | Costs, sinks, global multiplier limits |
+| [Developer API](features/API_SPEC.md) | Events, snapshots, trusted mutations |
+
 ## Reading rules
 
 - **CURRENT:** Confirmed from source inspection; not necessarily tested or safe.
