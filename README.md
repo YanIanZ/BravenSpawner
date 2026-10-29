@@ -1,5 +1,7 @@
 # BravenSpawner
 
+> **Development status (2026-10-30):** v1.0.1 builds, but an audit identified unresolved integrity, scheduling and Folia-safety concerns. Do not assume crash-safe persistence or production readiness. Read [the audit](docs/AUDIT.md), [roadmap](docs/ROADMAP.md) and [migration plan](docs/MIGRATION.md) before deploying to a public server.
+
 Virtual spawners for **Paper** and **Folia** — stacking, chest-GUI storage, upgrades,
 boosters, corruption and multi-backend persistence.
 
@@ -13,8 +15,7 @@ boosters, corruption and multi-backend persistence.
 
 A spawner block becomes a self-contained production unit. It spawns mobs or
 generates items on a timer, banks the output in its own storage, and hands it back
-through a paged chest GUI. Everything is persisted, restart-safe, and scheduled on
-the thread that owns the chunk.
+through a paged chest GUI. The current implementation keeps generated output in memory and stores it using the selected backend; periodic crash-durable checkpoints and full Folia thread-ownership verification are **planned**, not yet verified.
 
 ```
 place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
@@ -30,20 +31,20 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 | **Production** | mob spawners and item generators, per-tier interval, stack multiplier |
 | **Storage** | per-spawner inventory with capacity tiers, unlimited mode, paged GUI |
 | **Stacking** | shift-right-click to merge up to `stack-limit`, per-chunk cap |
-| **Economy** | Vault sell/autosell, purchase price, tier upgrades, booster multipliers |
+| **Economy** | Vault sell/autosell and upgrades; payment-result validation and atomic stock settlement need fixes |
 | **Corruption** | random corruption countdown, repair radius, production halt |
-| **Protection** | ownership, per-spawner trust, reconnect cooldown, lock timeout, teleport guard |
-| **World rules** | blacklist, activation radius, silk-touch, explosion guard, durability |
+| **Protection** | ownership/trust, reconnect cooldown, lock timeout and teleport guard; some input paths require security fixes |
+| **World rules** | blacklist, activation radius, silk-touch, explosion guard and durability settings |
 | **Visuals** | TextDisplay holograms with live stored count (no external plugin) |
-| **Persistence** | YAML, SQLite (WAL) or MySQL through one interface, transactional flush |
-| **Scheduling** | Paper region API — same jar on Paper and Folia, zero reflection |
+| **Persistence** | YAML, SQLite or MySQL; crash durability and safe failure recovery need hardening |
+| **Scheduling** | Paper region API is used in core paths, but some legacy/global usages still need Folia safety fixes |
 
 ## Compatibility
 
 | | |
 |---|---|
-| Server | Paper 1.20+ · Folia 1.20+ |
-| Java | 21 |
+| Server | Built against Paper API 1.21.1; other versions/Folia require runtime validation |
+| Java | 21 for current build; newer Paper API versions may require Java 25 |
 | Optional | Vault (economy), PlaceholderAPI, WorldGuard, Lands, Towny (claimed-land checks) |
 
 ## Install
@@ -84,10 +85,9 @@ Every switch in `config.yml` is documented inline. The full surface is large by
 design — a server that wants only "spawn mobs, store loot" can leave everything
 else at defaults.
 
-## Architecture
+## Architecture and upgrade documentation
 
-A deeper walkthrough (invariants, boot order, scheduling model) lives in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The [architecture guide](docs/ARCHITECTURE.md) distinguishes implemented code from the target design. The [documentation hub](docs/README.md) links the [source audit](docs/AUDIT.md), [PRD](docs/PRD.md), [technical specification](docs/TECHNICAL_SPEC.md), [roadmap](docs/ROADMAP.md), [migration guide](docs/MIGRATION.md), and [owner test plan](docs/TESTER_OWNER.md). These describe **proposed** work, not shipped features.
 
 ```
 BravenSpawner       boot order: config → storage → manager → subsystems → load
@@ -101,19 +101,17 @@ sell/               valuation, autosell, shop hooks
 util/               Schedulers (Paper region API), Text/money formatter
 ```
 
-Design rules the code holds to:
+Target design principles (not all guaranteed by current v1.0.1):
 
-1. **No reflection.** Paper's region scheduler API is used directly.
-2. **Fail closed.** Unloaded chunk, missing world, offline owner → skip, never partial.
-3. **One owner per invariant.** Storage owns persistence, manager owns scheduling,
-   the GUI owns only presentation.
-4. **Cancelled by construction.** Inventory clicks are cancelled before dispatch, so
-   a dupe path cannot be introduced by adding a button.
+1. **Thread ownership.** All world/entity operations must obey Paper/Folia scheduler rules.
+2. **Fail closed.** Failed loads, invalid items and rejected transactions cannot mutate authoritative stock.
+3. **Single-owner invariants.** Lifecycle, inventory and economy mutation must be coordinated atomically.
+4. **GUI/session integrity.** Only an active verified inventory session may issue a mutation.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and pull requests are welcome;
-`main` is protected by CI (build + tests on every push).
+`main` has a CI build; no automated test sources were found at the audited commit.
 
 ## Security
 

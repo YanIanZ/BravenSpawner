@@ -1,109 +1,82 @@
-# Architecture
+# Architecture — Current State and Target Design
 
-BravenSpawner is organised around four invariants. Everything else is detail.
+**Source baseline:** `main` commit `90b39fce` (2026-10-30). This document explicitly separates **implemented code** from **target architecture**; statements in older revisions claiming universal Folia safety, immutable storage consistency and restart durability were not verified.
 
-## 1. No reflection
+## Current source layout
 
-Paper 1.20+ ships the region scheduler API in `paper-api`. `util/Schedulers` uses
-it directly:
+| Module | Current responsibility | Observed gap |
+| --- | --- | --- |
+| `BravenSpawner.java` | Boot, storage selection, event/command registration, async load, shutdown flush | Load failure can fall back to empty list; no scheduled durable checkpoint |
+| `manager/SpawnerManager.java` | Maps spawners and schedules per block | `register` and `startAll` both schedule; stack-sized production loop |
+| `model/Spawner.java` | Identity, owner, trust, stored items, tier, XP | Some fields/collections synchronized, but multi-step workflows are not atomic |
+| `storage/*` | YAML and SQL persistence, item codecs | SQL whole-table flush; write failure swallowed; silent corrupt decode |
+| `gui/*` | Menu, paged inventory, lock timers | Session keyed by player, not proven inventory identity; external mutation races |
+| `listener/*` | Placement, break, interaction, entity death, GUI guards | Incomplete authorization and PDC/stack invariants |
+| `boosters/*` | Temporary multiplier maps | Legacy Bukkit scheduler in Folia-declared plugin |
+| `sell/*` and `econ/*` | Pricing, autosell, Vault bridge, shop detection | Payout result unchecked; shop detection is informational |
+| `mechanics/*`, `holo/*` | Hoppers, invisibility, mending, restoration, holograms | Several world/entity touchpoints need Folia ownership audit |
 
-```java
-Bukkit.getRegionScheduler().execute(plugin, location, task);
-entity.getScheduler().execute(plugin, task, null, 1L);
-Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task, ticks);
-Bukkit.getAsyncScheduler().runNow(plugin, task);
+## Current data and scheduling flow
+
+```mermaid
+flowchart TD
+  B[onEnable] --> C[Settings + Storage.init]
+  C --> M[SpawnerManager and services]
+  M --> L[Async Storage.loadAll]
+  L --> R[register each spawner]
+  R --> A[startAll]
+  R -. schedules .-> S[Region task]
+  A -. schedules again .-> S
+  S --> T[tick per virtual unit]
+  T --> I[In-memory inventory]
+  I --> F[flush on reload/disable]
+  F --> DB[(YAML / SQLite / MySQL)]
 ```
 
-On Paper these run on the main thread; on Folia they run on the region that owns
-the target. One jar, two platforms, zero string lookups. A reflective call would
-compile but fail at runtime on someone else's server — that is the worst failure
-mode a plugin can have, so the rule is absolute.
+The double scheduling and lack of periodic checkpoint are **current defects**, not intentional design. See [AUDIT.md](AUDIT.md).
 
-## 2. Fail closed
+## Proposed core invariants
 
-Every tick begins with the same guards:
+1. **Single writer for every state mutation** per spawner: atomic reservation/release, revision/dirty marking and no overwriting concurrent storage snapshots.
+2. **One task lease** per spawner ID and generation. Register, reschedule, unload and unregister are idempotent.
+3. **Ownership first:** commands/listeners check actor, claims and item metadata before consuming boosters or changing counts.
+4. **Correct world/thread locality:** region-owner block access, entity-owner player/mob access, async-only I/O.
+5. **Explicit durability:** snapshots, journal/checkpoints, crash bounds, error propagation, migration safety.
+6. **Confirmed settlement:** stock conservation plus external-economy result and reconciliation for indeterminate outcomes.
+7. **Versioned compatibility:** server/JVM build matrix with runtime evidence, not just an API compile or `plugin.yml` marker.
 
-```
-world exists → chunk loaded → not blacklisted → owner online (if required)
-```
+## Target execution diagram
 
-Failing any guard skips that spawner for that cycle. There is no partial spawn,
-no half-written record, no "best effort" that leaves state inconsistent. The same
-applies to storage: `SqlStorage.flushAll` runs inside one transaction and rolls
-back on any error.
-
-## 3. One owner per invariant
-
-| Invariant | Owner | Never touched by |
-|---|---|---|
-| persistence | `storage/` | manager, gui |
-| scheduling | `manager/` | gui, listeners |
-| presentation | `gui/` | storage, manager |
-| trust and ownership | `model/Spawner` | listeners |
-
-A listener may *ask* the manager to change state; it never writes storage and
-never schedules a task. This is why adding a button cannot introduce a dupe bug.
-
-## 4. Cancelled by construction
-
-`SpawnerGui` cancels the click event before dispatching to its own handler, then
-routes only three known slots. Drag, shift-click and number keys therefore cannot
-move a stack out of a slot the model still owns. New buttons inherit the
-protection for free.
-
-## Boot order
-
-```
-config.yml + databases.yml + hooks.yml
-        │
-        ▼
-Settings snapshot ──▶ Storage.init ──▶ SpawnerManager
-        │                                   │
-        ▼                                   ▼
- economy · boosters · holograms      async loadAll()
-        │                                   │
-        ▼                                   ▼
- listeners · command ◀──────────── register + reconcile + startAll
+```mermaid
+flowchart LR
+  U[Commands/GUI/listeners] --> V[Validate + authorize]
+  V --> A[Atomic spawner service]
+  R[Region scheduler] --> A
+  A --> L[Versioned in-memory aggregate]
+  L --> Q[Bounded checkpoint queue]
+  Q --> D[(Durable SQL/YAML)]
+  A --> P[Confirmed payout state machine]
+  P --> E[Vault]
+  A --> X[Entity scheduler: player and mobs]
+  L --> N[Snapshot-based holograms/metrics]
 ```
 
-Spawners are registered only after the load returns, so a slow database can never
-produce a duplicate tick. `RestoreMissing.reconcile` runs immediately after
-registration: a record whose block vanished (world rollback, plugin migration) gets
-its block back instead of being deleted.
+### Boot
 
-## Persistence
+`BOOTING → LOADING → READY`, or fail closed if storage cannot be loaded safely. Do not start tasks or accept mutations until authoritative state is ready. Settings are validated before publication.
 
-One interface, three backends:
+### Production
 
-```
-Storage
- ├── YamlStorage   single file, atomic replace via rename
- └── SqlStorage    Hikari pool; SQLite (WAL) or MySQL, same statements
-```
+Default virtual mode calculates bounded aggregate drops and XP without spawning an entity per virtual stack; opt-in physical mode obeys a strict region budget. Chunk unloads pause work unless explicit offline catch-up is enabled with quotas.
 
-Item stacks travel through `BukkitObjectOutputStream` and base64 inside the codec,
-so a backend never needs to know what is being stored.
+### Persistence
 
-## Scheduling model
+Dirty revisions are persisted incrementally and only acknowledged after durable commit. Failed records are quarantined; no silent empty inventory coercion. External economy payout cannot be made ACID with a local DB by assumption; use transaction state and reconciliation.
 
-```
-manager pass ──▶ per-spawner repeating task (region of its block)
-                        │
-                        ▼
-                 tick(spawner)
-                        │
-        ┌───────────────┴───────────────┐
-        ▼                               ▼
-   produceMob                     produceItem
-   region scheduler               direct store
-```
+### Reload and shutdown
 
-Mob spawning is deferred into the region that owns the spawn location; item
-production mutates the model directly because it never touches the world.
+Cancel/update leases before rebuilding schedules. Drain and confirm scheduled writes during graceful shutdown with observable timeout/failure, never silently declare success.
 
-## What is deliberately absent
+## Implementation map
 
-- No economy abstraction beyond Vault. Adding a second currency means a new
-  interface, not a reflection call.
-- No packet-level rendering. Ninja invisibility uses `sendBlockChange`, which is
-  the highest layer that works on both Paper and Folia without NMS.
+See [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) for target package boundaries, transaction protocols, metrics, API and tests; [ROADMAP.md](ROADMAP.md) for release order; [MIGRATION.md](MIGRATION.md) for backwards compatibility and rollback.
