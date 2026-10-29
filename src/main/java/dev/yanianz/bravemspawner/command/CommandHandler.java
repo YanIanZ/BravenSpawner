@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** /vspawner, /vmodify, /shtoggle. */
+/** /bspawner, /bmodify, /bhtoggle. */
 public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private final BravemSpawner plugin;
@@ -28,9 +28,9 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         return switch (command.getName().toLowerCase(Locale.ROOT)) {
-            case "vspawner" -> admin(sender, args);
-            case "vmodify" -> modify(sender, args);
-            case "shtoggle" -> toggle(sender);
+            case "bspawner" -> admin(sender, args);
+            case "bmodify" -> modify(sender, args);
+            case "bhtoggle" -> toggle(sender);
             default -> false;
         };
     }
@@ -41,7 +41,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage(Text.of("&e/vspawner give|list|reload|booster|menu|corrupt|repair"));
+            sender.sendMessage(Text.of("&e/bspawner give|list|reload|booster|menu|corrupt|repair"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -70,7 +70,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private void give(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(Text.of("&e/vspawner give <mob|item:ID> [player] [stack]"));
+            sender.sendMessage(Text.of("&e/bspawner give <mob|item:ID> [player] [stack]"));
             return;
         }
         String raw = args[1].toUpperCase(Locale.ROOT);
@@ -116,7 +116,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     private void booster(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(Text.of("&e/vspawner booster <player> <multiplier> [seconds]"));
+            sender.sendMessage(Text.of("&e/bspawner booster <player> <multiplier> [seconds]"));
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -164,7 +164,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(Text.of("&e/vmodify <player>"));
+            player.sendMessage(Text.of("&e/bmodify <player>"));
             return true;
         }
         var block = player.getTargetBlockExact(6);
@@ -214,7 +214,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
-        if (command.getName().equalsIgnoreCase("vspawner")) {
+        if (command.getName().equalsIgnoreCase("bspawner")) {
             if (args.length == 1) out.addAll(List.of("give", "list", "reload", "booster", "menu", "corrupt", "repair"));
             else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
                 out.addAll(plugin.settings().mobs().keySet());
@@ -224,7 +224,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             } else if (args.length == 2 && args[0].equalsIgnoreCase("booster")) {
                 Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
             }
-        } else if (command.getName().equalsIgnoreCase("vmodify") && args.length == 1) {
+        } else if (command.getName().equalsIgnoreCase("bmodify") && args.length == 1) {
             Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
         }
         String last = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);

@@ -69,7 +69,7 @@ public final class SpawnerGui implements Listener {
                 List.of("&7Tier: &f" + spawner.tier(),
                         "&7Stack: &f" + spawner.stack())));
         inv.setItem(15, button(Material.NAME_TAG, "&dTrusted",
-                List.of("&7/vmodify <player>")));
+                List.of("&7/bmodify <player>")));
         inv.setItem(16, button(Material.BARRIER, "&cClose", List.of()));
 
         sessions.put(player.getUniqueId(), new Session(spawner.id(), View.MENU, 0));
@@ -131,7 +131,7 @@ public final class SpawnerGui implements Listener {
             case 12 -> collectXp(player, spawner);
             case 13 -> collectAll(player, spawner);
             case 14 -> upgrade(player, spawner);
-            case 15 -> player.sendMessage(Text.of("&7/vmodify <player> while looking at the spawner"));
+            case 15 -> player.sendMessage(Text.of("&7/bmodify <player> while looking at the spawner"));
             case 16 -> player.closeInventory();
             default -> { }
         }

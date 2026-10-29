@@ -102,7 +102,7 @@ public final class BravemSpawner extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new dev.yanianz.bravemspawner.listener.GuiGuardListener(this), this);
 
-        var command = getCommand("vspawner");
+        var command = getCommand("bspawner");
         if (command != null) {
             CommandHandler handler = new CommandHandler(this);
             command.setExecutor(handler);

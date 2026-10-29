@@ -13,15 +13,17 @@ softdepend:
   - Towny
   - PlaceholderAPI
 commands:
-  vspawner:
+  bspawner:
     description: Manage BravenSpawner
     aliases: [bravenspawner, vs, bs]
     permission: bravenspawner.admin
-  vmodify:
+  bmodify:
     description: Toggle trust on a spawner
+    aliases: [bsmodify]
     permission: bravenspawner.use
-  shtoggle:
+  bhtoggle:
     description: Toggle holograms on your spawners
+    aliases: [bstoggle]
     permission: bravenspawner.use
 permissions:
   bravenspawner.admin:
