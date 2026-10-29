@@ -48,6 +48,15 @@ These are **release gates, not delivery promises**. No feature below should be m
 
 **Exit gate:** Item/XP probability checks and sustained workload benchmark; no regression in restart/rollback tests.
 
+## Virtual storage + stacking dependency path
+
+1. **v1.0.2:** fix existing metadata count-on-placement, stacking permissions, scheduler duplication, GUI handoffs and persistence safety before any format migration.
+2. **v1.1.0:** establish stable revisioned aggregate, provenance/redeem ledger, testable region/entity/DB ownership, additive storage schema and rollback plan.
+3. **v1.2.0:** introduce aggregation-friendly producer units and material-counter storage MVP for supported commodity outputs; production batching must not instantiate one physical item/entity per virtual unit.
+4. **v2.0.0:** ship comprehensive virtual-vault GUI, storage/transfer/compression upgrade paths, safe custom-item support, split/merge UX and opt-in Braven Core vaults when network accounting passes recovery tests.
+
+See [Virtual Storage](features/VIRTUAL_STORAGE.md) and [Virtual Stacking](features/VIRTUAL_STACKING.md) for detailed semantics and owner acceptance cases.
+
 ## v2.0.0 — Product upgrade
 
 - Overview and storage UX (filters, paging, withdraw, status), advanced upgrade tree and automation policies.

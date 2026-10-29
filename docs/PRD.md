@@ -58,6 +58,15 @@ Each requirement is **PROPOSED** unless explicitly linked as existing behavior.
 - Configurable slot/volume caps; explicit semantics for unlimited; no integer overflow.
 - Dirty record tracking, asynchronous durable checkpoints and safe shutdown/backup.
 
+### FR-03A Virtual storage and producer stacking — P1/P2
+
+- Introduce virtual item-count vaults with `ItemKey → long quantity`, bounded key and total-item limits, exact quantity presentation, filtering, bulk withdraw and configurable overflow.
+- Maintain separate **virtual producer units per placed block** and **virtual item stock per vault**. Physical `ItemStack.amount` never directly represents either quantity.
+- Require authorized merge/split/place/break with durable issued-bundle entitlement ledger to prevent replay of copied PDC-bearing items.
+- Support local vaults first, with Braven Core network vaults after atomic source/destination transfer, fencing and recovery rules are verified.
+- Preserve custom-item metadata through strict canonical keys or a separately persisted non-fungible item path.
+- Full design: [Virtual Storage](features/VIRTUAL_STORAGE.md) and [Virtual Stacking](features/VIRTUAL_STACKING.md).
+
 ### FR-04 Economy — P0/P1
 
 - Existing Vault support is the baseline; validate transaction responses.

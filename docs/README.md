@@ -6,6 +6,8 @@
 
 | Document | Purpose | Intended reader |
 | --- | --- | --- |
+| [features/VIRTUAL_STORAGE.md](features/VIRTUAL_STORAGE.md) | Proposed virtual item-count vaults, storage upgrades, filtering, overflow, network vault and transactional delivery | Designers / implementers |
+| [features/VIRTUAL_STACKING.md](features/VIRTUAL_STACKING.md) | Proposed virtual producer units, bundles, merge/split, issuance ledger and anti-dupe rules | Designers / implementers |
 | [AUDIT.md](AUDIT.md) | Evidence-backed weaknesses, impact, priority, and fix criteria | Maintainers / security reviewers |
 | [PRD.md](PRD.md) | Product goals, user stories, in/out-of-scope capabilities and release requirements | Product / developers |
 | [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) | Target modules, scheduling ownership, persistence, atomic operations and APIs | Implementers |
@@ -13,6 +15,10 @@
 | [ROADMAP.md](ROADMAP.md) | Ordered releases, dependencies, work packages and definition of done | Maintainers |
 | [MIGRATION.md](MIGRATION.md) | Backups, schema transitions, version support and rollback plan | Server administrators |
 | [TESTER_OWNER.md](TESTER_OWNER.md) | Manual verification matrix, performance protocol and release sign-off | Owner / QA |
+
+## Virtual storage and stacking
+
+These two proposals are intentionally separate: **one placed spawner can represent many virtual producer units**, while **a vault stores exact quantities of item types instead of physical 64-item stacks**. Both need explicit conservation, authorization, durable handoffs and Folia-safe scheduling. They have not yet been implemented.
 
 ## Reading rules
 
