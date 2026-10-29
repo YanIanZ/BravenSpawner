@@ -71,6 +71,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (!plugin.ready()) {
+            sender.sendMessage(Text.of("&cSpawner storage is still loading."));
+            return true;
+        }
         return switch (canonical(command.getName())) {
             case "bspawner" -> admin(sender, args);
             case "bmodify" -> modify(sender, args);
@@ -85,7 +89,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage(Text.of("&e/bspawner give|list|reload|booster|menu|corrupt|repair"));
+            sender.sendMessage(Text.of("&e/bspawner give|list|reload|booster|sellwand|modifier|menu|corrupt|repair"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -96,6 +100,8 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Text.of("&aReloaded."));
             }
             case "booster" -> booster(sender, args);
+            case "sellwand" -> grantWand(sender, args);
+            case "modifier" -> grantModifier(sender, args);
             case "menu" -> {
                 if (!(sender instanceof Player p)) {
                     sender.sendMessage(Text.of("&cPlayers only."));
@@ -197,6 +203,94 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 + " &7(" + seconds + "s)"));
     }
 
+    private void grantWand(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(Text.of("&e/bspawner sellwand <player> [uses|Nd|inf] [amount]"));
+            return;
+        }
+        var wands = plugin.wands();
+        if (wands == null || !wands.enabled()) {
+            sender.sendMessage(Text.of("&cSell wands are disabled."));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Text.of("&cPlayer not found."));
+            return;
+        }
+        String duration = args.length > 2 ? args[2] : "inf";
+        try { dev.yanianz.bravenspawner.wand.WandLifetime.parse(duration, System.currentTimeMillis()); }
+        catch (IllegalArgumentException exception) {
+            sender.sendMessage(Text.of("&cInvalid duration. Use a positive number of uses, Nd for days, or inf."));
+            return;
+        }
+        int amount = grantAmount(sender, args, 3);
+        if (amount == 0) return;
+        dev.yanianz.bravenspawner.util.Schedulers.onEntity(plugin, target, () -> {
+            for (int index = 0; index < amount; index++) {
+                // A fresh identity per item avoids joining independently granted wands.
+                ItemStack item = wands.createWand(duration);
+                if (item != null) giveItem(target, item);
+            }
+            target.sendMessage(Text.of("&aReceived " + amount + " sell wand(s)."));
+        }, null);
+        sender.sendMessage(Text.of("&aScheduled sell wand delivery to " + target.getName() + "."));
+    }
+
+    private void grantModifier(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(Text.of("&e/bspawner modifier <player> <range|price_multiplier> <value> [amount]"));
+            return;
+        }
+        var wands = plugin.wands();
+        if (wands == null || !wands.enabled()) {
+            sender.sendMessage(Text.of("&cSell wands are disabled."));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Text.of("&cPlayer not found."));
+            return;
+        }
+        double value;
+        try { value = Double.parseDouble(args[3]); }
+        catch (NumberFormatException exception) { value = Double.NaN; }
+        if (!Double.isFinite(value) || value < 0) {
+            sender.sendMessage(Text.of("&cValue must be a finite nonnegative number."));
+            return;
+        }
+        var modifier = wands.modifier(args[2], value);
+        if (modifier == null) {
+            sender.sendMessage(Text.of("&cUnknown modifier type."));
+            return;
+        }
+        int amount = grantAmount(sender, args, 4);
+        if (amount == 0) return;
+        dev.yanianz.bravenspawner.util.Schedulers.onEntity(plugin, target, () -> {
+            ItemStack item = wands.createModifier(modifier);
+            if (item == null) return;
+            item.setAmount(amount);
+            giveItem(target, item);
+            target.sendMessage(Text.of("&aReceived modifiers. Place one on a sell wand in your inventory to apply it."));
+        }, null);
+        sender.sendMessage(Text.of("&aScheduled modifier delivery to " + target.getName() + "."));
+    }
+
+    private int grantAmount(CommandSender sender, String[] args, int index) {
+        if (args.length <= index) return 1;
+        try {
+            int amount = Integer.parseInt(args[index]);
+            if (amount >= 1 && amount <= 64) return amount;
+        } catch (NumberFormatException ignored) { }
+        sender.sendMessage(Text.of("&cAmount must be between 1 and 64."));
+        return 0;
+    }
+
+    private void giveItem(Player player, ItemStack item) {
+        player.getInventory().addItem(item).values().forEach(leftover ->
+                player.getWorld().dropItemNaturally(player.getLocation(), leftover));
+    }
+
     private void corrupt(CommandSender sender) {
         if (!(sender instanceof Player player)) return;
         Spawner spawner = nearest(player);
@@ -273,13 +367,15 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "bspawner" -> {
                 if (!sender.hasPermission("bravenspawner.admin")) return List.of();
                 if (args.length == 1) {
-                    out.addAll(List.of("give", "list", "reload", "booster", "menu", "corrupt", "repair"));
+                    out.addAll(List.of("give", "list", "reload", "booster", "sellwand", "modifier", "menu", "corrupt", "repair"));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
                     out.addAll(plugin.settings().mobs().keySet());
                     plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
                     Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
-                } else if (args.length == 2 && args[0].equalsIgnoreCase("booster")) {
+                } else if (args.length == 3 && args[0].equalsIgnoreCase("modifier") && plugin.wands() != null) {
+                    plugin.wands().modifierTypes().forEach(type -> out.add(type.id()));
+                } else if (args.length == 2 && List.of("booster", "sellwand", "modifier").contains(args[0].toLowerCase(Locale.ROOT))) {
                     Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
                 }
             }

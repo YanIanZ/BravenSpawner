@@ -1,0 +1,98 @@
+# ================================
+#   BravenSpawner: Spawner Menu
+# ================================
+# %entity%, %tier%, %stack%, %stored%, %xp% and %value% are filled per viewer.
+# Layout rows are exactly 9 characters; '-' is the filler item.
+menu:
+  title: "&b✹ &7%entity% Spawner"
+  rows: 3
+  layout:
+    default:
+      - "l---c----"
+      - "-b-is-x--"
+      - "l---u----"
+    bedrock_mode:
+      - "l---u----"
+      - "-b-is-x--"
+      - "----b----"
+
+items:
+  filler:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: "&e"
+    lore: []
+    custom-model: -1
+    symbol: '-'
+    nbt: ""
+
+  info:
+    material: PLAYER_HEAD
+    name: "&b%entity% &fSpawner"
+    lore:
+      - "&b¤ &fEntity: &f%entity%"
+      - "&b¤ &fTier: &f%tier%"
+      - "&b¤ &fStack: &f%stack%"
+      - "&b¤ &fStored: &f%stored%"
+      - "&7Click to buy more spawners"
+    custom-model: -1
+    head-texture: "%head_texture%"
+    glowing: true
+    symbol: 'i'
+    nbt: "buy_stack"
+
+  storage:
+    material: CHEST
+    name: "&a&lSTORAGE"
+    lore:
+      - "&a¤ &fClick to open storage"
+      - "&aStored Items: &f%stored%"
+    custom-model: -1
+    symbol: 's'
+    nbt: "storage"
+
+  xp:
+    material: EXPERIENCE_BOTTLE
+    name: "&e&lCOLLECT XP"
+    lore:
+      - "&e¤ &fClick to collect XP"
+      - "&eStored XP: &f%xp%"
+    custom-model: -1
+    symbol: 'x'
+    nbt: "xp"
+
+  boosters:
+    material: FIREWORK_ROCKET
+    name: "&b&lBOOSTERS"
+    lore:
+      - "&b¤ &fClick to manage boosters"
+    custom-model: -1
+    symbol: 'u'
+    nbt: "boosters"
+
+  sell:
+    material: GOLD_INGOT
+    name: "&6&lSELL ALL"
+    lore:
+      - "&6¤ &fClick to sell stored items"
+      - "&6Value: &f%value%"
+    custom-model: -1
+    symbol: 'b'
+    nbt: "sell_all"
+
+  close:
+    material: BARRIER
+    name: "&c&lCLOSE"
+    lore:
+      - "&7Click to close"
+    custom-model: -1
+    symbol: 'c'
+    nbt: "close"
+
+  log:
+    material: WRITABLE_BOOK
+    name: "&c&lAUDIT LOG"
+    lore:
+      - "&7Admins: view recent activity"
+    custom-model: -1
+    symbol: 'l'
+    nbt: "log"

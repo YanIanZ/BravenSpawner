@@ -1,0 +1,33 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: SPIDER
+display-name: "&8Spider"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/eec5574603f3048f21ad5a3c94d97115706011fe6ba67781091b8a9ac10af54f
+  lore:
+    - "&aA spawner for spiders."
+
+interval-ticks: 1200
+xp: 5
+
+drops:
+  1:
+    material: STRING
+    amount:
+      min: 1
+      max: 3
+    chance: 80.0
+  2:
+    material: SPIDER_EYE
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

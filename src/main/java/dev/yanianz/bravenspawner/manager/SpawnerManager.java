@@ -6,12 +6,7 @@ import dev.yanianz.bravenspawner.model.Spawner;
 import dev.yanianz.bravenspawner.util.Schedulers;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -19,9 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Owns every spawner and the tick pass.
@@ -33,33 +28,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Every world read inside a cycle happens on the region scheduler that owns the
  * spawner block: the tick callback re-dispatches before it touches the world, and
- * the entity spawn and proximity scan stay inside that dispatch. A failure in one
+ * the activation scan stays inside that dispatch. A failure in one
  * spawner is logged and does not stop the pass.
  *
  * <p>Production is bounded independently of the virtual stack. Item yield is
  * aggregated in closed form, so a stack of 200 000 costs the same as a stack of
- * one. A mob spawner performs at most {@value #MAX_PHYSICAL_BATCH} real spawns per
- * cycle and carries the remainder as a capped backlog.
+ * one. Mob and item products both generate virtual loot without spawning entities.
  */
 public final class SpawnerManager {
-
-    /** Real entity spawns one spawner may perform in a single tick pass. */
-    private static final int MAX_PHYSICAL_BATCH = 16;
-
-    /** Hard ceiling on carried mob credits so a long pause cannot bank work forever. */
-    private static final int MAX_PENDING_CREDITS = 512;
-
-    /** Live mobs tolerated for each unit of stack before physical production pauses. */
-    private static final int MOBS_PER_STACK = 8;
-
-    /** Radius used for the per-spawner mob census and the activation check. */
-    private static final int PROXIMITY_RADIUS = 16;
-
-    /** Attempts spent looking for a passable block inside the spawner chunk. */
-    private static final int SPAWN_ATTEMPTS = 8;
-
-    /** Horizontal scatter radius, clamped to the spawner chunk for region safety. */
-    private static final int SCATTER_RADIUS = 4;
 
     /**
      * Trials below this mean use exact geometric sampling; above it the binomial
@@ -147,7 +123,7 @@ public final class SpawnerManager {
     public void unregister(Spawner spawner) {
         if (spawner == null) return;
         byBlock.remove(key(spawner.world(), spawner.x(), spawner.y(), spawner.z()), spawner);
-        byId.remove(spawner.id(), spawner);
+        if (byId.remove(spawner.id(), spawner)) plugin.markDeleted(spawner.id());
         synchronized (scheduleLock) {
             cancelLocked(spawner.id());
         }
@@ -225,7 +201,11 @@ public final class SpawnerManager {
         Settings s = settings;
         if (s == null || s.tiers.isEmpty()) return;
         Settings.Tier tier = s.tiers.get(Math.min(Math.max(0, spawner.tier()), s.tiers.size() - 1));
+        var definition = plugin.product(spawner);
         long period = Math.max(20L, tier.intervalTicks);
+        if (definition != null && spawner.tier() == 0) {
+            period = ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
+        }
         try {
             Schedulers.Cancelable handle = Schedulers.repeating(plugin, location, period, () -> tick(spawner));
             tasks.put(spawner.id(), new TaskLease(handle));
@@ -266,17 +246,21 @@ public final class SpawnerManager {
     private void produce(Spawner spawner, Location location) {
         try {
             Settings s = settings;
-            if (s == null) return;
+            if (s == null || !plugin.ready()) return;
             World world = location.getWorld();
             if (world == null) return;
             if (s.isBlacklisted(world.getName())) return;
             if (!world.isChunkLoaded(spawner.x() >> 4, spawner.z() >> 4)) return;
             if (!activated(world, location, s)) return;
 
-            if (spawner.kind() == Spawner.Kind.ITEM) produceItem(spawner, s);
-            else produceMob(spawner, s, location, world);
+            if (byId.get(spawner.id()) != spawner || spawner.corrupted()) return;
+            if (spawner.kind() == Spawner.Kind.ITEM && !s.useItemSpawners) return;
+            produceVirtual(spawner, s);
 
             plugin.holograms().update(spawner);
+            var definition = plugin.product(spawner);
+            if (spawner.tier() == 0 && definition != null
+                    && definition.maxIntervalTicks() > definition.intervalTicks()) reschedule(spawner);
         } catch (RuntimeException e) {
             // A thrown exception would cancel the repeating task on Folia, which
             // would silently stop the spawner for the rest of the session.
@@ -298,121 +282,32 @@ public final class SpawnerManager {
      * binomial for the whole stack at once, and the result is stored in one go: cost
      * is proportional to the number of configured drops, never to the stack size.
      */
-    private void produceItem(Spawner spawner, Settings s) {
-        Settings.Product product = s.items.get(spawner.product());
+    private void produceVirtual(Spawner spawner, Settings s) {
+        var product = plugin.product(spawner);
         if (product == null) return;
-
-        int credits = Math.max(1, spawner.stack());
-        int capacity = storageCapacity(s, spawner);
+        double multiplier = plugin.boosters().multiplier(spawner.owner(), spawner.id());
+        int credits = (int) Math.min(Integer.MAX_VALUE,
+                Math.max(1.0, Math.floor(Math.max(1, spawner.stack()) * multiplier)));
         Random random = ThreadLocalRandom.current();
-
-        for (Settings.Drop drop : product.drops) {
-            if (drop == null || drop.material == null) continue;
-            int amount = rollAggregate(drop, credits, random);
+        for (var drop : product.drops()) {
+            int amount = dev.yanianz.bravenspawner.product.ProductRoller.amount(drop, credits, random);
             if (amount <= 0) continue;
-            spawner.store(new ItemStack(drop.material, amount), capacity);
-        }
-        if (product.xp > 0) spawner.addXp(saturatingMultiply(product.xp, credits));
-        spawner.produced(credits);
-    }
-
-    /**
-     * Physical mob production with a per-cycle budget.
-     *
-     * <p>At most {@value #MAX_PHYSICAL_BATCH} entities are spawned in one pass and
-     * the census that decides the cap runs once, not once per stack unit. Credits
-     * that could not be spent are carried on the model, bounded by
-     * {@value #MAX_PENDING_CREDITS} so an offline spawner cannot bank unbounded
-     * work and then dump it in one tick.
-     */
-    private void produceMob(Spawner spawner, Settings s, Location base, World world) {
-        Settings.Product product = s.mobs.get(spawner.product());
-        if (product == null) return;
-
-        EntityType type;
-        try {
-            type = EntityType.valueOf(product.id);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            return;
-        }
-        if (type == null || !type.isSpawnable()) return;
-
-        long due = (long) Math.max(1, spawner.stack()) + spawner.pending();
-        int requested = (int) Math.min(MAX_PENDING_CREDITS, due);
-
-        long cap = Math.max(1L, (long) spawner.stack() * MOBS_PER_STACK);
-        int alive = countSpawned(world, base, spawner.id());
-        long room = cap - alive;
-
-        int batch = (int) Math.min(Math.min(requested, MAX_PHYSICAL_BATCH), Math.max(0L, room));
-        int spawned = 0;
-        for (int i = 0; i < batch; i++) {
-            if (!spawnOne(spawner, base, world, type)) break;
-            spawned++;
-        }
-
-        spawner.pending((int) Math.min(MAX_PENDING_CREDITS, Math.max(0, requested - spawned)));
-        if (spawned > 0) spawner.produced(spawned);
-    }
-
-    /**
-     * Counts the entities this spawner already owns.
-     *
-     * <p>This is the read that cannot be moved: it must observe the live region, so
-     * it happens inside the production pass that runs on the owning scheduler and
-     * never from the global or async thread.
-     */
-    private int countSpawned(World world, Location base, UUID spawnerId) {
-        String id = spawnerId.toString();
-        int count = 0;
-        for (Entity entity : world.getNearbyEntities(base,
-                PROXIMITY_RADIUS, PROXIMITY_RADIUS, PROXIMITY_RADIUS)) {
-            String tag = entity.getPersistentDataContainer()
-                    .get(plugin.spawnerIdKey(), PersistentDataType.STRING);
-            if (id.equals(tag)) count++;
-        }
-        return count;
-    }
-
-    /**
-     * Spawns one entity on the region that owns the spawner.
-     *
-     * <p>Candidates are clamped to the spawner's own chunk, so the highest-block
-     * lookup, the passability test and the spawn itself all touch state owned by
-     * the current region. A Folia region never spans two chunks by accident, so a
-     * scatter step cannot land work on a foreign thread.
-     */
-    private boolean spawnOne(Spawner spawner, Location base, World world, EntityType type) {
-        Random random = ThreadLocalRandom.current();
-        int chunkMinX = (spawner.x() >> 4) << 4;
-        int chunkMinZ = (spawner.z() >> 4) << 4;
-        int chunkMaxX = chunkMinX + 15;
-        int chunkMaxZ = chunkMinZ + 15;
-
-        for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
-            int x = clamp(spawner.x() + random.nextInt(-SCATTER_RADIUS, SCATTER_RADIUS + 1),
-                    chunkMinX, chunkMaxX);
-            int z = clamp(spawner.z() + random.nextInt(-SCATTER_RADIUS, SCATTER_RADIUS + 1),
-                    chunkMinZ, chunkMaxZ);
-            Location candidate = new Location(world, x + 0.5, 0.0, z + 0.5);
-            candidate.setY(world.getHighestBlockYAt(x, z) + 1.0);
-            if (!candidate.getBlock().isPassable()) continue;
-
-            try {
-                Entity entity = world.spawnEntity(candidate, type);
-                entity.getPersistentDataContainer().set(
-                        plugin.spawnerIdKey(), PersistentDataType.STRING, spawner.id().toString());
-                if (entity instanceof LivingEntity living) {
-                    living.setRemoveWhenFarAway(false);
-                    living.setPersistent(true);
+            ItemStack output = new ItemStack(drop.material(), amount);
+            if (drop.displayName() != null || drop.customModelData() >= 0) {
+                var meta = output.getItemMeta();
+                if (meta != null) {
+                    if (drop.displayName() != null) meta.displayName(dev.yanianz.bravenspawner.util.Text.of(drop.displayName()));
+                    if (drop.customModelData() >= 0) meta.setCustomModelData(drop.customModelData());
+                    output.setItemMeta(meta);
                 }
-                return true;
-            } catch (RuntimeException e) {
-                plugin.getLogger().warning("spawn failed at " + candidate + ": " + e.getMessage());
-                return false;
             }
+            spawner.storeVirtual(output, plugin.maximumItems(spawner));
         }
-        return false;
+        int xp = dev.yanianz.bravenspawner.product.ProductRoller.range(
+                product.xp(), product.maxXpPerCycle(), credits, random);
+        spawner.addXp(xp, plugin.maximumXp(spawner));
+        spawner.produced(credits);
+        plugin.markDirty(spawner);
     }
 
     private static int clamp(int value, int min, int max) {

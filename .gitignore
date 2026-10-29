@@ -22,3 +22,6 @@ ref/
 # Local server artifacts
 run/
 logs/
+
+# Ultracode workflow artifacts
+.workflow/

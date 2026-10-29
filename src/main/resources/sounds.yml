@@ -1,0 +1,75 @@
+# ================================
+#   BravenSpawner Sound Config
+# ================================
+# Notes:
+# - sound: Bukkit Sound enum value (see https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Sound.html)
+# - volume: Sound volume (range: 0.0 to 1.0, where 1.0 is 100% volume)
+# - pitch: Sound pitch (range: 0.0 to 2.0, where 1.0 is normal pitch, <1 is lower, >1 is higher)
+# - An unknown sound name falls back to the documented default and is logged once.
+#
+# Sections:
+# - General Sounds: For UI interactions and error notifications
+# - Inventory Sounds: Related to inventory and item management
+# - Booster Sounds: Played when interacting with boosters
+# - Selling Sounds: Played during selling actions
+
+# General Sounds
+error:
+  sound: ENTITY_VILLAGER_NO
+  volume: 1.0
+  pitch: 1.0
+
+ui:
+  click:
+    sound: UI_BUTTON_CLICK
+    volume: 1.0
+    pitch: 1.0
+
+# Inventory Sounds
+stock:
+  withdraw:
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    volume: 1.0
+    pitch: 1.0
+
+stacking:
+  sound: BLOCK_NOTE_BLOCK_PLING
+  volume: 1.0
+  pitch: 1.0
+
+# Booster Sounds
+booster:
+  add:
+    sound: BLOCK_BEACON_ACTIVATE
+    volume: 1.0
+    pitch: 1.0
+  remove:
+    sound: BLOCK_BEACON_DEACTIVATE
+    volume: 1.0
+    pitch: 1.0
+
+# Selling Sounds
+sell:
+  xp:
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    volume: 1.0
+    pitch: 1.0
+  stock:
+    sound: BLOCK_NOTE_BLOCK_PLING
+    volume: 1.0
+    pitch: 1.0
+  # Sell wand feedback. The generic sell.xp and error sections above are used as
+  # fallbacks when one of these blocks is missing.
+  wand:
+    success:
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      volume: 1.0
+      pitch: 1.0
+    failure:
+      sound: ENTITY_VILLAGER_NO
+      volume: 1.0
+      pitch: 1.0
+    cooldown:
+      sound: BLOCK_NOTE_BLOCK_BASS
+      volume: 1.0
+      pitch: 1.0

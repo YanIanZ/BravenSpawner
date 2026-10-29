@@ -1,6 +1,8 @@
 package dev.yanianz.bravenspawner.mechanics;
 
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.util.Schedulers;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -16,9 +18,7 @@ import java.util.List;
  * <p>World edits, protection plugins and half-finished migrations can leave a
  * database row without its block. Deleting the row would destroy the player's
  * stored loot and XP, so the block is recreated instead and the record survives.
- * The method is synchronous on purpose: it is called from the server thread after
- * the initial load, never from the async storage worker, because block writes must
- * happen on the owning region thread.
+ * Each block is restored on its owning region after the initial records are loaded.
  */
 public final class RestoreMissing {
 
@@ -28,8 +28,8 @@ public final class RestoreMissing {
     /**
      * Restores every recorded block that is missing or is not the spawner material.
      *
-     * @return spawners that could not be restored, for example because their world
-     *         is not loaded or the coordinate is outside the world height
+     * @return records rejected before dispatch. Failures inside the asynchronous
+     *         region callbacks are logged; this method does not wait for them.
      */
     public static List<Spawner> reconcile(Plugin plugin, List<Spawner> spawners) {
         List<Spawner> failed = new ArrayList<>();
@@ -37,7 +37,6 @@ public final class RestoreMissing {
         if (!plugin.getConfig().getBoolean("restore-missing-spawners", false)) return failed;
 
         Material material = spawnerMaterial(plugin);
-        int restored = 0;
 
         for (Spawner spawner : spawners) {
             if (spawner == null) continue;
@@ -53,10 +52,19 @@ public final class RestoreMissing {
             }
 
             try {
-                Block block = world.getBlockAt(spawner.x(), spawner.y(), spawner.z());
-                if (block.getType() == material) continue;
-                block.setType(material, false);
-                restored++;
+                Schedulers.at(plugin, new org.bukkit.Location(world, spawner.x(), spawner.y(), spawner.z()), () -> {
+                    if (!plugin.isEnabled()) return;
+                    if (plugin instanceof BravenSpawner braven
+                            && braven.manager().byId(spawner.id()) != spawner) return;
+                    try {
+                        Block block = world.getBlockAt(spawner.x(), spawner.y(), spawner.z());
+                        if (block.getType() == material) return;
+                        block.setType(material, false);
+                    } catch (RuntimeException e) {
+                        plugin.getLogger().warning("could not restore spawner block " + spawner.id()
+                                + ": " + e.getMessage());
+                    }
+                });
             } catch (RuntimeException e) {
                 // A region/thread rejection or an unloadable chunk must not abort
                 // the rest of the pass; the record stays in the failure list.
@@ -67,9 +75,6 @@ public final class RestoreMissing {
             }
         }
 
-        if (restored > 0) {
-            plugin.getLogger().info("Restored " + restored + " missing spawner block(s).");
-        }
         return failed;
     }
 

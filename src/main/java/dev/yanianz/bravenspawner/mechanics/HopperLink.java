@@ -32,7 +32,8 @@ public final class HopperLink {
     private static final long TRANSFER_PERIOD_TICKS = 8L;
 
     private final BravenSpawner plugin;
-    private ScheduledTask task;
+    private volatile ScheduledTask task;
+    private volatile boolean running;
 
     public HopperLink(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -41,11 +42,13 @@ public final class HopperLink {
     /** Starts the transfer timer; the timer reads the flag on every pass. */
     public void start() {
         if (task != null) return;
+        running = true;
         task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(
                 plugin, ignored -> tick(), TRANSFER_PERIOD_TICKS, TRANSFER_PERIOD_TICKS);
     }
 
     public void stop() {
+        running = false;
         if (task != null) {
             task.cancel();
             task = null;
@@ -58,7 +61,6 @@ public final class HopperLink {
             if (spawner == null || spawner.storedCount() <= 0) continue;
             Location block = spawner.blockLocation();
             if (block == null || block.getWorld() == null) continue;
-            if (!block.getWorld().isChunkLoaded(block.getBlockX() >> 4, block.getBlockZ() >> 4)) continue;
             // The hopper is in the same chunk column as the spawner, so this
             // region owns both the block read and the inventory mutation.
             Bukkit.getRegionScheduler().execute(plugin, block, () -> transfer(spawner, block));
@@ -66,16 +68,18 @@ public final class HopperLink {
     }
 
     private void transfer(Spawner spawner, Location center) {
-        if (!enabled() || plugin.manager().byId(spawner.id()) == null) return;
-        World world = center.getWorld();
-        if (world == null || !world.isChunkLoaded(center.getBlockX() >> 4, center.getBlockZ() >> 4)) return;
+        synchronized (spawner) {
+            if (!enabled() || plugin.manager().byId(spawner.id()) != spawner) return;
+            World world = center.getWorld();
+            if (world == null || !world.isChunkLoaded(center.getBlockX() >> 4, center.getBlockZ() >> 4)) return;
 
-        Block base = center.getBlock();
-        for (int depth = 1; depth <= 2; depth++) {
-            Block below = base.getRelative(BlockFace.DOWN, depth);
-            if (below.getType() != Material.HOPPER) continue;
-            if (!(below.getState() instanceof Hopper hopper)) continue;
-            if (moveOne(spawner, hopper, below.getLocation())) return;
+            Block base = center.getBlock();
+            for (int depth = 1; depth <= 2; depth++) {
+                Block below = base.getRelative(BlockFace.DOWN, depth);
+                if (below.getType() != Material.HOPPER) continue;
+                if (!(below.getState() instanceof Hopper hopper)) continue;
+                if (moveOne(spawner, hopper)) return;
+            }
         }
     }
 
@@ -84,7 +88,7 @@ public final class HopperLink {
      *
      * @return true when at least one item actually entered the hopper
      */
-    private boolean moveOne(Spawner spawner, Hopper hopper, Location hopperLocation) {
+    private boolean moveOne(Spawner spawner, Hopper hopper) {
         List<ItemStack> contents = spawner.contents();
         if (contents.isEmpty()) return false;
 
@@ -92,47 +96,29 @@ public final class HopperLink {
         if (sample == null || sample.getType().isAir()) return false;
 
         int amount = Math.min(Math.max(1, sample.getMaxStackSize()), Math.max(1, sample.getAmount()));
-        ItemStack pulled = spawner.drainSlot(0, amount);
+        ItemStack pulled = spawner.drainSlotIfSimilar(0, sample, amount);
         if (pulled == null || pulled.getAmount() <= 0) return false;
+        int original = pulled.getAmount();
 
         Inventory inventory = hopper.getInventory();
         HashMap<Integer, ItemStack> leftover = inventory.addItem(pulled);
 
-        // The block state is a snapshot. If the write-back fails the hopper never
-        // received the stack, so return the whole stack instead of deleting it.
-        boolean persisted;
-        try {
-            persisted = hopper.update();
-        } catch (RuntimeException e) {
-            persisted = false;
-        }
-        if (!persisted) {
-            drop(spawner, hopperLocation, pulled);
-            return false;
-        }
-        if (leftover.isEmpty()) return true;
+        // A placed hopper exposes its live inventory; update() is unnecessary
+        // and a failure after insertion would not undo the transferred items.
+        if (leftover.isEmpty()) { plugin.markDirty(spawner); return true; }
 
         int rejected = 0;
         for (ItemStack rest : leftover.values()) {
             if (rest == null || rest.getAmount() <= 0) continue;
             rejected += rest.getAmount();
-            drop(spawner, hopperLocation, rest);
+            spawner.storeVirtual(rest, 0);
         }
-        return rejected < pulled.getAmount();
-    }
-
-    private void drop(Spawner spawner, Location hopperLocation, ItemStack item) {
-        if (item == null || item.getAmount() <= 0) return;
-        ItemStack unplaced = spawner.store(item, 0);
-        if (unplaced == null || unplaced.getAmount() <= 0) return;
-
-        World world = hopperLocation.getWorld();
-        if (world != null) {
-            world.dropItemNaturally(hopperLocation.clone().add(0.5, 0.5, 0.5), unplaced);
-        }
+        if (rejected < original) plugin.markDirty(spawner);
+        return rejected < original;
     }
 
     private boolean enabled() {
-        return plugin.getConfig().getBoolean("allow-hoppers", false);
+        return running && plugin.isEnabled() && plugin.ready()
+                && plugin.getConfig().getBoolean("allow-hoppers", false);
     }
 }

@@ -1,0 +1,61 @@
+# ====================================
+#   BravenSpawner: SellWand Modifiers
+# ====================================
+# Notes:
+# - Each entry defines one modifier kind.
+# - affects is the stat the modifier feeds: range or price-multiplier.
+#   It is required for a new key; when omitted, the loader derives it from the
+#   key ("range", "radius", "price" or "multiplier").
+# - max_value is the ceiling applied to every value, including a hand-built
+#   modifier item. A value above it is clamped, never written raw.
+#
+# Grant with /bspawner modifier <player> <type> <value> [amount].
+# Apply by placing the modifier on a sell wand in your own inventory.
+#
+# Placeholders:
+# %value%      - The numerical value (e.g. 5 for range, 1.5 for a multiplier)
+# %percentage% - The percentage increase for price multipliers (1.5 -> 50)
+
+modifiers:
+  # Range Modifier Configuration
+  range:
+    affects: range
+    # Name of the modifier item
+    name: "&b✦ Range Modifier &7(+%value%)"
+    # Description shown when applied to a wand
+    description: "&7Increases wand range by &b%value% &7blocks"
+    # Material of the modifier item
+    material: END_CRYSTAL
+    # Whether the item should have an enchantment glow
+    enchanted: true
+    # Value used when a modifier is created without one.
+    # The reference default is 0; a range modifier is normally created with an
+    # explicit value by the command or item that grants it.
+    default_value: 0.0
+    # Ceiling for the applied value, in blocks
+    max_value: 16.0
+    # Lore of the modifier item
+    lore:
+      - ""
+      - "&7This modifier increases the range"
+      - "&7of your sell wand by &b+%value% blocks&7."
+      - "&ePlace on a sell wand to apply."
+    # How the modifier appears in the wand's lore when applied
+    applied_lore: "&b↔ &7Range: +%value% blocks"
+
+  # Price Multiplier Configuration
+  price_multiplier:
+    affects: price-multiplier
+    name: "&6✦ Price Multiplier &7(x%value%)"
+    description: "&7Increases sell price by &6%percentage%%"
+    material: GOLD_INGOT
+    enchanted: false
+    default_value: 1.0
+    # Ceiling for the applied multiplier
+    max_value: 10.0
+    lore:
+      - ""
+      - "&7This modifier increases the sell price"
+      - "&7of items by &6%percentage%%&7."
+      - "&ePlace on a sell wand to apply."
+    applied_lore: "&6$ &7Price Multiplier: x%value%"

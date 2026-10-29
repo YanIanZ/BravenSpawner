@@ -1,0 +1,33 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: IRON_GOLEM
+display-name: "&fIron Golem"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/e13f34227283796bc017244cb46557d64bd562fa9dab0e12af5d23ad699cf697
+  lore:
+    - "&aA spawner for iron golems."
+
+interval-ticks: 1200
+xp: 15
+
+drops:
+  1:
+    material: IRON_INGOT
+    amount:
+      min: 2
+      max: 5
+    chance: 100.0
+  2:
+    material: POPPY
+    amount:
+      min: 1
+      max: 2
+    chance: 80.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 3
+
+spawner-price: 100000

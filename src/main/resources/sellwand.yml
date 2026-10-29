@@ -1,0 +1,81 @@
+# ================================
+#   BravenSpawner: Sell Wand
+# ================================
+# The wand sells the stored contents of virtual spawners through the normal
+# sell service (Vault). It never breaks a block and never consumes a spawner.
+#
+# Grant with /bspawner sellwand <player> [uses|Nd|inf] [amount].
+# Only owners, trusted players and admins can sell a spawner.
+#
+# A right-click on one of our spawners sells that spawner. A right-click
+# anywhere else sells every spawner inside collect.radius when
+# collect.within-radius is true.
+#
+# Every malformed value falls back to the default documented in the comment and
+# is logged once when the file is loaded.
+
+# General settings
+settings:
+  enabled: true
+  # Item used for the wand. Any Bukkit material name works.
+  material: BLAZE_ROD
+  # Glow means enchant, so the wand is enchanted with a hidden enchantment.
+  glow: true
+  # Allows a player to replace an existing modifier of the same type.
+  # When false, applying a second Range (or Price) modifier is refused.
+  allow-override: true
+  # How many different modifiers one wand can carry. 0 (or a negative value)
+  # means unlimited. Default: 2, matching the two effects shipped below.
+  modifier-slots: 2
+  # Per-player cooldown between two wand sales, in milliseconds.
+  # Default: 1000. 0 disables the cooldown. Values above 60000 are clamped.
+  cooldown-millis: 1000
+
+# Collect
+collect:
+  # If false, the wand only works when clicked directly on a spawner.
+  within-radius: true
+  # Radius in blocks around the player, not a cube. Default: 5.0.
+  # The wand's Range modifier is added to this value. Clamped to 0..64.
+  radius: 5.0
+
+# Base look of the wand. The modifier section below is appended when modifiers
+# are applied.
+wand-types:
+  uses:
+    name: "&6Sell Wand &7(%uses% uses)"
+    lore:
+      - "&7Uses left: %uses%"
+  days:
+    name: "&6Sell Wand &7(%days% days)"
+    lore:
+      - "&7Expires: %expiration_date%"
+  infinite:
+    name: "&6Infinite Sell Wand"
+    lore:
+      - "&7Infinite uses"
+  name: "&6&lSell Wand"
+  lore:
+    - "&7Right-click a spawner to sell it."
+    - "&7Right-click anywhere else to sell nearby spawners."
+    - ""
+
+date-format: "yyyy-MM-dd HH:mm:ss"
+
+# Lore block inserted between the base lore and the applied modifier lines.
+# Set header, separator or footer to "NONE" to omit that line.
+modifier-section:
+  header: "&8✦ &7Modifiers:"
+  separator: "&8⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
+  footer: "NONE"
+
+# Player feedback. Placeholders: %spawners%, %items% and %value%.
+messages:
+  sold: "&aSold &f%items% &aitem(s) from &f%spawners% &aspawner(s) for &f%value%&a."
+  nothing: "&7No sellable spawners were found nearby."
+  cooldown: "&cThe sell wand is still cooling down."
+  wand-expired: "&cYour sell wand has expired."
+  no-uses-left: "&cYour sell wand has no uses left."
+  uses-remaining: "&aUsed sell wand. %uses% uses remaining."
+  modifier-applied: "&aModifier applied successfully."
+  modifier-failed: "&cFailed to apply that modifier. The wand may already have this type or be full."

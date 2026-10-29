@@ -1,0 +1,66 @@
+# ================================
+#   BravenSpawner: Buy Stacks Menu
+# ================================
+# %entity%, %stack%, %max_stack%, %price% and %total_price% come from the caller.
+menu:
+  title: "&b✹ &7%entity% &b> &fBuy Stacks"
+  rows: 3
+  layout:
+    default:
+      - "---------"
+      - "-1-5-a-g-"
+      - "---------"
+
+items:
+  filler:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: "&e"
+    lore: []
+    custom-model: -1
+    symbol: '-'
+    nbt: ""
+
+  buy_1:
+    material: LIME_STAINED_GLASS_PANE
+    name: "&a&lBuy 1"
+    lore:
+      - "&7Price: &a%price%$"
+      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - ""
+      - "&aClick to purchase 1"
+    custom-model: -1
+    symbol: '1'
+    nbt: "buy_1"
+
+  buy_64:
+    material: EMERALD
+    name: "&a&lBuy 64"
+    lore:
+      - "&7Price: &a%total_price%$"
+      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - ""
+      - "&aClick to purchase 64"
+    custom-model: -1
+    symbol: '5'
+    nbt: "buy_64"
+
+  buy_max:
+    material: EMERALD_BLOCK
+    name: "&a&lBuy Max Stacks"
+    lore:
+      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - "&7Price per stack: &a%price%$"
+      - ""
+      - "&aClick to buy as many as you can afford"
+    custom-model: -1
+    symbol: 'a'
+    nbt: "buy_max"
+
+  go_back:
+    material: SPECTRAL_ARROW
+    name: "&a&lGO BACK"
+    lore:
+      - "&7Click to go back"
+    custom-model: -1
+    symbol: 'g'
+    nbt: "goback"

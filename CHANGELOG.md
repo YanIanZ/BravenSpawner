@@ -5,6 +5,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - TBD
+
+### Added
+- Menu engine driven by `gui/*.yml`: layout strings, per-character items,
+  placeholders, filler and a dedicated Bedrock layout.
+- SellWand with radius collection, price modifiers and cooldown feedback.
+- Per-product YAML: `mobs/*.yml` and `itemspawners/*.yml`, with automatic
+  migration from the legacy `config.yml` product block.
+- Item stock and buy-stack limits per player.
+- Bedrock detection (Floodgate, then Geyser UUID prefix) and PlaceholderAPI
+  resolution for GUI text.
+- Config-driven holograms in `holograms.yml` with tier overrides.
+- Shop price routing for ShopGUI+, EconomyShopGUI, ZShop, ExcellentShop and
+  EssentialsX, plus `multiple-drop`, production budget and block-entity tuner.
+- Audit log: async daily files, bounded queue, log menu.
+
 ## [1.0.2] - 2026-10-30
 
 ### Fixed

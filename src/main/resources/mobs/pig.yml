@@ -1,0 +1,32 @@
+# BravenSpawner virtual loot product. Delay values are seconds.
+entity-type: PIG
+display-name: Pig
+spawn-delays:
+  min: 5
+  max: 15
+xp:
+  min: 5
+  max: 5
+storage:
+  max-items: 1000
+  max-xp: 1000
+  must-be-full-to-collect: false
+max-stack: default
+spawner-price: 5000
+drops:
+  '1':
+    material: COOKED_PORKCHOP
+    amount:
+      min: 1
+      max: 2
+    chance: 30.0
+    sell-price: 1.0
+    priority: 1
+  '2':
+    material: PORKCHOP
+    amount:
+      min: 1
+      max: 1
+    chance: 90.0
+    sell-price: 1.5
+    priority: 2

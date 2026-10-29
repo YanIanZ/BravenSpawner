@@ -27,6 +27,11 @@ public final class EntityListener implements Listener {
         this.plugin = plugin;
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onVanillaSpawn(org.bukkit.event.entity.SpawnerSpawnEvent event) {
+        if (plugin.manager().at(event.getSpawner().getLocation()) != null) event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDeath(EntityDeathEvent event) {
         String raw = event.getEntity().getPersistentDataContainer()

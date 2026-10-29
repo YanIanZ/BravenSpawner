@@ -1,0 +1,122 @@
+# ================================
+#   BravenSpawner: Audit Log Menu
+# ================================
+#
+# Read by dev.yanianz.bravenspawner.audit.AuditMenu and rendered by the shared
+# menu engine; this file never builds an inventory by itself.
+#
+# Audit files live in plugins/BravenSpawner/logs/audit-YYYY-MM-DD.log and are
+# written only when `enable-logger: true` is set in config.yml.
+#
+# Placeholders available inside this file (case-sensitive, lowercase):
+#   %time%     event time, formatted with menu.time-format
+#   %actor%    player name captured when the action happened
+#   %action%   PLACE, BREAK, STACK, WITHDRAW, SELL, UPGRADE, ADMIN_GIVE, CORRUPT, REPAIR
+#   %amount%   whole units involved (stacks, items or currency)
+#   %spawner%  spawner UUID
+#   %world%    world name, or "-" when the event has no location
+#   %x% %y% %z% block coordinates, or 0 when the event has no location
+#   %detail%   free-form context written by the action that produced the event
+#   %page%     current page number (menu items only)
+#   %limit%    configured event count (menu.limit)
+#
+# Layout note: every layout row must be exactly 9 characters; a row that is not
+# 9 characters is a configuration error and the menu is skipped rather than
+# rendered half-empty.
+#
+# ================================
+
+menu:
+  # Title shown above the event list.
+  title: "&c> &8Audit Log &c<"
+
+  # Number of rows; 1..6. The shipped layout uses 6.
+  rows: 6
+
+  # Number of events AuditMenu returns (and therefore renders).
+  # The shipped layout has 28 event slots: 4 rows x 7 slots.
+  limit: 28
+
+  # Java DateTimeFormatter pattern for %time%. Invalid patterns fall back to
+  # "yyyy-MM-dd HH:mm:ss" instead of breaking the menu.
+  time-format: "yyyy-MM-dd HH:mm:ss"
+
+  # Item arrangement. Symbols map to items.symbol below.
+  #   p: previous page   n: next page   x: close   e: one audit event   -: filler
+  layout:
+    - "---------"
+    - "-eeeeeee-"
+    - "-eeeeeee-"
+    - "-eeeeeee-"
+    - "-eeeeeee-"
+    - "p---x---n"
+
+# ================================
+#   Menu Items Configuration
+# ================================
+# Each item defines how it appears and functions in the layout:
+#   material:      Material type of the item
+#   name:          Display name (supports & colour codes and the placeholders above)
+#   lore:          Hover lines (same placeholder rules)
+#   custom-model:  Custom model data, -1 to disable
+#   head-texture:  Full texture URL for PLAYER_HEAD items (optional)
+#   symbol:        Single character used for this item in menu.layout
+#   nbt:           Action tag the menu engine routes on click
+# ================================
+
+items:
+  # Filler item used for every slot not claimed by the layout.
+  filler:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: "&e"
+    lore: []
+    custom-model: -1
+    symbol: '-'
+    nbt: ""
+
+  # Previous page button; shown only by clicking when a page exists.
+  previous:
+    material: PLAYER_HEAD
+    name: "&7&lPREVIOUS PAGE &7(Current: %page%)"
+    lore:
+      - "&7Click to navigate to the previous page"
+    custom-model: -1
+    head-texture: "https://textures.minecraft.net/texture/98b1b4819fda0f0babbcd36c8404f34862b529409ea55775712c0b67945977ea"
+    symbol: 'p'
+    nbt: "previous"
+
+  # Next page button.
+  next:
+    material: PLAYER_HEAD
+    name: "&7&lNEXT PAGE &7(Current: %page%)"
+    lore:
+      - "&7Click to navigate to the next page"
+    custom-model: -1
+    head-texture: "https://textures.minecraft.net/texture/51e94e1130201af1a3062f62d42ecbb55d59e4cabb3435a0e0062bc008cb0985"
+    symbol: 'n'
+    nbt: "next"
+
+  # Close button.
+  close:
+    material: BARRIER
+    name: "&c&lCLOSE"
+    lore:
+      - "&7Click to close the audit log"
+    custom-model: -1
+    symbol: 'x'
+    nbt: "close"
+
+  # One audit event. The name and lore are applied per event by AuditMenu; the
+  # engine must render as many copies as it has events and leave the rest of the
+  # `e` slots as filler.
+  event:
+    material: PAPER
+    name: "&e%time% &7| &f%actor% &7| &a%action%"
+    lore:
+      - "&7Amount: &f%amount%"
+      - "&7Spawner: &f%spawner%"
+      - "&7Location: &f%world% %x%, %y%, %z%"
+      - "&7%detail%"
+    custom-model: -1
+    symbol: 'e'
+    nbt: "event"

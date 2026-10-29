@@ -128,6 +128,24 @@ public final class CorruptionTask {
         return repaired;
     }
 
+    /** Puzzle completion repairs the origin and a player-centered integer sphere. */
+    public int repairPuzzle(Player player, Spawner origin) {
+        if (player == null || origin == null) return 0;
+        org.bukkit.Location center = player.getLocation();
+        int radius = Math.max(0, plugin.settings().corruptionSolveRadius);
+        double squared = (double) radius * radius;
+        int repaired = 0;
+        if (origin.corrupted()) { repairOne(origin); repaired++; }
+        for (Spawner candidate : plugin.manager().all()) {
+            if (!candidate.corrupted() || !candidate.world().equals(center.getWorld().getName())) continue;
+            double dx = (double) candidate.x() - center.getBlockX();
+            double dy = (double) candidate.y() - center.getBlockY();
+            double dz = (double) candidate.z() - center.getBlockZ();
+            if (dx * dx + dy * dy + dz * dz <= squared) { repairOne(candidate); repaired++; }
+        }
+        return repaired;
+    }
+
     private void sweep() {
         SpawnerManager manager = plugin.manager();
         if (!plugin.isEnabled() || manager == null) return;
@@ -158,6 +176,8 @@ public final class CorruptionTask {
             if (!countdowns.remove(spawner.id(), deadline)) continue;
 
             spawner.corrupt();
+            plugin.markDirty(spawner);
+            plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.CORRUPT, null, 0, "timer");
             Holograms holograms = plugin.holograms();
             if (holograms != null) holograms.update(spawner);
             if (plugin.getConfig().getBoolean("enable-logger", false)) {
@@ -172,6 +192,8 @@ public final class CorruptionTask {
 
     private void repairOne(Spawner spawner) {
         spawner.repair();
+        plugin.markDirty(spawner);
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.REPAIR, null, 0, "repaired");
         // The next sweep arms a fresh delay; repairing must not immediately re-corrupt.
         countdowns.remove(spawner.id());
         Holograms holograms = plugin.holograms();

@@ -1,0 +1,27 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: MAGMA_CUBE
+display-name: "&cMagma Cube"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/a1c97a06efde04d00287bf20416404ab2103e10f08623087e1b0c1264a1c0f0c
+  lore:
+    - "&aA spawner for magma cubes."
+
+interval-ticks: 1200
+xp: 5
+
+drops:
+  1:
+    material: MAGMA_CREAM
+    amount:
+      min: 1
+      max: 3
+    chance: 60.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 25000

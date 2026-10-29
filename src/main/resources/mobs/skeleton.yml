@@ -1,0 +1,33 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: SKELETON
+display-name: "&7Skeleton"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/ae0fead732571db5d50488c5b50d4da791590861a212de3a824e44015b7f3cc8
+  lore:
+    - "&aA spawner for skeletons."
+
+interval-ticks: 1200
+xp: 5
+
+drops:
+  1:
+    material: BONE
+    amount:
+      min: 2
+      max: 4
+    chance: 80.0
+  2:
+    material: ARROW
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

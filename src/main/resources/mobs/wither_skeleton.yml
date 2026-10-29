@@ -1,0 +1,32 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: WITHER_SKELETON
+display-name: "&8Wither Skeleton"
+
+head:
+  material: WITHER_SKELETON_SKULL
+  lore:
+    - "&aA spawner for wither skeletons."
+
+interval-ticks: 1200
+xp: 10
+
+drops:
+  1:
+    material: COAL
+    amount:
+      min: 1
+      max: 2
+    chance: 100.0
+  2:
+    material: BONE
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 4
+
+spawner-price: 75000

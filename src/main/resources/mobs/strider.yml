@@ -1,0 +1,32 @@
+# BravenSpawner virtual loot product. Delay values are seconds.
+entity-type: STRIDER
+display-name: Strider
+spawn-delays:
+  min: 5
+  max: 15
+xp:
+  min: 5
+  max: 5
+storage:
+  max-items: 1000
+  max-xp: 1000
+  must-be-full-to-collect: false
+max-stack: default
+spawner-price: 7500
+drops:
+  '1':
+    material: WARPED_FUNGUS
+    amount:
+      min: 1
+      max: 2
+    chance: 80.0
+    sell-price: 0.5
+    priority: 1
+  '2':
+    material: BASALT
+    amount:
+      min: 1
+      max: 2
+    chance: 60.0
+    sell-price: 0.3
+    priority: 2

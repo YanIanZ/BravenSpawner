@@ -37,7 +37,7 @@ public final class Spawner {
     private final int y;
     private final int z;
 
-    private final Object lock = new Object();
+    private final Object lock = this;
     private final List<ItemStack> storage = new ArrayList<>();
     private final Set<UUID> trusted = Collections.synchronizedSet(new LinkedHashSet<>());
     private final AtomicLong produced = new AtomicLong();
@@ -141,8 +141,13 @@ public final class Spawner {
             return xp;
         }
     }
-    public void addXp(int amount) {
-        synchronized (lock) { storedXp += Math.max(0, amount); }
+    public void addXp(int amount) { addXp(amount, 0); }
+
+    public void addXp(int amount, int maximum) {
+        synchronized (lock) {
+            long limit = maximum <= 0 ? Integer.MAX_VALUE : maximum;
+            storedXp = (int) Math.max(storedXp, Math.min(limit, (long) storedXp + Math.max(0, amount)));
+        }
     }
 
     public Set<UUID> trusted() { return trusted; }
@@ -217,10 +222,20 @@ public final class Spawner {
      * Inserts as much as fits. Returns the remainder, or null when everything landed.
      * Capacity 0 (or negative) means unlimited storage.
      */
-    public ItemStack store(ItemStack incoming, int capacity) {
+    public ItemStack store(ItemStack incoming, int capacity) { return store(incoming, capacity, 0); }
+
+    public ItemStack store(ItemStack incoming, int capacity, int maximumItems) {
         if (incoming == null || incoming.getType().isAir()) return null;
         synchronized (lock) {
             ItemStack left = incoming.clone();
+            int rejected = 0;
+            if (maximumItems > 0) {
+                long total = 0;
+                for (ItemStack item : storage) total += item.getAmount();
+                int admitted = (int) Math.min(left.getAmount(), Math.max(0L, maximumItems - total));
+                rejected = left.getAmount() - admitted;
+                left.setAmount(admitted);
+            }
             int limit = capacity <= 0 ? Integer.MAX_VALUE : capacity;
 
             for (ItemStack existing : storage) {
@@ -241,7 +256,37 @@ public final class Spawner {
                 left.setAmount(left.getAmount() - take);
             }
 
+            left.setAmount(left.getAmount() + rejected);
             return left.getAmount() > 0 ? left : null;
+        }
+    }
+
+    /** Virtual storage uses one logical count per item identity, independent of vanilla stack size. */
+    public ItemStack storeVirtual(ItemStack incoming, int maximumItems) {
+        if (incoming == null || incoming.getType().isAir() || incoming.getAmount() <= 0) return null;
+        synchronized (lock) {
+            long total = 0;
+            for (ItemStack item : storage) total += item.getAmount();
+            long ceiling = maximumItems <= 0 ? Integer.MAX_VALUE : maximumItems;
+            int admitted = (int) Math.min(incoming.getAmount(), Math.max(0L, ceiling - total));
+            int remaining = admitted;
+            for (ItemStack item : storage) {
+                if (remaining <= 0) break;
+                if (!item.isSimilar(incoming)) continue;
+                int moved = (int) Math.min(remaining, (long) Integer.MAX_VALUE - item.getAmount());
+                item.setAmount(item.getAmount() + moved);
+                remaining -= moved;
+            }
+            if (remaining > 0) {
+                ItemStack entry = incoming.clone();
+                entry.setAmount(remaining);
+                storage.add(entry);
+            }
+            int rejected = incoming.getAmount() - admitted;
+            if (rejected <= 0) return null;
+            ItemStack leftover = incoming.clone();
+            leftover.setAmount(rejected);
+            return leftover;
         }
     }
 
@@ -264,6 +309,15 @@ public final class Spawner {
             slot.setAmount(slot.getAmount() - take);
             if (slot.getAmount() <= 0) storage.remove(index);
             return out;
+        }
+    }
+
+    /** A stale GUI may drain only the same item identity it originally displayed. */
+    public ItemStack drainSlotIfSimilar(int index, ItemStack expected, int amount) {
+        synchronized (lock) {
+            if (expected == null || amount <= 0 || index < 0 || index >= storage.size()) return null;
+            if (!storage.get(index).isSimilar(expected)) return null;
+            return drainSlot(index, amount);
         }
     }
 

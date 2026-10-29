@@ -2,12 +2,12 @@ package dev.yanianz.bravenspawner.mechanics;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.util.Schedulers;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
 import java.util.HashSet;
@@ -35,7 +35,8 @@ public final class Ninja {
     /** player -> spawner id -> block location currently overridden to AIR. */
     private final Map<UUID, Map<UUID, Location>> hidden = new ConcurrentHashMap<>();
 
-    private ScheduledTask task;
+    private volatile ScheduledTask task;
+    private volatile boolean running;
 
     public Ninja(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -44,6 +45,7 @@ public final class Ninja {
     /** Starts the refresh loop; the loop itself is cheap when the feature is off. */
     public void start() {
         if (task != null) return;
+        running = true;
         long seconds = Math.max(1L, plugin.getConfig().getLong("ninja-spawners.refresh-rate", 1L));
         long ticks = seconds * 20L;
         // One global timer drives all players. Each player's packet work is then
@@ -53,6 +55,7 @@ public final class Ninja {
 
     /** Cancels the loop and gives every online player the real blocks back. */
     public void stop() {
+        running = false;
         if (task != null) {
             task.cancel();
             task = null;
@@ -72,14 +75,15 @@ public final class Ninja {
     }
 
     private void tick() {
+        if (!running || !plugin.isEnabled() || !plugin.ready()) return;
         for (Player player : Bukkit.getOnlinePlayers()) {
-            Location location = player.getLocation();
-            if (location.getWorld() == null) continue;
-            Bukkit.getRegionScheduler().execute(plugin, location, () -> refresh(player));
+            Schedulers.onEntity(plugin, player, () -> refresh(player),
+                    () -> hidden.remove(player.getUniqueId()));
         }
     }
 
     private void refresh(Player player) {
+        if (!running || !plugin.isEnabled() || !plugin.ready()) return;
         if (player == null || !player.isOnline()) {
             if (player != null) hidden.remove(player.getUniqueId());
             return;
@@ -108,17 +112,12 @@ public final class Ninja {
             if (block == null) continue;
             present.add(spawner.id());
 
-            // An unloaded chunk has no client-side block to override. Clearing
-            // the entry lets the next refresh decide again after it loads.
-            if (!isLoaded(block)) {
-                state.remove(spawner.id());
-                continue;
-            }
-
             double distanceSq = distanceSquared(player, block);
             if (distanceSq <= visibilitySq) {
                 if (state.remove(spawner.id()) != null) show(player, block);
-            } else if (distanceSq > startSq && !state.containsKey(spawner.id())) {
+            } else if (distanceSq > startSq) {
+                // Repeat the override so a client chunk reload does not reveal a
+                // still-distant spawner. No foreign block/chunk read is needed.
                 player.sendBlockChange(block, Material.AIR.createBlockData());
                 state.put(spawner.id(), block.clone());
             }
@@ -151,12 +150,34 @@ public final class Ninja {
     }
 
     private void show(Player player, Location location) {
-        if (location == null || location.getWorld() == null || !isLoaded(location)) return;
-        // A world change can race the refresh task; a block packet has no world
-        // id, so never send one for a world the player is no longer in.
-        if (!player.getWorld().equals(location.getWorld())) return;
-        Block block = location.getBlock();
-        player.sendBlockChange(location, block.getBlockData());
+        if (location == null || location.getWorld() == null) return;
+        try {
+            // The block can be in a different Folia region from the player.
+            // Capture block data there, then send the packet on the entity owner.
+            Schedulers.at(plugin, location, () -> {
+                if (!isLoaded(location)) return;
+                var data = location.getBlock().getBlockData().clone();
+                try {
+                    Schedulers.onEntity(plugin, player, () -> {
+                        if (!player.isOnline() || !player.getWorld().equals(location.getWorld())) return;
+                        Map<UUID, Location> overrides = hidden.get(player.getUniqueId());
+                        if (overrides != null && overrides.containsValue(location)) return;
+                        player.sendBlockChange(location, data);
+                    }, () -> hidden.remove(player.getUniqueId()));
+                } catch (RuntimeException e) {
+                    logRestoreFailure(e);
+                }
+            });
+        } catch (RuntimeException e) {
+            logRestoreFailure(e);
+        }
+    }
+
+    private void logRestoreFailure(RuntimeException exception) {
+        // Folia may reject plugin tasks during disable; never fall back to a
+        // foreign-region block read or player packet. Reconnecting clears AIR.
+        if (plugin.isEnabled()) plugin.getLogger().warning("could not restore ninja block view: "
+                + exception.getMessage());
     }
 
     private boolean isLoaded(Location location) {

@@ -1,0 +1,77 @@
+# ================================
+#   BravenSpawner: Admin Log Menu
+# ================================
+# Query result rows are filled by the caller after open(); this file places the
+# controls. %page%, %player%, %logtype%, %limit% and %time% come from the caller.
+menu:
+  title: "&c> &8Admin Query Log &c<"
+  rows: 6
+  layout:
+    default:
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "p--qtsl-n"
+
+items:
+  filler:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: "&e"
+    lore: []
+    custom-model: -1
+    symbol: '-'
+    nbt: ""
+
+  previous:
+    material: PLAYER_HEAD
+    name: "&7&lPREVIOUS PAGE &7(%page%)"
+    lore:
+      - "&7Click to go back one page"
+    custom-model: -1
+    head-texture: "http://textures.minecraft.net/texture/98b1b4819fda0f0babbcd36c8404f34862b529409ea55775712c0b67945977ea"
+    symbol: 'p'
+    nbt: "previous"
+
+  next:
+    material: PLAYER_HEAD
+    name: "&7&lNEXT PAGE &7(%page%)"
+    lore:
+      - "&7Click to go forward one page"
+    custom-model: -1
+    head-texture: "http://textures.minecraft.net/texture/51e94e1130201af1a3062f62d42ecbb55d59e4cabb3435a0e0062bc008cb0985"
+    symbol: 'n'
+    nbt: "next"
+
+  target:
+    material: PLAYER_HEAD
+    name: "&e&lTARGETED PLAYER: &6%player%"
+    lore: []
+    custom-model: -1
+    symbol: 't'
+    nbt: "target"
+
+  logtype:
+    material: REDSTONE
+    name: "&e&lLISTED LOGS: &6%logtype%"
+    lore: []
+    custom-model: -1
+    symbol: 'q'
+    nbt: "logtype"
+
+  limit:
+    material: REPEATER
+    name: "&e&lQUERY LIMIT: &6%limit%"
+    lore: []
+    custom-model: -1
+    symbol: 'l'
+    nbt: "limit"
+
+  time:
+    material: CLOCK
+    name: "&e&lTIME SETTING: &6%time%"
+    lore: []
+    custom-model: -1
+    symbol: 's'
+    nbt: "time"

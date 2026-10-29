@@ -1,0 +1,86 @@
+# ================================
+#   BravenSpawner: Storage Menu
+# ================================
+# Storage contents are filled by the caller after open(); this file places the
+# controls. %entity%, %stored%, %stack%, %tier% and %page% come from the caller.
+menu:
+  title: "&b✹ &8%entity% Spawner &b> &7Storage"
+  rows: 6
+  layout:
+    default:
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "p-icaw-n-"
+
+items:
+  filler:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: "&e"
+    lore: []
+    custom-model: -1
+    symbol: '-'
+    nbt: ""
+
+  info:
+    material: PLAYER_HEAD
+    name: "&b%entity% &fSpawner"
+    lore:
+      - "&b¤ &fEntity: &f%entity%"
+      - "&b¤ &fTier: &f%tier%"
+      - "&b¤ &fStack: &f%stack%"
+      - "&b¤ &fStored: &f%stored%"
+    custom-model: -1
+    head-texture: "%head_texture%"
+    symbol: 'i'
+    nbt: "information"
+
+  previous:
+    material: PLAYER_HEAD
+    name: "&7&lPREVIOUS PAGE &7(%page%)"
+    lore:
+      - "&7Click to go back one page"
+    custom-model: -1
+    head-texture: "http://textures.minecraft.net/texture/98b1b4819fda0f0babbcd36c8404f34862b529409ea55775712c0b67945977ea"
+    symbol: 'p'
+    nbt: "previous"
+
+  next:
+    material: PLAYER_HEAD
+    name: "&7&lNEXT PAGE &7(%page%)"
+    lore:
+      - "&7Click to go forward one page"
+    custom-model: -1
+    head-texture: "http://textures.minecraft.net/texture/51e94e1130201af1a3062f62d42ecbb55d59e4cabb3435a0e0062bc008cb0985"
+    symbol: 'n'
+    nbt: "next"
+
+  take_all:
+    material: CHEST_MINECART
+    name: "&a&lTAKE ALL"
+    lore:
+      - "&7Click to take as much as fits"
+    custom-model: -1
+    symbol: 'a'
+    nbt: "takeall"
+
+  sell_all:
+    material: GOLD_BLOCK
+    name: "&e&lSELL ALL"
+    lore:
+      - "&7Click to sell the stored items"
+      - "&7Stored: &f%stored%"
+    custom-model: -1
+    symbol: 'w'
+    nbt: "sellall"
+
+  close:
+    material: BARRIER
+    name: "&c&lCLOSE"
+    lore:
+      - "&7Click to close"
+    custom-model: -1
+    symbol: 'c'
+    nbt: "close"

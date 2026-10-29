@@ -1,0 +1,27 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: CREEPER
+display-name: "&aCreeper"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/1ff8f6d00d5b07387584f117c66d698c90c69cedb01a6e69dbb02771c7302d16
+  lore:
+    - "&aA spawner for creepers."
+
+interval-ticks: 1200
+xp: 5
+
+drops:
+  1:
+    material: GUNPOWDER
+    amount:
+      min: 2
+      max: 4
+    chance: 60.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 20000

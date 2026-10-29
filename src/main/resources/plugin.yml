@@ -12,18 +12,20 @@ softdepend:
   - Lands
   - Towny
   - PlaceholderAPI
+  - floodgate
+  - Geyser-Spigot
 commands:
   bspawner:
     description: Manage BravenSpawner
-    aliases: [bravenspawner, vs, bs]
+    aliases: [bravenspawner, vspawner, virtualspawner, vs, bs]
     permission: bravenspawner.admin
   bmodify:
     description: Toggle trust on a spawner
-    aliases: [bsmodify]
+    aliases: [bsmodify, vmodify]
     permission: bravenspawner.use
   bhtoggle:
     description: Toggle holograms on your spawners
-    aliases: [bstoggle]
+    aliases: [bstoggle, shtoggle]
     permission: bravenspawner.use
 permissions:
   bravenspawner.admin:

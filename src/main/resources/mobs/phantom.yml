@@ -1,0 +1,24 @@
+# BravenSpawner virtual loot product. Delay values are seconds.
+entity-type: PHANTOM
+display-name: Phantom
+spawn-delays:
+  min: 5
+  max: 15
+xp:
+  min: 5
+  max: 5
+storage:
+  max-items: 1000
+  max-xp: 1000
+  must-be-full-to-collect: false
+max-stack: default
+spawner-price: 20000
+drops:
+  '1':
+    material: PHANTOM_MEMBRANE
+    amount:
+      min: 1
+      max: 2
+    chance: 60.0
+    sell-price: 1.0
+    priority: 1

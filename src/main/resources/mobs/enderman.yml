@@ -1,0 +1,27 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: ENDERMAN
+display-name: "&5Enderman"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c09f1de6135f4bea781c5a8e0d61095f833ee2685d8154ecea814ee6d328a5c6
+  lore:
+    - "&aA spawner for endermen."
+
+interval-ticks: 1200
+xp: 8
+
+drops:
+  1:
+    material: ENDER_PEARL
+    amount:
+      min: 1
+      max: 2
+    chance: 60.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 6
+
+spawner-price: 30000

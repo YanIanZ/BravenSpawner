@@ -152,6 +152,12 @@ public final class Settings {
     }
 
     public static Settings load(ConfigurationSection root, ConfigurationSection databases, ConfigurationSection hooks) {
+        return load(root, databases, hooks, null);
+    }
+
+    public static Settings load(ConfigurationSection root, ConfigurationSection databases,
+                                ConfigurationSection hooks,
+                                dev.yanianz.bravenspawner.product.ProductRegistry catalogue) {
         Builder b = new Builder();
         b.useItemSpawners = root.getBoolean("use_item_spawners", false);
         b.itemSpawnerOptimization = root.getBoolean("item_spawner_optimization", false);
@@ -267,7 +273,19 @@ public final class Settings {
         if (tiers.isEmpty()) tiers.add(new Tier("base", 0.0, 1200L, 45));
         b.tiers = tiers;
 
+        if (catalogue != null) {
+            b.mobs.clear();
+            b.items.clear();
+            for (var product : catalogue.allMobs()) b.mobs.put(product.id().toUpperCase(Locale.ROOT), legacyProduct(product));
+            for (var product : catalogue.allItems()) b.items.put(product.id().toUpperCase(Locale.ROOT), legacyProduct(product));
+        }
         return new Settings(b);
+    }
+
+    private static Product legacyProduct(dev.yanianz.bravenspawner.product.ProductDefinition product) {
+        List<Drop> drops = product.drops().stream()
+                .map(d -> new Drop(d.material(), d.minAmount(), d.chance())).toList();
+        return new Product(product.id().toUpperCase(Locale.ROOT), product.displayName(), drops, product.xp());
     }
 
     private static String suffix(int power) {

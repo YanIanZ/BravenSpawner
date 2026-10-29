@@ -109,6 +109,7 @@ public final class StackService {
             return new Result(Status.WRONG_ITEM, 0, target.stack(), 0);
         }
 
+        int stackLimit = plugin.stackLimit(target);
         int incoming = canonicalCount(plugin, item, s.stackLimit);
 
         // 3. Per-chunk cap. The target's own stack is already part of the total,
@@ -126,19 +127,21 @@ public final class StackService {
         // 4. Stack cap. Rejected rather than clamped: a partial merge would have to
         //    decide what happens to the remainder, and the item stays untouched so
         //    the player keeps exactly what they arrived with.
-        int room = target.roomFor(s.stackLimit);
+        int room = target.roomFor(stackLimit);
         if (incoming > room) {
             return new Result(Status.STACK_LIMIT, 0, target.stack(), room);
         }
-        if (!target.tryAddStack(incoming, s.stackLimit)) {
+        if (!target.tryAddStack(incoming, stackLimit)) {
             // Lost a race with a concurrent merge; nothing was applied.
-            return new Result(Status.STACK_LIMIT, 0, target.stack(), target.roomFor(s.stackLimit));
+            return new Result(Status.STACK_LIMIT, 0, target.stack(), target.roomFor(stackLimit));
         }
 
         // The whole virtual count lives on one physical item, so consuming the
         // merge means consuming that item, not decrementing a display amount.
         item.setAmount(item.getAmount() - 1);
-        return new Result(Status.OK, incoming, target.stack(), target.roomFor(s.stackLimit));
+        plugin.markDirty(target);
+        plugin.record(target, dev.yanianz.bravenspawner.audit.AuditEvent.Action.STACK, actor, incoming, "merged");
+        return new Result(Status.OK, incoming, target.stack(), target.roomFor(stackLimit));
     }
 
     /**
@@ -151,13 +154,12 @@ public final class StackService {
      * back to 1 for items issued before the canonical field existed.
      */
     public static int canonicalCount(BravenSpawner plugin, ItemStack item, int max) {
-        int limit = Math.max(1, max);
         if (plugin == null || item == null) return 1;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return 1;
         Integer stored = meta.getPersistentDataContainer().get(stackKey(plugin), PersistentDataType.INTEGER);
         if (stored == null) return 1;
-        return Math.max(1, Math.min(limit, stored));
+        return Math.max(1, stored);
     }
 
     /** Spawner kind stamped on the item, or null when the item is not a spawner. */

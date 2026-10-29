@@ -87,13 +87,15 @@ public final class SellService {
         private final List<Reservation> reservations;
         private final int items;
         private final double value;
+        private final Player actor;
         private Phase phase = Phase.QUOTED;
 
-        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, int items, double value) {
+        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, int items, double value, Player actor) {
             this.spawnerId = spawnerId;
             this.reservations = reservations;
             this.items = items;
             this.value = value;
+            this.actor = actor;
         }
 
         synchronized boolean markPaid() {
@@ -176,13 +178,13 @@ public final class SellService {
     /** Current sale value of what is stored, including the multiplier; used for the GUI quote. */
     public double value(Spawner spawner) {
         if (spawner == null) return 0.0;
-        return price(spawner.contents(), prices()).value();
+        return price(spawner.contents(), prices(spawner)).value();
     }
 
     /** Number of stored items that would be paid for right now. */
     public int sellableItems(Spawner spawner) {
         if (spawner == null) return 0;
-        return price(spawner.contents(), prices()).items();
+        return price(spawner.contents(), prices(spawner)).items();
     }
 
     /**
@@ -195,6 +197,14 @@ public final class SellService {
      * is the retry path, and it never calls the economy again.
      */
     public Sale sell(Player player, Spawner spawner) {
+        return sell(player, spawner, 1.0);
+    }
+
+    /** Settles the complete wand-adjusted quote with one deposit and one drain. */
+    public Sale sell(Player player, Spawner spawner, double multiplier) {
+        if (!Double.isFinite(multiplier) || multiplier <= 0.0) {
+            return Sale.refused(Status.FAILED, "invalid sale multiplier");
+        }
         if (player == null || spawner == null) {
             return Sale.refused(Status.NOTHING_TO_SELL, "no spawner selected");
         }
@@ -204,7 +214,10 @@ public final class SellService {
         synchronized (saleLock) {
             Sale outstanding = settleOutstanding(spawner);
             if (outstanding != null) return outstanding;
-            return attemptSale(spawner, player, prices());
+            PriceTable base = prices(spawner);
+            double combined = base.multiplier() * multiplier;
+            if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
+            return attemptSale(spawner, player, new PriceTable(base.unitPrices(), combined), player);
         }
     }
 
@@ -269,18 +282,17 @@ public final class SellService {
         if (manager == null) return;
         if (!economyReady()) return;
 
-        PriceTable table = prices();
         for (Spawner spawner : manager.all()) {
             if (spawner == null) continue;
             try {
-                autosellSpawner(spawner, table);
+                autosellSpawner(spawner);
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("autosell failed for " + spawner.id() + ": " + e.getMessage());
             }
         }
     }
 
-    private void autosellSpawner(Spawner spawner, PriceTable table) {
+    private void autosellSpawner(Spawner spawner) {
         Sale sale;
         synchronized (saleLock) {
             Sale outstanding = settleOutstanding(spawner);
@@ -291,7 +303,7 @@ public final class SellService {
                 }
                 return;
             }
-            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), table);
+            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), prices(spawner), null);
         }
         if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
     }
@@ -318,13 +330,25 @@ public final class SellService {
      * Reads the live config on every call: {@code reloadConfig()} swaps the object,
      * so a cached table would silently keep paying last boot's prices.
      */
-    private PriceTable prices() {
+    private PriceTable prices(Spawner spawner) {
         Map<String, Double> units = new HashMap<>();
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("sell-prices");
         if (section != null) {
             for (String key : section.getKeys(false)) {
                 double price = section.getDouble(key, -1.0);
                 if (price > 0.0 && Double.isFinite(price)) units.put(key.toUpperCase(Locale.ROOT), price);
+            }
+        }
+
+        // An explicit product zero disables selling that drop; an unset (-1)
+        // price inherits the global default. Products can price drops absent there.
+        var product = plugin.product(spawner);
+        if (product != null) {
+            for (var drop : product.drops()) {
+                double value = drop.sellPrice();
+                if (Double.isFinite(value) && value >= 0.0) {
+                    units.put(drop.material().name(), value);
+                }
             }
         }
 
@@ -349,7 +373,7 @@ public final class SellService {
         for (ItemStack stack : contents) {
             if (stack == null || stack.getType().isAir()) continue;
             Double unit = table.unitPrices().get(stack.getType().name());
-            if (unit == null) continue;
+            if (unit == null || unit <= 0.0) continue;
             int amount = stack.getAmount();
             if (amount <= 0) continue;
 
@@ -382,15 +406,18 @@ public final class SellService {
      * left the provider, and quoting again would pay for the same units twice.
      */
     private Sale settleOutstanding(Spawner spawner) {
-        SaleAttempt pending = pendingPayouts.get(spawner.id());
-        if (pending == null) return null;
-        if (drain(pending, spawner) && pending.markCleared()) {
-            pendingPayouts.remove(spawner.id(), pending);
-            plugin.getLogger().info("reconciled paid sale " + pending.id + " for spawner " + spawner.id());
-            return null;
+        synchronized (spawner) {
+            SaleAttempt pending = pendingPayouts.get(spawner.id());
+            if (pending == null) return null;
+            if (drain(pending, spawner) && pending.markCleared()) {
+                pendingPayouts.remove(spawner.id(), pending);
+                recordSettlement(spawner, pending);
+                plugin.getLogger().info("reconciled paid sale " + pending.id + " for spawner " + spawner.id());
+                return null;
+            }
+            return new Sale(Status.PENDING, pending.value, pending.items,
+                    "a previous payout of " + format(pending.value) + " is still waiting for its items");
         }
-        return new Sale(Status.PENDING, pending.value, pending.items,
-                "a previous payout of " + format(pending.value) + " is still waiting for its items");
     }
 
     /**
@@ -402,32 +429,54 @@ public final class SellService {
      * attempt in {@link Phase#PAID} and quarantines it, so the next pass removes
      * the stock without calling the economy again.
      */
-    private Sale attemptSale(Spawner spawner, OfflinePlayer target, PriceTable table) {
-        Priced priced = price(spawner.contents(), table);
-        if (priced.items() <= 0 || priced.value() <= 0.0) {
-            return Sale.refused(Status.NOTHING_TO_SELL, "nothing stored has a sell price");
-        }
+    private Sale attemptSale(Spawner spawner, OfflinePlayer target, PriceTable table, Player actor) {
+        synchronized (spawner) {
+            var product = plugin.product(spawner);
+            if (product != null && product.mustBeFullToCollect()) {
+                int capacity = plugin.maximumItems(spawner);
+                if (capacity > 0 && spawner.storedCount() < capacity) {
+                    return Sale.refused(Status.NOTHING_TO_SELL, "storage must be full before collecting");
+                }
+            }
+            Priced priced = price(spawner.contents(), table);
+            if (!Double.isFinite(priced.value())) return Sale.refused(Status.FAILED, "sale price overflow");
+            if (priced.items() <= 0 || priced.value() <= 0.0) {
+                return Sale.refused(Status.NOTHING_TO_SELL, "nothing stored has a sell price");
+            }
 
-        SaleAttempt attempt = new SaleAttempt(spawner.id(), priced.reserved(), priced.items(), priced.value());
-        if (!deposit(target, attempt.value)) {
-            attempt.failBeforePayment();
-            return new Sale(Status.FAILED, attempt.value, attempt.items, "Vault rejected the deposit");
-        }
-        if (!attempt.markPaid()) {
-            // Only reachable if a future caller reuses the attempt; refusing here
-            // is what keeps one quote from being paid twice.
-            return new Sale(Status.FAILED, attempt.value, attempt.items, "sale was already paid");
-        }
+            SaleAttempt attempt = new SaleAttempt(spawner.id(), priced.reserved(), priced.items(), priced.value(), actor);
+            if (!deposit(target, attempt.value)) {
+                attempt.failBeforePayment();
+                return new Sale(Status.FAILED, attempt.value, attempt.items, "Vault rejected the deposit");
+            }
+            if (!attempt.markPaid()) {
+                // Only reachable if a future caller reuses the attempt; refusing here
+                // is what keeps one quote from being paid twice.
+                return new Sale(Status.FAILED, attempt.value, attempt.items, "sale was already paid");
+            }
 
-        if (!drain(attempt, spawner) || !attempt.markCleared()) {
-            pendingPayouts.put(spawner.id(), attempt);
-            plugin.getLogger().warning("payout " + attempt.id + " for spawner " + spawner.id()
-                    + " was sent but " + attempt.outstanding()
-                    + " item(s) could not be removed; the sale is quarantined until stock returns.");
-            return new Sale(Status.PENDING, attempt.value, attempt.items,
-                    "payout sent; " + attempt.outstanding() + " item(s) still to be removed");
+            if (!drain(attempt, spawner) || !attempt.markCleared()) {
+                pendingPayouts.put(spawner.id(), attempt);
+                plugin.getLogger().warning("payout " + attempt.id + " for spawner " + spawner.id()
+                        + " was sent but " + attempt.outstanding()
+                        + " item(s) could not be removed; the sale is quarantined until stock returns.");
+                return new Sale(Status.PENDING, attempt.value, attempt.items,
+                        "payout sent; " + attempt.outstanding() + " item(s) still to be removed");
+            }
+            recordSettlement(spawner, attempt);
+            return new Sale(Status.SOLD, attempt.value, attempt.items, "");
         }
-        return new Sale(Status.SOLD, attempt.value, attempt.items, "");
+    }
+
+    /** Called only on the transition to CLEARED, including a later reconciliation. */
+    private void recordSettlement(Spawner spawner, SaleAttempt attempt) {
+        try {
+            plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.SELL,
+                    attempt.actor, attempt.items, "value=" + attempt.value + "; sale=" + attempt.id);
+        } catch (RuntimeException exception) {
+            // Audit I/O must never turn an already committed payout into a retry.
+            plugin.getLogger().warning("could not record sale " + attempt.id + ": " + exception.getMessage());
+        }
     }
 
     /**
@@ -437,7 +486,7 @@ public final class SellService {
      * reservation and then drains in descending slot order, because
      * {@link Spawner#drainSlot(int, int)} removes an emptied slot and would shift
      * every higher index. A slot that changed identity underneath the plan is put
-     * back with {@link Spawner#store(ItemStack, int)} and the pass is abandoned;
+     * back with {@link Spawner#storeVirtual(ItemStack, int)} and the pass is abandoned;
      * the attempt stays paid and its remaining count is retried later. Loot that
      * appeared after the quote is never in the reservation, so it stays put.
      */
@@ -475,10 +524,11 @@ public final class SellService {
             for (DrainStep step : steps) {
                 ItemStack removed = spawner.drainSlot(step.index(), step.amount());
                 if (removed == null || removed.getAmount() <= 0) return false;
+                plugin.markDirty(spawner);
                 if (!step.reservation().template.isSimilar(removed)) {
                     // A concurrent mutation moved a different stack into this slot;
                     // restore it untouched and re-plan from a fresh snapshot.
-                    spawner.store(removed, 0);
+                    spawner.storeVirtual(removed, 0);
                     return false;
                 }
                 step.reservation().remaining -= removed.getAmount();

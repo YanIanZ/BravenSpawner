@@ -77,6 +77,17 @@ public final class BlockListener implements Listener {
             return;
         }
 
+        var definition = kind == Spawner.Kind.MOB ? plugin.products().mob(product) : plugin.products().item(product);
+        if (definition == null || kind == Spawner.Kind.ITEM && !s.useItemSpawners) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cThat spawner product is unavailable."));
+            return;
+        }
+        if (!plugin.ready()) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cSpawner storage is still loading."));
+            return;
+        }
         Block block = event.getBlockPlaced();
         if (s.isBlacklisted(block.getWorld().getName())) {
             player.sendMessage(Text.of("&cSpawners are disabled in this world."));
@@ -87,6 +98,12 @@ public final class BlockListener implements Listener {
         // The virtual count is the canonical value; the physical amount is always
         // one. Clamping keeps a hand-edited item inside the configured cap.
         int stack = StackService.canonicalCount(plugin, item, s.stackLimit);
+        int productLimit = definition.maxStack() <= 0 ? s.stackLimit : Math.min(s.stackLimit, definition.maxStack());
+        if (stack > productLimit) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cThis product's stack limit is " + productLimit + "."));
+            return;
+        }
 
         int chunkX = block.getX() >> 4;
         int chunkZ = block.getZ() >> 4;
@@ -117,6 +134,7 @@ public final class BlockListener implements Listener {
             return;
         }
         plugin.holograms().update(spawner);
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.PLACE, player, stack, "placed");
         if (s.enableLogger) {
             plugin.getLogger().info(String.format("%s placed %s x%d at %s %d,%d,%d",
                     player.getName(), product, spawner.stack(),
@@ -127,6 +145,7 @@ public final class BlockListener implements Listener {
     }
 
     private void convertVanilla(BlockPlaceEvent event, Player player) {
+        if (!plugin.ready()) { event.setCancelled(true); return; }
         Block block = event.getBlockPlaced();
         String mob = "ZOMBIE";
         if (block.getState() instanceof CreatureSpawner cs && cs.getSpawnedType() != null) {
@@ -145,6 +164,7 @@ public final class BlockListener implements Listener {
     public void onBreak(BlockBreakEvent event) {
         Spawner spawner = plugin.manager().at(event.getBlock().getLocation());
         if (spawner == null) return;
+        if (!plugin.ready()) { event.setCancelled(true); return; }
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
@@ -171,6 +191,12 @@ public final class BlockListener implements Listener {
             }
         }
 
+        if (!plugin.ready() || spawner.storedCount() > 0 || spawner.storedXp() > 0) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cCollect the stored items and XP before breaking this spawner."));
+            return;
+        }
+
         // Repair first, then apply the normal break cost, so a Mending tool gets
         // the spawner's banked XP instead of losing durability to this break.
         Mending.repair(plugin, player, spawner);
@@ -183,6 +209,7 @@ public final class BlockListener implements Listener {
             }
         }
 
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.BREAK, player, spawner.stack(), "broken");
         plugin.manager().unregister(spawner);
         plugin.holograms().remove(spawner.id());
         event.setDropItems(false);
@@ -203,11 +230,13 @@ public final class BlockListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        if (plugin.wands() != null && plugin.wands().isWand(event.getItem())) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
         Spawner spawner = plugin.manager().at(block.getLocation());
         if (spawner == null) return;
+        if (!plugin.ready()) { event.setCancelled(true); return; }
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
