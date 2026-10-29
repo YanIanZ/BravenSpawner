@@ -181,7 +181,7 @@ public final class ShopHook {
         add(map, new Shop("DonutWorth", List.of("DonutWorth")), "DONUTWORTH");
         add(map, new Shop("EssentialsX", List.of("Essentials", "EssentialsX")), "ESSENTIALSX", "ESSENTIALS");
         add(map, new Shop("Nascraft", List.of("Nascraft")), "NASCRAFT");
-        return Map.copyOf(map);
+        return java.util.Collections.unmodifiableMap(map);
     }
 
     private static void add(Map<String, Shop> map, Shop hook, String... aliases) {

@@ -2,6 +2,9 @@ package dev.yanianz.bravemspawner.listener;
 
 import dev.yanianz.bravemspawner.BravemSpawner;
 import dev.yanianz.bravemspawner.config.Settings;
+import dev.yanianz.bravemspawner.mechanics.HopperLink;
+import dev.yanianz.bravemspawner.mechanics.Mending;
+import dev.yanianz.bravemspawner.mechanics.Ninja;
 import dev.yanianz.bravemspawner.model.Spawner;
 import dev.yanianz.bravemspawner.util.Text;
 import org.bukkit.GameMode;
@@ -18,7 +21,13 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -34,9 +43,15 @@ import java.util.UUID;
 public final class BlockListener implements Listener {
 
     private final BravemSpawner plugin;
+    private final Ninja ninja;
+    private final HopperLink hopperLink;
 
     public BlockListener(BravemSpawner plugin) {
         this.plugin = plugin;
+        this.ninja = new Ninja(plugin);
+        this.hopperLink = new HopperLink(plugin);
+        this.ninja.start();
+        this.hopperLink.start();
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -146,6 +161,10 @@ public final class BlockListener implements Listener {
             }
         }
 
+        // Repair first, then apply the normal break cost, so a Mending tool gets
+        // the spawner's banked XP instead of losing durability to this break.
+        Mending.repair(plugin, player, spawner);
+
         if (s.removeDurabilityOnBreak && player.getGameMode() != GameMode.CREATIVE) {
             ItemStack hand = player.getInventory().getItemInMainHand();
             if (hand != null && hand.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable damageable) {
@@ -240,5 +259,42 @@ public final class BlockListener implements Listener {
     public void onEntityExplode(EntityExplodeEvent event) {
         if (!plugin.settings().disableExplosionDamage) return;
         event.blockList().removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+    }
+
+    /*
+     * Ninja state is per connection. The client rebuilds chunks on these
+     * transitions, so stale AIR overrides must be discarded instead of trusted.
+     */
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        ninja.forget(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        ninja.forget(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        ninja.forget(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        ninja.forget(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onTeleport(PlayerTeleportEvent event) {
+        ninja.forget(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginDisable(PluginDisableEvent event) {
+        if (event.getPlugin() != plugin) return;
+        ninja.stop();
+        hopperLink.stop();
     }
 }

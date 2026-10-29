@@ -2,6 +2,7 @@ package dev.yanianz.bravemspawner;
 
 import dev.yanianz.bravemspawner.boosters.Boosters;
 import dev.yanianz.bravemspawner.command.CommandHandler;
+import dev.yanianz.bravemspawner.corruption.CorruptionTask;
 import dev.yanianz.bravemspawner.config.Settings;
 import dev.yanianz.bravemspawner.econ.Economy;
 import dev.yanianz.bravemspawner.gui.SpawnerGui;
@@ -98,6 +99,8 @@ public final class BravemSpawner extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         getServer().getPluginManager().registerEvents(gui, this);
+        getServer().getPluginManager().registerEvents(
+                new dev.yanianz.bravemspawner.listener.GuiGuardListener(this), this);
 
         var command = getCommand("vspawner");
         if (command != null) {
@@ -106,6 +109,7 @@ public final class BravemSpawner extends JavaPlugin {
             command.setTabCompleter(handler);
         }
         boosters.start(settings);
+        new CorruptionTask(this).start();
 
         Schedulers.async(this, () -> {
             List<Spawner> loaded;

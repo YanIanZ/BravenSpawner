@@ -196,6 +196,7 @@ public final class SpawnerGui implements Listener {
             case NOTHING_TO_SELL -> player.sendMessage(Text.of("&7Nothing stored with a sell price."));
             case DISABLED -> player.sendMessage(Text.of("&cSelling is disabled on this server."));
             case NO_ECONOMY -> player.sendMessage(Text.of("&cEconomy not available — nothing was sold."));
+            case FAILED -> player.sendMessage(Text.of("&cSale failed — nothing was removed."));
         }
         openMenu(player, spawner);
     }

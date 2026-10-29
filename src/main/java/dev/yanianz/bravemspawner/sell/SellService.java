@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SellService {
 
     /** Outcome of a sale attempt, so the caller can word the feedback without re-checking config. */
-    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY }
+    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED }
 
     /** A completed or refused sale: value is what was (or would have been) paid. */
     public record Sale(Status status, double value, int items) {
@@ -122,7 +122,7 @@ public final class SellService {
         synchronized (saleLock) {
             priced = price(spawner.contents(), prices());
             if (priced.items() <= 0 || priced.value() <= 0.0) return Sale.refused(Status.NOTHING_TO_SELL);
-            plugin.economy().deposit(player, priced.value());
+            if (!pay(player, priced.value())) return Sale.refused(Status.FAILED);
             clear(priced.sold(), spawner);
         }
         return new Sale(Status.SOLD, priced.value(), priced.items());
@@ -169,8 +169,8 @@ public final class SellService {
         try {
             autosellTask = Bukkit.getGlobalRegionScheduler()
                     .runAtFixedRate(plugin, task -> autosellPass(), ticks, ticks);
-            plugin.getLogger().info("Autosell enabled — every " + seconds + "s via "
-                    + (shop.available() ? "Vault + " + shop.detectedPlugin() : "Vault") + ".");
+            plugin.getLogger().info("Autosell enabled — every " + seconds + "s; payouts go through Vault"
+                    + (shop.available() ? " (shop hook: " + shop.detectedPlugin() + ")" : "") + ".");
         } catch (RuntimeException e) {
             plugin.getLogger().warning("could not schedule autosell: " + e.getMessage());
         }
@@ -199,7 +199,7 @@ public final class SellService {
             priced = price(spawner.contents(), table);
             if (priced.items() <= 0 || priced.value() <= 0.0) return;
             OfflinePlayer owner = Bukkit.getOfflinePlayer(spawner.owner());
-            plugin.economy().deposit(owner, priced.value());
+            if (!pay(owner, priced.value())) return;
             clear(priced.sold(), spawner);
         }
         notifyOwner(spawner, priced);
@@ -266,7 +266,8 @@ public final class SellService {
      *
      * <p>Re-reads the storage instead of clearing blindly so an autosell pass that
      * overlapped a region tick cannot destroy loot it never paid for; the loop
-     * consumes the sold amounts across every matching live stack.
+     * consumes the sold amounts across every matching live stack. Only the amount
+     * quoted is removed — an extra stack of the same material stays behind in full.
      */
     private void clear(List<ItemStack> sold, Spawner spawner) {
         List<ItemStack> live = spawner.contents();
@@ -288,6 +289,24 @@ public final class SellService {
             }
         }
         spawner.replaceContents(remaining);
+    }
+
+    /**
+     * Pays through Vault and reports whether the money actually left the bank.
+     *
+     * <p>Vault's deposit call has no result object, so a thrown provider exception
+     * is the only observable failure; treating it as "not paid" keeps the storage
+     * untouched instead of deleting loot for money that never arrived.
+     */
+    private boolean pay(OfflinePlayer target, double amount) {
+        if (plugin.economy() == null || !plugin.economy().enabled()) return false;
+        try {
+            plugin.economy().deposit(target, amount);
+            return true;
+        } catch (RuntimeException e) {
+            plugin.getLogger().warning("deposit of " + format(amount) + " failed: " + e.getMessage());
+            return false;
+        }
     }
 
     private boolean economyReady() {
