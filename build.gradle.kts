@@ -1,6 +1,6 @@
 plugins {
     java
-    id("com.gradleup.shadow") version "9.0.0"
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 group = "dev.yanianz"
@@ -13,11 +13,11 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.224-stable")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") { isTransitive = false }
-    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
-    implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("com.mysql:mysql-connector-j:8.4.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("com.zaxxer:HikariCP:7.1.0")
+    implementation("com.mysql:mysql-connector-j:26.10.0")
 }
 
 java {
