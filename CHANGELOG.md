@@ -5,6 +5,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-30
+
+### Fixed
+- Booster sweep used `Bukkit.getScheduler()`, which does not exist on Folia.
+  It now runs on the global region scheduler.
+- Shaded libraries were relocated into the pre-rename package because a stale
+  incremental artifact survived `clean`; a full rebuild now produces
+  `dev.yanianz.bravenspawner.libs.*` only.
+
 ## [1.0.1] - 2026-10-30
 
 ### Fixed
@@ -40,6 +49,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.2
 [1.0.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.1
 [1.0.0]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.0

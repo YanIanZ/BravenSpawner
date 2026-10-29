@@ -29,7 +29,9 @@ public final class Boosters {
 
     public void start(Settings settings) {
         if (!settings.enableBoosters) return;
-        Bukkit.getScheduler().runTaskTimer(plugin, this::sweep, 200L, 200L);
+        // Global region scheduler: the sweep touches no world state, so it is the
+        // only scheduler that exists on both Paper and Folia for plugin-wide work.
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, task -> sweep(), 200L, 200L);
     }
 
     private void sweep() {

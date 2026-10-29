@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.yanianz"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -38,9 +38,9 @@ tasks.shadowJar {
     archiveClassifier.set("")
     archiveVersion.set("")
     minimize()
-    relocate("com.zaxxer.hikari", "dev.yanianz.bravemspawner.libs.hikari")
-    relocate("org.sqlite", "dev.yanianz.bravemspawner.libs.sqlite")
-    relocate("com.mysql", "dev.yanianz.bravemspawner.libs.mysql")
+    relocate("com.zaxxer.hikari", "dev.yanianz.bravenspawner.libs.hikari")
+    relocate("org.sqlite", "dev.yanianz.bravenspawner.libs.sqlite")
+    relocate("com.mysql", "dev.yanianz.bravenspawner.libs.mysql")
 }
 
 tasks.build { dependsOn(tasks.shadowJar) }
