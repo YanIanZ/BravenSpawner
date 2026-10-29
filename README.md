@@ -123,3 +123,7 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 BravenSpawner is an independent implementation. It is not affiliated with,
 endorsed by, or derived from the source of any commercial spawner plugin.
+
+## Proposed Advanced 2.0 ecosystem
+
+The [Advanced feature catalogue](docs/features/FEATURE_CATALOG.md) includes proposed exact-count Virtual Storage, Virtual Stacking, Adaptive Production, multi-path Upgrades, Genome/Fusion/Evolution/Prestige, Braven Core network, Automation/Overdrive, Mastery/Research, Braven Insight, accessible GUI, economy balancing and Developer API. **These designs are not implemented by the current plugin.** See the [documentation hub](docs/README.md) and [roadmap](docs/ROADMAP.md) before planning an upgrade.

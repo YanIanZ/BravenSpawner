@@ -96,3 +96,20 @@ Owner name + date:
 ```
 
 **Hard rule:** Any outstanding P0 data-integrity or security finding prevents production sign-off regardless of benchmark performance.
+
+## 7. Advanced modules — manual acceptance matrix (all NOT RUN)
+
+All proposed cases originate from the [feature catalogue](features/FEATURE_CATALOG.md) and linked specifications.
+
+| ID | Scenario | Pass condition | Result |
+| --- | --- | --- | --- |
+| ADV-01 | 10k producer units, virtual/physical mode and offline catch-up | Correct count, bounded scheduler/entity load, no double cycles | NOT RUN |
+| ADV-02 | 10M commodity items, filters, withdraw and crash | Exact quantities and recoverable delivery, bounded memory | NOT RUN |
+| ADV-03 | Merge/split/replay forged or duplicated bundle metadata | No duplicated entitlement, exact producer unit conservation | NOT RUN |
+| ADV-04 | Upgrade double-click, change unit count while paying | One confirmed charge, no unauthorized paid level duplication | NOT RUN |
+| ADV-05 | Fusion, trait rolling and prestige with a full vault | Exactly accounted inputs, no lost vault or repeated trait reward | NOT RUN |
+| ADV-06 | Braven Core multi-region transfer and full network storage | No lost/doubly credited stock or wrong-thread access | NOT RUN |
+| ADV-07 | Invalid automation rule, failed shop, depleted fuel | Fail closed, bounded processing and accurate output | NOT RUN |
+| ADV-08 | Research/contract repeat via split-merge or restart | Reward and consumed stock committed exactly once | NOT RUN |
+| ADV-09 | Insight with insufficient history or unauthorized viewer | No fabricated ETA/ROI and no leaked private metrics | NOT RUN |
+| ADV-10 | Bedrock-supported GUI flow, roles, admin actions, APIs | Controlled authorization and version-safe adapter fallback | NOT RUN |

@@ -6,6 +6,8 @@
 
 | Document | Purpose | Intended reader |
 | --- | --- | --- |
+| [features/VIRTUAL_STORAGE.md](features/VIRTUAL_STORAGE.md) | Proposed virtual item-count vaults, storage upgrades, filtering, overflow, network vault and transactional delivery | Designers / implementers |
+| [features/VIRTUAL_STACKING.md](features/VIRTUAL_STACKING.md) | Proposed virtual producer units, bundles, merge/split, issuance ledger and anti-dupe rules | Designers / implementers |
 | [AUDIT.md](AUDIT.md) | Evidence-backed weaknesses, impact, priority, and fix criteria | Maintainers / security reviewers |
 | [PRD.md](PRD.md) | Product goals, user stories, in/out-of-scope capabilities and release requirements | Product / developers |
 | [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) | Target modules, scheduling ownership, persistence, atomic operations and APIs | Implementers |
@@ -13,6 +15,30 @@
 | [ROADMAP.md](ROADMAP.md) | Ordered releases, dependencies, work packages and definition of done | Maintainers |
 | [MIGRATION.md](MIGRATION.md) | Backups, schema transitions, version support and rollback plan | Server administrators |
 | [TESTER_OWNER.md](TESTER_OWNER.md) | Manual verification matrix, performance protocol and release sign-off | Owner / QA |
+
+## Virtual storage and stacking
+
+These two proposals are intentionally separate: **one placed spawner can represent many virtual producer units**, while **a vault stores exact quantities of item types instead of physical 64-item stacks**. Both need explicit conservation, authorization, durable handoffs and Folia-safe scheduling. They have not yet been implemented.
+
+## Complete proposed advanced feature suite
+
+> **Design only — not implemented.** Every proposed system below must pass authorization, durability, Folia thread-ownership, regression and owner sign-off gates before release.
+
+| Specification | Scope |
+| --- | --- |
+| [Advanced feature catalogue](features/FEATURE_CATALOG.md) | Module IDs, dependencies and delivery scope |
+| [Virtual Storage](features/VIRTUAL_STORAGE.md) | ItemKey-based long counts, vaults, overflow |
+| [Virtual Stacking](features/VIRTUAL_STACKING.md) | Virtual producer units, merge/split ledger |
+| [Adaptive Production Engine](features/PRODUCTION_ENGINE.md) | Virtual, physical and offline generation |
+| [Multi-path Upgrades](features/UPGRADE_SYSTEM.md) | Levels, pricing, caps, specialization |
+| [Evolution / Genome / Fusion](features/EVOLUTION.md) | Traits, prestige, rebirth and entitlements |
+| [Braven Core Network](features/BRAVEN_CORE.md) | Controller, network vault, synergy and roles |
+| [Automation and Processing](features/AUTOMATION.md) | Rules, refining, fuel and overdrive |
+| [Research and Mastery](features/PROGRESSION.md) | Blueprints, contracts, achievements |
+| [Braven Insight](features/INSIGHT.md) | Analytics, rates and advice |
+| [GUI / UX / Administration](features/GUI_UX.md) | Menu navigation, roles, accessibility |
+| [Economy and Balancing](features/BALANCING.md) | Costs, sinks, global multiplier limits |
+| [Developer API](features/API_SPEC.md) | Events, snapshots, trusted mutations |
 
 ## Reading rules
 

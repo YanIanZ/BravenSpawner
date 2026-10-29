@@ -48,6 +48,15 @@ These are **release gates, not delivery promises**. No feature below should be m
 
 **Exit gate:** Item/XP probability checks and sustained workload benchmark; no regression in restart/rollback tests.
 
+## Virtual storage + stacking dependency path
+
+1. **v1.0.2:** fix existing metadata count-on-placement, stacking permissions, scheduler duplication, GUI handoffs and persistence safety before any format migration.
+2. **v1.1.0:** establish stable revisioned aggregate, provenance/redeem ledger, testable region/entity/DB ownership, additive storage schema and rollback plan.
+3. **v1.2.0:** introduce aggregation-friendly producer units and material-counter storage MVP for supported commodity outputs; production batching must not instantiate one physical item/entity per virtual unit.
+4. **v2.0.0:** ship comprehensive virtual-vault GUI, storage/transfer/compression upgrade paths, safe custom-item support, split/merge UX and opt-in Braven Core vaults when network accounting passes recovery tests.
+
+See [Virtual Storage](features/VIRTUAL_STORAGE.md) and [Virtual Stacking](features/VIRTUAL_STACKING.md) for detailed semantics and owner acceptance cases.
+
 ## v2.0.0 — Product upgrade
 
 - Overview and storage UX (filters, paging, withdraw, status), advanced upgrade tree and automation policies.
@@ -72,3 +81,21 @@ These are **release gates, not delivery promises**. No feature below should be m
 ## Explicit deferrals
 
 Multi-server write sharing, Redis federation, online/offline economy reconciliation with unknown provider outcomes and aggressive entity virtualization must remain opt-in/design-only until consistency is proved.
+
+## Detailed Advanced 2.0 workstreams (PROPOSED)
+
+The complete [feature catalogue](features/FEATURE_CATALOG.md) binds each workstream to its spec. **No feature is marked implemented merely because the design is merged.**
+
+| Module | Dependency | Release gate |
+| --- | --- | --- |
+| [Adaptive Production](features/PRODUCTION_ENGINE.md) | Task-lifecycle, Folia and stock correctness | Bounded aggregate work and no duplicate offline cycles |
+| [Virtual Storage](features/VIRTUAL_STORAGE.md) + [Stacking](features/VIRTUAL_STACKING.md) | Ledger, safe migration, atomic operations | Exact item/unit conservation including crash/retry |
+| [Upgrades](features/UPGRADE_SYSTEM.md) | Economy response validation and versioned profiles | Cost applied exactly once and split/merge remains value-neutral |
+| [Evolution / Genome](features/EVOLUTION.md) | Trusted bundle/trait lineage + research | No replayable fusion or unexpected prestige wipe |
+| [Braven Core](features/BRAVEN_CORE.md) | Local vaults + single-writer coordination | Idempotent network transfers across Folia regions |
+| [Automation](features/AUTOMATION.md) | Transactional vault + confirmed sales | Bounded rules and no item loss under provider outage |
+| [Progression](features/PROGRESSION.md) | Committed counters + entitlement IDs | No repeat contract rewards from split/remerge |
+| [Insight](features/INSIGHT.md) | Accurate telemetry | Explainable estimates, privacy and bounded queries |
+| [GUI](features/GUI_UX.md) / [Balance](features/BALANCING.md) / [API](features/API_SPEC.md) | Stable service boundaries | Safe sessions, bonus caps and versioned extensions |
+
+Recommended sequence: v1.0.2 integrity fixes → v1.1 Folia/persistence → v1.2 core production and virtual commodity vault → v2 phased upgrades/controller/automation → evolution/research/insight and full UX. All values and target version names remain proposals until tested.
