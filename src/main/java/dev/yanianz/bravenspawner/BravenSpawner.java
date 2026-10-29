@@ -11,6 +11,7 @@ import dev.yanianz.bravenspawner.listener.BlockListener;
 import dev.yanianz.bravenspawner.listener.EntityListener;
 import dev.yanianz.bravenspawner.manager.SpawnerManager;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.storage.CheckpointService;
 import dev.yanianz.bravenspawner.storage.SqlStorage;
 import dev.yanianz.bravenspawner.storage.Storage;
 import dev.yanianz.bravenspawner.storage.YamlStorage;
@@ -45,6 +46,7 @@ public final class BravenSpawner extends JavaPlugin {
     private Boosters boosters;
     private Holograms holograms;
     private SpawnerGui gui;
+    private CheckpointService checkpoints;
 
     private NamespacedKey spawnerIdKey;
     private NamespacedKey itemKindKey;
@@ -63,6 +65,17 @@ public final class BravenSpawner extends JavaPlugin {
     public Boosters boosters() { return boosters; }
     public Holograms holograms() { return holograms; }
     public SpawnerGui gui() { return gui; }
+    public Storage storage() { return storage; }
+
+    /** Marks a spawner for the next durable checkpoint. Cheap: it only dirties an id. */
+    public void markDirty(Spawner spawner) {
+        if (checkpoints != null && spawner != null) storage.upsert(spawner);
+    }
+
+    /** Marks a record for deletion on the next checkpoint. */
+    public void markDeleted(java.util.UUID spawnerId) {
+        if (checkpoints != null && spawnerId != null) storage.delete(spawnerId);
+    }
     public NamespacedKey spawnerIdKey() { return spawnerIdKey; }
     public NamespacedKey itemKindKey() { return itemKindKey; }
     public NamespacedKey itemProductKey() { return itemProductKey; }
@@ -105,6 +118,9 @@ public final class BravenSpawner extends JavaPlugin {
         new CommandHandler(this).register(this);
 
         boosters.start(settings);
+        // Started only after the manager exists: the supplier is evaluated per
+        // checkpoint, so a deleted spawner is never resurrected by a stale flush.
+        checkpoints = new CheckpointService(this, storage, () -> manager.all());
         new CorruptionTask(this).start();
 
         Schedulers.async(this, () -> {
@@ -133,6 +149,10 @@ public final class BravenSpawner extends JavaPlugin {
     @Override
     public void onDisable() {
         if (manager != null) manager.stopAll();
+        if (checkpoints != null) {
+            checkpoints.close();
+            checkpoints = null;
+        }
         if (holograms != null) holograms.removeAll();
         if (storage != null && manager != null) {
             try {

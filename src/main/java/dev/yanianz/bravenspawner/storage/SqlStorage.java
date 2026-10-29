@@ -81,9 +81,9 @@ public final class SqlStorage implements Storage {
     private volatile HikariDataSource dataSource;
 
     public SqlStorage(Plugin plugin, ConfigurationSection section, Dialect dialect) {
-        this.plugin = plugin;
-        this.section = section;
-        this.dialect = dialect;
+        this.plugin = java.util.Objects.requireNonNull(plugin, "plugin");
+        this.section = java.util.Objects.requireNonNull(section, "section");
+        this.dialect = java.util.Objects.requireNonNull(dialect, "dialect");
     }
 
     @Override
@@ -116,6 +116,11 @@ public final class SqlStorage implements Storage {
         try (Connection c = dataSource.getConnection()) {
             migrate(c);
         } catch (Exception e) {
+            // The plugin will disable itself; release the pool rather than leaking
+            // it because onDisable only closes storage once a manager exists.
+            HikariDataSource failed = dataSource;
+            dataSource = null;
+            if (failed != null) failed.close();
             throw new IllegalStateException("schema creation failed: " + e.getMessage(), e);
         }
         healthy = true;

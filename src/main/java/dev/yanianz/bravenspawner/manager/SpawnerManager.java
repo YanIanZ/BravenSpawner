@@ -140,6 +140,7 @@ public final class SpawnerManager {
         if (byBlock.putIfAbsent(key, spawner) != null) return false;
         byId.put(spawner.id(), spawner);
         schedule(spawner);
+        plugin.markDirty(spawner);
         return true;
     }
 

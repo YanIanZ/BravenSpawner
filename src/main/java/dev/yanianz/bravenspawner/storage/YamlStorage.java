@@ -45,7 +45,7 @@ public final class YamlStorage implements Storage {
     private volatile boolean healthy = true;
 
     public YamlStorage(Plugin plugin) {
-        this.plugin = plugin;
+        this.plugin = java.util.Objects.requireNonNull(plugin, "plugin");
         this.file = new File(plugin.getDataFolder(), "spawners.yml");
     }
 
@@ -128,6 +128,7 @@ public final class YamlStorage implements Storage {
         if (section == null) return;
         quarantined.put(key, section.getValues(true));
     }
+
     @Override
     public void upsert(Spawner spawner) {
         if (spawner == null) return;
