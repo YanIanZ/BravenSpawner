@@ -38,6 +38,7 @@ public final class SqlStorage implements Storage {
 
     @Override
     public void init() {
+        registerDrivers();
         HikariConfig cfg = new HikariConfig();
         cfg.setMaximumPoolSize(Math.max(2, section.getInt("pool-size", 5)));
         cfg.setPoolName("BravenSpawner");
@@ -82,6 +83,26 @@ public final class SqlStorage implements Storage {
                     )""".formatted(dialect == Dialect.MYSQL ? "LONGTEXT" : "TEXT"));
         } catch (Exception e) {
             throw new IllegalStateException("schema creation failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Drives static references to the JDBC drivers.
+     *
+     * <p>Both drivers are normally found through {@code DriverManager} using a
+     * class name, which a shrinking step cannot see. Referencing the classes here
+     * keeps them in the jar and registers them before Hikari touches the pool.
+     */
+    private void registerDrivers() {
+        try {
+            java.sql.DriverManager.registerDriver(new org.sqlite.JDBC());
+        } catch (Exception ignored) {
+            // driver already registered or unavailable; Hikari reports it clearly
+        }
+        try {
+            java.sql.DriverManager.registerDriver(new com.mysql.cj.jdbc.Driver());
+        } catch (Exception ignored) {
+            // the MySQL driver is only needed when type: MYSQL
         }
     }
 

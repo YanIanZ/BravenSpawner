@@ -13,11 +13,11 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.3.build.224-stable")
+    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("com.github.MilkBowl:VaultAPI:1.7") { isTransitive = false }
-    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
-    implementation("com.zaxxer:HikariCP:7.1.0")
-    implementation("com.mysql:mysql-connector-j:26.10.0")
+    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
+    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("com.mysql:mysql-connector-j:9.1.0")
 }
 
 java {
@@ -37,7 +37,12 @@ tasks.shadowJar {
     archiveBaseName.set("BravenSpawner")
     archiveClassifier.set("")
     archiveVersion.set("")
-    minimize()
+    minimize {
+        // JDBC drivers are instantiated by DriverManager from a string, so the
+        // shrinker cannot see the reference and would strip them.
+        exclude(dependency("org.xerial:sqlite-jdbc:.*"))
+        exclude(dependency("com.mysql:mysql-connector-j:.*"))
+    }
     relocate("com.zaxxer.hikari", "dev.yanianz.bravenspawner.libs.hikari")
     relocate("org.sqlite", "dev.yanianz.bravenspawner.libs.sqlite")
     relocate("com.mysql", "dev.yanianz.bravenspawner.libs.mysql")
