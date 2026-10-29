@@ -5,7 +5,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.1.0] - TBD
+## [1.1.0] - 2026-10-30
 
 ### Added
 - Menu engine driven by `gui/*.yml`: layout strings, per-character items,
@@ -20,6 +20,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Shop price routing for ShopGUI+, EconomyShopGUI, ZShop, ExcellentShop and
   EssentialsX, plus `multiple-drop`, production budget and block-entity tuner.
 - Audit log: async daily files, bounded queue, log menu.
+- Buy-stack economics with per-purchase, per-player and cooldown limits.
+
+### Fixed
+- Disabling before the first load completed wrote an empty snapshot over the
+  durable state; the final flush is now gated on a completed load.
+- Sell wand listener was registered with the wrong constructor arity.
+
+### Verified
+- 41 unit tests covering stacking, persistence, product compatibility, menu
+  routing, purchase maths, wand lifetime and GUI authorisation.
 
 ## [1.0.2] - 2026-10-30
 

@@ -2,6 +2,8 @@ package dev.yanianz.bravenspawner;
 
 import dev.yanianz.bravenspawner.audit.AuditEvent;
 import dev.yanianz.bravenspawner.audit.AuditLog;
+import dev.yanianz.bravenspawner.audit.AuditMenu;
+import dev.yanianz.bravenspawner.stock.BuyStackService;
 import dev.yanianz.bravenspawner.boosters.Boosters;
 import dev.yanianz.bravenspawner.command.CommandHandler;
 import dev.yanianz.bravenspawner.commerce.PriceResolver;
@@ -74,6 +76,8 @@ public final class BravenSpawner extends JavaPlugin {
     private CheckpointService checkpoints;
     private CorruptionTask corruption;
     private AuditLog audit;
+    private AuditMenu auditMenu;
+    private BuyStackService buyStack;
     private SellWandService wands;
 
     private ProductRegistry products;
@@ -122,6 +126,8 @@ public final class BravenSpawner extends JavaPlugin {
     public SpawnerGui gui() { return gui; }
     public CorruptionTask corruption() { return corruption; }
     public AuditLog audit() { return audit; }
+    public AuditMenu auditMenu() { return auditMenu; }
+    public BuyStackService buyStack() { return buyStack; }
     public SellWandService wands() { return wands; }
 
     public ProductRegistry products() { return products; }
@@ -196,6 +202,8 @@ public final class BravenSpawner extends JavaPlugin {
         holograms = new Holograms(this);
         gui = new SpawnerGui(this);
         audit = new AuditLog(this);
+        auditMenu = new AuditMenu(this);
+        buyStack = new BuyStackService(this).audit(audit);
         wands = SellWandService.install(this);
         corruption = new CorruptionTask(this);
 
@@ -335,6 +343,9 @@ public final class BravenSpawner extends JavaPlugin {
         settings = Settings.load(getConfig(), databases, null);
         manager.settings(settings);
         if (products != null) products.reload();
+        if (gui != null) gui.menus().reload();
+        if (buyStack != null) buyStack.reload();
+        if (auditMenu != null) auditMenu.reload();
         getLogger().info("configuration reloaded");
     }
 }
