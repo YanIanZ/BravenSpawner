@@ -86,6 +86,9 @@ else at defaults.
 
 ## Architecture
 
+A deeper walkthrough (invariants, boot order, scheduling model) lives in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```
 BravenSpawner       boot order: config → storage → manager → subsystems → load
 manager/            one tick pass, per-spawner region schedule

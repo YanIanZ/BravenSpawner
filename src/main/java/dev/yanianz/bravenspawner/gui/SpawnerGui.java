@@ -37,11 +37,13 @@ public final class SpawnerGui implements Listener {
     private record Session(UUID spawnerId, View view, int page) {}
 
     private final BravenSpawner plugin;
+    private final GuiLock locks;
     private final SellService sellService;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
 
     public SpawnerGui(BravenSpawner plugin) {
         this.plugin = plugin;
+        this.locks = GuiLock.of(plugin);
         this.sellService = SellService.install(plugin);
     }
 
@@ -55,6 +57,11 @@ public final class SpawnerGui implements Listener {
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
         }
+        if (!locks.canOpen(player.getUniqueId(), spawner.id())) {
+            player.sendMessage(Text.of("&c" + locks.denialReason(player.getUniqueId(), spawner.id())));
+            return;
+        }
+
         Inventory inv = Bukkit.createInventory(null, 27, Text.of("&8Spawner — " + spawner.product()));
         inv.setItem(10, button(Material.CHEST, "&aStorage",
                 List.of("&7Stored: &f" + spawner.storedCount(),
@@ -73,6 +80,7 @@ public final class SpawnerGui implements Listener {
         inv.setItem(16, button(Material.BARRIER, "&cClose", List.of()));
 
         sessions.put(player.getUniqueId(), new Session(spawner.id(), View.MENU, 0));
+        locks.markOpened(player.getUniqueId(), spawner.id());
         player.openInventory(inv);
         if (s.enableLogger) {
             plugin.getLogger().info(player.getName() + " opened menu of " + spawner.id());
@@ -85,6 +93,13 @@ public final class SpawnerGui implements Listener {
         List<ItemStack> contents = spawner.contents();
         int pages = Math.max(1, (contents.size() + perPage - 1) / perPage);
         int safePage = Math.max(0, Math.min(page, pages - 1));
+
+        UUID viewer = player.getUniqueId();
+        boolean sameSpawner = spawner.id().equals(locks.sessionSpawner(viewer));
+        if (!sameSpawner && !locks.canOpen(viewer, spawner.id())) {
+            player.sendMessage(Text.of("&c" + locks.denialReason(viewer, spawner.id())));
+            return;
+        }
 
         Inventory inv = Bukkit.createInventory(null, rows * 9,
                 Text.of("&8Storage " + (safePage + 1) + "/" + pages));
@@ -101,6 +116,7 @@ public final class SpawnerGui implements Listener {
         inv.setItem(navRow + 3, button(Material.BARRIER, "&cBack", List.of()));
 
         sessions.put(player.getUniqueId(), new Session(spawner.id(), View.STORAGE, safePage));
+        locks.markOpened(viewer, spawner.id());
         player.openInventory(inv);
     }
 
@@ -243,7 +259,11 @@ public final class SpawnerGui implements Listener {
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        sessions.remove(event.getPlayer().getUniqueId());
+        UUID player = event.getPlayer().getUniqueId();
+        sessions.remove(player);
+        // Releases the save lock and starts the reconnect cooldown so a reopen
+        // cannot race the persistence pass.
+        locks.markClosed(player);
     }
 
     private ItemStack button(Material material, String name, List<String> lore) {
