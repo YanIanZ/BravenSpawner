@@ -225,10 +225,9 @@ public final class Settings {
         b.moneyApplyOnAmount = root.getBoolean("money-decimals.apply-on-amount", true);
         ConfigurationSection formats = root.getConfigurationSection("money-decimals.formats");
         List<String> moneyFormats = new ArrayList<>();
-        if (formats != null) {
-            for (int i = 1; i <= 6; i++) {
-                moneyFormats.add(formats.getString(String.valueOf(i), "%number%" + suffix(i)));
-            }
+        for (int i = 1; i <= 6; i++) {
+            String fallback = "%number%" + suffix(i);
+            moneyFormats.add(formats == null ? fallback : formats.getString(String.valueOf(i), fallback));
         }
         b.moneyFormats = moneyFormats;
 

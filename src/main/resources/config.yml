@@ -96,6 +96,8 @@ economy:
   purchase-price: 2500.0
   sell-multiplier: 1.0
   autosell: false
+  # Decimal places sale payouts are rounded to (HALF_UP). 0..6, default 2.
+  round-to: 2
 
 sell:
   # Seconds between autosell passes; only used when economy.autosell is true.
