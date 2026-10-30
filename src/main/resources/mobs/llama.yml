@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: LLAMA
+display-name: "&#E8D9B0Llama"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/107d02b825d4a476d78af6078541bdd0fcb682b0b4098b91a314e1b1c4e3c4e1
+  lore:
+    - "&aA spawner for llamas."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: LEATHER
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 7500

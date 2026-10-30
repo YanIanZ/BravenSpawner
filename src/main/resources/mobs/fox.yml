@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: FOX
+display-name: "&#E37B2FFox"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/d7e0043111bc57090856259155571c7906e707046df041b8b572704c451fcd82
+  lore:
+    - "&aA spawner for foxes."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; foxes carry sweet berries).
+drops:
+  1:
+    material: SWEET_BERRIES
+    amount:
+      min: 1
+      max: 2
+    chance: 40.0
+    sell-price: 0.3
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 5000

@@ -1,0 +1,43 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: BOGGED
+display-name: "&#6B8E4EBogged"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c29b4c03a5a2a231ab240e6df1d17c908b1ee6a9e231a638cdebd7f01d580a6b
+  lore:
+    - "&aA spawner for bogged."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ARROW
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.2
+  2:
+    material: BONE
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.5
+  3:
+    material: TIPPED_ARROW
+    amount:
+      min: 1
+      max: 1
+    chance: 25.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

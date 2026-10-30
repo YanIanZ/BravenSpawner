@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: PILLAGER
+display-name: "&#6E7B7FPillager"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c225f0b49c5295048a409c9c601cca79aa8eb52aff5e2033ebb865f4367ef43e
+  lore:
+    - "&aA spawner for pillagers."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (ominous bottles come from captains; crossbow from equipment).
+drops:
+  1:
+    material: CROSSBOW
+    amount:
+      min: 1
+      max: 1
+    chance: 8.5
+    sell-price: 1.0
+  2:
+    material: OMINOUS_BOTTLE
+    amount:
+      min: 1
+      max: 1
+    chance: 5.0
+    sell-price: 5.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 20000

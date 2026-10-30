@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: SHULKER
+display-name: "&#A77BB4Shulker"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/fb9e6af6b819f3d90e67ce2e7059fbef31da2aa953d35e3454f1021fa912efde
+  lore:
+    - "&aA spawner for shulkers."
+
+interval-ticks: 2400
+xp: 10
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: SHULKER_SHELL
+    amount:
+      min: 1
+      max: 1
+    chance: 50.0
+    sell-price: 8.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 100000

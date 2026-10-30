@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: PUFFERFISH
+display-name: "&#F2C230Pufferfish"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/e2733d5da59c82eaf310b382aff40bd513c44354dbbabfe14b066a556810a7f9
+  lore:
+    - "&aA spawner for pufferfish."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: PUFFERFISH
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 1.0
+  2:
+    material: BONE_MEAL
+    amount:
+      min: 1
+      max: 1
+    chance: 5.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 1500

@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+# Disabled by default: not obtainable in survival. Set enabled to true to offer it.
+enabled: false
+entity-type: GIANT
+display-name: "&#2E7D32Giant"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c09e16bccd9a4822fa75416ae38a7a98786e219dda679c5b127e3a2efcfc
+  lore:
+    - "&aA spawner for giants."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ROTTEN_FLESH
+    amount:
+      min: 1
+      max: 3
+    chance: 100.0
+    sell-price: 0.3
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8

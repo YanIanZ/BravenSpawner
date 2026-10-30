@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: BREEZE
+display-name: "&#A3B8F0Breeze"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/a0475abe28f64f175ea66891cc27800dbbed340475cf32e5e6d7399da60298b4
+  lore:
+    - "&aA spawner for breezes."
+
+interval-ticks: 1600
+xp: 10
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: BREEZE_ROD
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+    sell-price: 3.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 50000

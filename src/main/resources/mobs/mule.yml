@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: MULE
+display-name: "&#7A5A3CMule"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/41c224a1031be434d25ae1885bf4ff400c9894c69bfef56a49354c5625c0c09c
+  lore:
+    - "&aA spawner for mules."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: LEATHER
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 7500

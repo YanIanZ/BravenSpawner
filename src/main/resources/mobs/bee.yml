@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: BEE
+display-name: "&#F5C242Bee"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/59ac16f296b461d05ea0785d477033e527358b4f30c266aa02f020157ffca736
+  lore:
+    - "&aA spawner for bees."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; hive products instead).
+drops:
+  1:
+    material: HONEYCOMB
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+    sell-price: 1.0
+  2:
+    material: HONEY_BOTTLE
+    amount:
+      min: 1
+      max: 1
+    chance: 20.0
+    sell-price: 1.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 5000

@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: ENDERMITE
+display-name: "&#6A3D8FEndermite"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/8c6b65c22b4465ba6793b2195cd5084ce83b88dca6e55eb9484540acd7352a50
+  lore:
+    - "&aA spawner for endermites."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; a rare pearl instead).
+drops:
+  1:
+    material: ENDER_PEARL
+    amount:
+      min: 1
+      max: 1
+    chance: 5.0
+    sell-price: 2.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 10000
