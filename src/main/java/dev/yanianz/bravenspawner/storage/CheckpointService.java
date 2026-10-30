@@ -140,7 +140,7 @@ public final class CheckpointService implements AutoCloseable {
                 storage.flushAll(snapshot, full);
                 return true;
             } catch (RuntimeException e) {
-                plugin.getLogger().severe("checkpoint flush failed; records stay dirty: " + e.getMessage());
+                plugin.getLogger().severe("checkpoint flush failed; records stay dirty: " + Storage.describeFailure(e));
                 return false;
             }
         }

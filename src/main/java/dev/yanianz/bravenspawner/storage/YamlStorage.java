@@ -210,7 +210,7 @@ public final class YamlStorage implements Storage {
             saveAtomically(yaml);
         } catch (RuntimeException e) {
             dirty.addAll(pending);
-            plugin.getLogger().severe("spawners.yml write failed; previous file kept: " + e.getMessage());
+            plugin.getLogger().severe("spawners.yml write failed; previous file kept: " + Storage.describeFailure(e));
             throw (e instanceof StorageException se)
                     ? se
                     : new StorageException("spawners.yml write failed", e);
@@ -234,7 +234,7 @@ public final class YamlStorage implements Storage {
         yaml.set(base + ".xp", s.storedXp());
         yaml.set(base + ".produced", s.produced());
         yaml.set(base + ".trusted", Storage.Codec.encodeTrusted(s.trusted()));
-        yaml.set(base + ".items", Storage.Codec.encodeItems(s.contents()));
+        yaml.set(base + ".items", Storage.Codec.encodeItems(s.contents(), s.id().toString()));
     }
 
     /**

@@ -408,7 +408,7 @@ public final class SqlStorage implements Storage {
         } catch (Exception e) {
             dirty.addAll(pending);
             plugin.getLogger().severe("checkpoint flush failed; last committed rows kept: "
-                    + e.getMessage());
+                    + Storage.describeFailure(e));
             throw new StorageException("checkpoint flush failed", e);
         }
 
@@ -499,7 +499,7 @@ public final class SqlStorage implements Storage {
         ps.setInt(14, s.storedXp());
         ps.setLong(15, s.produced());
         ps.setString(16, Storage.Codec.encodeTrusted(s.trusted()));
-        ps.setString(17, Storage.Codec.encodeItems(s.contents()));
+        ps.setString(17, Storage.Codec.encodeItems(s.contents(), s.id().toString()));
         ps.setLong(18, now);
     }
 

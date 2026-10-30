@@ -26,7 +26,7 @@ public final class SpawnerDocumentCodec {
                     .append("hologram", spawner.hologram()).append("corrupted", spawner.corrupted())
                     .append("corrupted_at", spawner.corruptedAt()).append("xp", spawner.storedXp())
                     .append("produced", spawner.produced()).append("pending", spawner.pending())
-                    .append("trusted", trusted).append("items", Storage.Codec.encodeItems(spawner.contents()))
+                    .append("trusted", trusted).append("items", Storage.Codec.encodeItems(spawner.contents(), spawner.id().toString()))
                     .append("updated_at", System.currentTimeMillis());
         }
     }

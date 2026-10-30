@@ -2,15 +2,12 @@ package dev.yanianz.bravenspawner.storage;
 
 import dev.yanianz.bravenspawner.model.Spawner;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -82,37 +79,49 @@ public interface Storage extends AutoCloseable {
         }
     }
 
-    /** Item stacks <-> base64, using Bukkit's own object streams. */
-    final class Codec {
+    /**
+     * Message for a failed write: every distinct message in the cause chain, so a
+     * wrapped codec failure (spawner id, item, root cause) is visible in one log line.
+     */
+    static String describeFailure(Throwable e) {
+        if (e == null) return "unknown error";
+        StringBuilder out = new StringBuilder();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = e; t != null && seen.add(t); t = t.getCause()) {
+            String message = t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage();
+            if (out.indexOf(message) >= 0) continue;
+            if (out.length() > 0) out.append(" <- ");
+            out.append(message);
+        }
+        return out.toString();
+    }
 
-        /**
-         * Upper bound on a decoded inventory. A corrupted length prefix must fail
-         * closed instead of allocating an arbitrary list from an untrusted blob.
-         */
-        private static final int MAX_ITEMS = 4096;
+    /** Item stacks <-> base64; see {@link ItemCodec} for the binary format. */
+    final class Codec {
 
         private static final Logger LOG = Logger.getLogger("BravenSpawner");
 
         private Codec() {}
 
-        /**
-         * Encodes a full inventory. Failure is thrown rather than encoded as an
-         * empty string: an empty blob is a valid empty inventory and silently
-         * substituting one would erase the stored contents on the next save.
-         */
+        /** Encodes without a record id; see {@link #encodeItems(List, String)}. */
         public static String encodeItems(List<ItemStack> items) {
+            return encodeItems(items, "unknown");
+        }
+
+        /**
+         * Encodes a full inventory in format v2. Failure is thrown rather than
+         * encoded as an empty string: an empty blob is a valid empty inventory and
+         * silently substituting one would erase the stored contents on the next save.
+         *
+         * @param recordId spawner id named in the failure message
+         */
+        public static String encodeItems(List<ItemStack> items, String recordId) {
             if (items == null) throw new IllegalArgumentException("items must not be null");
-            try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                 BukkitObjectOutputStream out = new BukkitObjectOutputStream(bytes)) {
-                out.writeInt(items.size());
-                for (ItemStack item : items) {
-                    if (item == null) throw new IllegalArgumentException("inventory contains a null item");
-                    out.writeObject(item);
-                }
-                out.flush();
-                return Base64.getEncoder().encodeToString(bytes.toByteArray());
-            } catch (IOException | RuntimeException e) {
-                throw new IllegalStateException("could not encode " + items.size() + " item stack(s)", e);
+            try {
+                return Base64.getEncoder().encodeToString(ItemCodec.encode(items));
+            } catch (RuntimeException e) {
+                throw new IllegalStateException("could not encode " + items.size() + " item stack(s) for spawner "
+                        + recordId + ": " + (e.getMessage() == null ? ItemCodec.rootMessage(e) : e.getMessage()), e);
             }
         }
 
@@ -122,30 +131,18 @@ public interface Storage extends AutoCloseable {
         }
 
         /**
-         * Decodes a stored inventory; returns {@code null} when the blob is
-         * malformed. Callers must quarantine that record instead of passing an
-         * empty list to {@code replaceContents}, which would destroy the stored
-         * contents on the next flush.
+         * Decodes a stored inventory (format v2 or a legacy object-stream blob);
+         * returns {@code null} when the blob is malformed. Callers must quarantine
+         * that record instead of passing an empty list to {@code replaceContents},
+         * which would destroy the stored contents on the next flush.
          *
          * @param recordId spawner id used in the diagnostic, when the backend has one
          */
         public static List<ItemStack> decodeItems(String blob, String recordId) {
             if (blob == null || blob.isBlank()) return new ArrayList<>();
-            try (ByteArrayInputStream bytes = new ByteArrayInputStream(Base64.getDecoder().decode(blob));
-                 BukkitObjectInputStream in = new BukkitObjectInputStream(bytes)) {
-                int n = in.readInt();
-                if (n < 0 || n > MAX_ITEMS) {
-                    throw new IOException("inventory length " + n + " outside 0.." + MAX_ITEMS);
-                }
-                List<ItemStack> out = new ArrayList<>(n);
-                for (int i = 0; i < n; i++) {
-                    Object o = in.readObject();
-                    if (!(o instanceof ItemStack stack)) {
-                        throw new IOException("unexpected inventory element " + (o == null ? "null" : o.getClass()));
-                    }
-                    out.add(stack);
-                }
-                return out;
+            try {
+                byte[] raw = Base64.getDecoder().decode(blob);
+                return ItemCodec.isV2(raw) ? ItemCodec.decode(raw) : ItemCodec.decodeLegacy(raw);
             } catch (Exception e) {
                 LOG.warning("quarantined malformed inventory for record " + recordId + ": " + e);
                 return null;
