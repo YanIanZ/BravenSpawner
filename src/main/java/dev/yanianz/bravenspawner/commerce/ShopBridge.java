@@ -2,9 +2,11 @@ package dev.yanianz.bravenspawner.commerce;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.sell.ShopHook;
+import dev.yanianz.bravenspawner.commerce.adapters.DonutWorthAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.EconomyShopGuiAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.EssentialsXAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.ExcellentShopAdapter;
+import dev.yanianz.bravenspawner.commerce.adapters.NascraftAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.ShopGuiPlusAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.ZShopAdapter;
 import org.bukkit.entity.Player;
@@ -102,7 +104,9 @@ public final class ShopBridge {
                 new EconomyShopGuiAdapter(logger),
                 new ZShopAdapter(logger),
                 new ExcellentShopAdapter(logger),
-                new EssentialsXAdapter(logger));
+                new DonutWorthAdapter(logger),
+                new EssentialsXAdapter(logger),
+                new NascraftAdapter(logger));
     }
 
     /** Immutable adapter list in routing order, for diagnostics and reload checks. */
