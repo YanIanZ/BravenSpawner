@@ -24,6 +24,7 @@ class StorageWithdrawalTest {
 
     private void withdraw(ClickType click, int stored, int maxStack, int amount) throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.restrictions()).thenReturn(null);
         when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);

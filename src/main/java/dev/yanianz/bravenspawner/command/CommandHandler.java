@@ -75,8 +75,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!plugin.ready()) {
-            messages().send(sender, "general.not-ready");
+        boolean doctor = "bspawner".equals(canonical(command.getName()))
+                && args.length > 0 && args[0].equalsIgnoreCase("doctor");
+        if (!plugin.ready() && !doctor) {
+            messages().send(sender, plugin.isStorageAvailable() ? "general.not-ready" : "general.storage-down");
             return true;
         }
         return switch (canonical(command.getName())) {
@@ -202,6 +204,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         m.send(sender, "doctor.header");
         m.sendPlain(sender, "doctor.line", "key", "storage", "value", p.settings().storageType);
         m.sendPlain(sender, "doctor.line", "key", "loaded", "value", p.ready());
+        if (p.storageFailure() != null) {
+            m.sendPlain(sender, "doctor.line", "key", "storage error", "value", p.storageFailure());
+        }
+        if (p.isStorageFallback()) {
+            m.sendPlain(sender, "doctor.line", "key", "fallback", "value", "YAML (spawners-fallback.yml)");
+        }
         m.sendPlain(sender, "doctor.line", "key", "spawners", "value", p.manager().size());
         m.sendPlain(sender, "doctor.line", "key", "catalogue", "value", p.products().allMobs().size()
                 + " mobs, " + p.products().allItems().size() + " items");

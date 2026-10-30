@@ -27,6 +27,7 @@ roles:
 
 general:
   not-ready: "{error}Spawner storage is still loading. Try again in a moment."
+  storage-down: "{error}Spawner storage is unavailable. An admin can run {highlight}/bspawner doctor{error} to see why."
   no-permission: "{error}You don't have permission to do that."
   players-only: "{error}Only players can use this command."
   player-not-found: "{error}Player {highlight}%player%{error} is not online."

@@ -286,7 +286,7 @@ public final class SpawnerGui implements Listener {
         if (player == null || spawner == null) return false;
         if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return false;
         if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation())) return false;
-        if (spawner.canUse(player.getUniqueId()) || player.hasPermission("bravenspawner.admin")) return true;
+        if (plugin.mayUse(player, spawner)) return true;
         messages().send(player, "gui.not-yours");
         return false;
     }
@@ -691,11 +691,7 @@ public final class SpawnerGui implements Listener {
         }
         var world = Bukkit.getWorld(spawner.world());
         if (world == null) return;
-        int chunkRoom = Integer.MAX_VALUE;
-        if (plugin.settings().spawnerLimitInChunk > 0) {
-            chunkRoom = Math.max(0, plugin.settings().spawnerLimitInChunk
-                    - plugin.manager().stackedInChunk(world, spawner.x() >> 4, spawner.z() >> 4));
-        }
+        int chunkRoom = plugin.manager().chunkUnitRoom(world, spawner.x() >> 4, spawner.z() >> 4);
         int limit = plugin.stackLimit(spawner);
         int count = PurchaseMath.quantity(requested, spawner.roomFor(limit), chunkRoom,
                 plugin.economy().balance(player), price);

@@ -15,6 +15,7 @@ import static org.mockito.Mockito.*;
 class ConfirmationTest {
     @Test void aSecondClickOnTheSameActionConfirmsAndADifferentActionDoesNot() {
         BravenSpawner plugin = mock(BravenSpawner.class);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
         Spawner spawner = mock(Spawner.class);

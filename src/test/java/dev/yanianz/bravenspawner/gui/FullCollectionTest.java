@@ -13,6 +13,7 @@ import static org.mockito.Mockito.*;
 class FullCollectionTest {
     @Test void fullOnlyProductCannotCollectXpBelowItsStackScaledCapacity() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.events().xpMultiplier()).thenReturn(1.0);
         when(plugin.boosters().personalMultiplier(eq(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP), any())).thenReturn(1.0);
         when(plugin.restrictions()).thenReturn(null);
@@ -28,6 +29,7 @@ class FullCollectionTest {
 
     @Test void fullOnlyProductCannotSellBelowItsStackScaledItemCapacity() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.events().xpMultiplier()).thenReturn(1.0);
         when(plugin.boosters().personalMultiplier(eq(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP), any())).thenReturn(1.0);
         when(plugin.restrictions()).thenReturn(null);
@@ -43,6 +45,7 @@ class FullCollectionTest {
 
     @Test void zeroEventXpDoesNotConsumeTheBank() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.events().xpMultiplier()).thenReturn(0.0);
         when(plugin.boosters().personalMultiplier(any(), any())).thenReturn(1.0);
         Spawner model = mock(Spawner.class);
@@ -53,6 +56,7 @@ class FullCollectionTest {
     }
     @Test void eventAndPersonalXpRoundAtTheirSeparateReferenceStages() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.events().xpMultiplier()).thenReturn(1.5);
         when(plugin.boosters().personalMultiplier(any(), any())).thenReturn(1.5);
         Spawner model = mock(Spawner.class);

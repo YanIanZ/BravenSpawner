@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 class SpawnerGuiAuthorizationTest {
     @Test void directStorageOpenRejectsAnUnauthorizedViewer() {
         BravenSpawner plugin = mock(BravenSpawner.class);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
@@ -36,6 +37,7 @@ class SpawnerGuiAuthorizationTest {
 
     @Test void revokedAccessCannotChargeThroughAnAlreadyOpenPurchaseMenu() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.restrictions()).thenReturn(null);
         when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
