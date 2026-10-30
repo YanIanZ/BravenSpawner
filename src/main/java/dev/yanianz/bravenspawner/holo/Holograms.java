@@ -36,9 +36,14 @@ public final class Holograms {
         this.config = dev.yanianz.bravenspawner.platform.HologramConfig.load(plugin);
     }
 
+    /** The active {@code holograms.yml}. */
+    public dev.yanianz.bravenspawner.platform.HologramConfig config() {
+        return config;
+    }
+
     public void update(Spawner spawner) {
         if (!live(spawner)) return;
-        if (!spawner.hologram()) {
+        if (!config.enabled() || !spawner.hologram()) {
             remove(spawner.id());
             return;
         }
@@ -46,7 +51,8 @@ public final class Holograms {
         if (location == null) return;
 
         var definition = plugin.product(spawner);
-        var lines = config.lines(spawner, definition == null ? Map.of() : Map.of("product", definition.displayName()));
+        var lines = config.lines(spawner, definition == null ? Map.of() : Map.of("product", definition.displayName()),
+                plugin.maximumItems(spawner), plugin.maximumXp(spawner));
         if (lines.isEmpty()) { remove(spawner.id()); return; }
         String line = String.join("\n", lines);
 
@@ -93,7 +99,7 @@ public final class Holograms {
     }
 
     private boolean current(Spawner spawner, Object generation) {
-        return live(spawner) && spawner.hologram() && generations.get(spawner.id()) == generation;
+        return live(spawner) && config.enabled() && spawner.hologram() && generations.get(spawner.id()) == generation;
     }
 
     public void remove(UUID spawnerId) {
@@ -106,9 +112,16 @@ public final class Holograms {
     }
 
     public void removeAll() {
-        java.util.List<TextDisplay> retired;
         synchronized (lifecycle) {
             stopped = true;
+        }
+        clearDisplays();
+    }
+
+    /** Retires every display but keeps the service running, for reloads that disable holograms. */
+    private void clearDisplays() {
+        java.util.List<TextDisplay> retired;
+        synchronized (lifecycle) {
             generations.clear();
             retired = java.util.List.copyOf(displays.values());
             displays.clear();
@@ -139,10 +152,15 @@ public final class Holograms {
 
     public void reload() {
         config = dev.yanianz.bravenspawner.platform.HologramConfig.load(plugin);
+        if (!config.enabled()) {
+            clearDisplays();
+            return;
+        }
         refreshAll();
     }
 
     public void refreshAll() {
+        if (!config.enabled()) return;
         plugin.manager().all().forEach(this::update);
     }
 }

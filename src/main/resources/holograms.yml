@@ -3,7 +3,10 @@
 # ================================
 # Notes:
 # - This configuration file sets up the hologram display for Virtual Spawners.
-# - Supported hologram types: decentholograms, fancyholograms, cmi
+# - Holograms are drawn with built-in text displays; no hologram plugin is needed.
+#   "type" is kept for compatibility with the reference file and is not used.
+# - When "enabled" is false, no holograms are shown and existing ones are removed
+#   on /bspawner reload.
 #
 # Placeholders:
 # %stack% - Number of stacked spawners
@@ -13,7 +16,8 @@
 # %color% - Dynamic color based on spawner type
 #
 # Color Codes:
-# Use #RRGGBB format for custom colors (e.g., #FF0000 for red)
+# Use #RRGGBB (or &#RRGGBB) for custom colors (e.g., #FF0000 for red); &a codes
+# and MiniMessage tags work too.
 # ================================
 
 # Enable or disable the hologram feature
@@ -25,7 +29,7 @@ type: "decentholograms"
 # Command configuration
 commands:
   shtoggle:
-    enabled: false  # Enables/disables the shtoggle command
+    enabled: false  # Allows players to use /bhtoggle (alias /shtoggle)
 
 # Hologram configuration
 hologram:

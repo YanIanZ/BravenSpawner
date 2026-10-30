@@ -22,6 +22,10 @@ import java.util.Map;
  * <p>Placeholders resolved per line: {@code %stack%}, {@code %spawner_type_cap%},
  * {@code %storage_bar%}, {@code %xp_bar%}, {@code %color%},
  * {@code %corruption_status%}.
+ *
+ * <p>The reference format writes hex colours bare ({@code #c2c2c2}); hologram
+ * text is rewritten to {@code &#c2c2c2} before rendering so the shipped content
+ * shows colours instead of literal hex codes.
  */
 public final class HologramConfig {
 
@@ -111,14 +115,39 @@ public final class HologramConfig {
     public int viewDistance() { return activationRadius; }
     public List<String> defaultLines() { return content; }
 
-    /** Rendering entry point: every line of the configured content, substituted. */
+    /** Rendering entry point without capacity information; bars render empty. */
     public List<String> lines(Spawner spawner, Map<String, String> extra) {
+        return lines(spawner, extra, 0, 0);
+    }
+
+    /**
+     * Every line of the configured content, substituted.
+     *
+     * @param maximumItems the spawner's item capacity; 0 or less means unlimited
+     * @param maximumXp    the spawner's XP capacity; 0 or less means unlimited
+     */
+    public List<String> lines(Spawner spawner, Map<String, String> extra, int maximumItems, int maximumXp) {
         List<String> out = new ArrayList<>(content.size());
-        for (String line : content) out.add(resolve(line, spawner, extra));
+        for (String line : content) out.add(bareHex(resolve(line, spawner, extra, maximumItems, maximumXp)));
         return out;
     }
 
-    private String resolve(String line, Spawner spawner, Map<String, String> extra) {
+    private static final java.util.regex.Pattern BARE_HEX =
+            java.util.regex.Pattern.compile("(?<![&{<:#\\\\])#([0-9a-fA-F]{6})");
+
+    /** Rewrites reference-style {@code #RRGGBB} into {@code &#RRGGBB}; other forms are untouched. */
+    public static String bareHex(String line) {
+        if (line == null || line.indexOf('#') < 0) return line;
+        return BARE_HEX.matcher(line).replaceAll("&#$1");
+    }
+
+    /** Ratio for a progress bar; an unlimited (non-positive) capacity reads as empty. */
+    static double ratio(long value, long capacity) {
+        if (capacity <= 0 || value <= 0) return 0.0;
+        return Math.min(1.0, (double) value / capacity);
+    }
+
+    private String resolve(String line, Spawner spawner, Map<String, String> extra, int maximumItems, int maximumXp) {
         String result = line;
 
         int stack = spawner == null ? 1 : spawner.stack();
@@ -128,8 +157,8 @@ public final class HologramConfig {
         result = result.replace("%spawner_type_cap%", product.toUpperCase(Locale.ROOT));
         result = result.replace("%spawner_type%", product);
         result = result.replace("%color%", colorFor(product));
-        result = result.replace("%storage_bar%", bar(storageRatio(spawner)));
-        result = result.replace("%xp_bar%", bar(xpRatio(spawner)));
+        result = result.replace("%storage_bar%", bar(spawner == null ? 0 : ratio(spawner.storedCount(), maximumItems)));
+        result = result.replace("%xp_bar%", bar(spawner == null ? 0 : ratio(spawner.storedXp(), maximumXp)));
 
         boolean corrupted = spawner != null && spawner.corrupted();
         result = result.replace("%corruption_status%",
@@ -143,23 +172,16 @@ public final class HologramConfig {
         return result;
     }
 
+    private static final String[] PALETTE = {"#ff6b6b", "#6bcb77", "#4d96ff", "#ffd93d", "#c780fa", "#ff9f45"};
+
     /** Deterministic per-product colour so the same mob always looks the same. */
-    private String colorFor(String product) {
-        String[] palette = {"#ff6b6b", "#6bcB77", "#4d96ff", "#ffd93d", "#c780fa", "#ff9f45"};
-        int index = Math.abs(product.hashCode()) % palette.length;
-        return palette[index];
+    private static String colorFor(String product) {
+        return PALETTE[Math.floorMod(product == null ? 0 : product.hashCode(), PALETTE.length)];
     }
 
-    private double storageRatio(Spawner spawner) {
-        if (spawner == null) return 0;
-        int stored = spawner.storedCount();
-        int capacity = Math.max(1, spawner.distinctSlots());
-        return Math.min(1.0, capacity == 0 ? 0 : (double) stored / (capacity * 64.0));
-    }
-
-    private double xpRatio(Spawner spawner) {
-        if (spawner == null) return 0;
-        return Math.min(1.0, spawner.storedXp() / 100_000.0);
+    /** The per-product accent as a colour code ({@code &#RRGGBB}), shared with the menus' {@code %color%}. */
+    public static String productColor(String product) {
+        return "&" + colorFor(product);
     }
 
     private String bar(double ratio) {
