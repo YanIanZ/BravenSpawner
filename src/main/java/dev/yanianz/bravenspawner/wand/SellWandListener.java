@@ -108,10 +108,10 @@ public final class SellWandListener implements Listener {
         if (updated == null) return;
         event.setCurrentItem(updated);
         ItemStack cursor = event.getCursor();
-        if (cursor.getAmount() <= 1) event.setCursor(null);
+        if (cursor.getAmount() <= 1) event.getView().setCursor(null);
         else {
             cursor.setAmount(cursor.getAmount() - 1);
-            event.setCursor(cursor);
+            event.getView().setCursor(cursor);
         }
     }
 

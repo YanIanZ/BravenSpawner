@@ -64,7 +64,7 @@ public final class PlatformReport {
     private String pluginPresent(String name) {
         try {
             Plugin other = Bukkit.getPluginManager().getPlugin(name);
-            return other == null ? "no" : other.getDescription().getVersion();
+            return other == null ? "no" : other.getPluginMeta().getVersion();
         } catch (RuntimeException e) {
             return "unknown";
         }
