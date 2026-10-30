@@ -321,6 +321,7 @@ public final class BlockListener implements Listener {
         switch (result.status()) {
             case OK -> {
                 plugin.holograms().update(spawner);
+                if (plugin.particles() != null) plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.STACK, spawner.location());
                 player.sendMessage(Text.of("&aSpawner now holds &f" + result.stackAfter() + "&a."));
             }
             case NOT_AUTHORIZED -> player.sendMessage(Text.of("&cThat spawner is not yours."));

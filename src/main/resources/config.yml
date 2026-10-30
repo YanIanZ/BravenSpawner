@@ -75,6 +75,58 @@ ninja-spawners:
   refresh-rate: 1
   visibility-distance: 15
 
+# Particles shown around placed spawners. Only players within view-distance
+# blocks see them, and they run on the spawner's own region (Folia-safe).
+#   type          Bukkit particle name (DUST, HAPPY_VILLAGER, FLAME, ENCHANT, ...).
+#                 Old names such as REDSTONE or VILLAGER_HAPPY are accepted. An
+#                 unknown name disables that effect with one console warning.
+#   count         particles per show (1..200)
+#   offset        random spread around the block centre, in blocks (0..4)
+#   speed         particle speed / extra value (0..4)
+#   view-distance blocks (1..128)
+#   color         "#RRGGBB" or a name (RED, GOLD, ...); only used by particles
+#                 that take a colour (DUST, DUST_COLOR_TRANSITION, ENTITY_EFFECT)
+#   size          dust size (0.1..4), DUST only
+particles:
+  # Master switch for every effect below.
+  enabled: true
+  # Every production cycle of an active spawner.
+  spawner:
+    enabled: true
+    type: HAPPY_VILLAGER
+    count: 6
+    offset: 0.35
+    speed: 0.0
+    view-distance: 16
+    color: "#7EE787"
+    size: 1.0
+  # A spawner item merged into a placed spawner.
+  stack:
+    enabled: true
+    type: TOTEM_OF_UNDYING
+    count: 20
+    offset: 0.4
+    speed: 0.15
+    view-distance: 16
+  # A tier upgrade bought in the spawner menu.
+  upgrade:
+    enabled: true
+    type: ENCHANT
+    count: 40
+    offset: 0.5
+    speed: 0.6
+    view-distance: 16
+  # A booster activated on a spawner.
+  booster:
+    enabled: true
+    type: DUST
+    count: 24
+    offset: 0.45
+    speed: 0.0
+    view-distance: 16
+    color: "#4D96FF"
+    size: 1.2
+
 spawner-item:
   material: SPAWNER
   name: "&e%displayname%'s Spawner"

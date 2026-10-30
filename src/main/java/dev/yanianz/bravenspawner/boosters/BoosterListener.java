@@ -67,6 +67,7 @@ final class BoosterListener implements Listener {
         hand.setAmount(hand.getAmount() - 1);
         player.getInventory().setItemInMainHand(hand);
         plugin.markDirty(spawner);
+        if (plugin.particles() != null) plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.BOOSTER, spawner.location());
         player.sendMessage(Text.of("&aActivated " + definition.type().name().toLowerCase(java.util.Locale.ROOT)
                 + " booster for " + definition.duration() + "."));
     }

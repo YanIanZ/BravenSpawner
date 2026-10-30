@@ -1157,6 +1157,7 @@ public final class SpawnerGui implements Listener {
         plugin.manager().reschedule(spawner);
         messages().send(player, "gui.upgrade.success", "tier", tier.name);
         play(player, SoundFeedback.Cue.STACKING);
+        if (plugin.particles() != null) plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.UPGRADE, spawner.location());
         openMenu(player, spawner);
     }
 

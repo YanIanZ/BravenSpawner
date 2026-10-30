@@ -53,6 +53,7 @@ public final class BravenSpawner extends JavaPlugin {
     private AuditLog audit;
     private ProductRegistry products;
     private SellWandService wands;
+    private dev.yanianz.bravenspawner.particles.SpawnerParticles particles;
     private PlatformDetector platform;
     private Placeholders placeholders;
     private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
@@ -77,6 +78,7 @@ public final class BravenSpawner extends JavaPlugin {
     public AuditLog audit() { return audit; }
     public ProductRegistry products() { return products; }
     public SellWandService wands() { return wands; }
+    public dev.yanianz.bravenspawner.particles.SpawnerParticles particles() { return particles; }
     public PlatformDetector platform() { return platform; }
     public Placeholders placeholders() { return placeholders; }
     public dev.yanianz.bravenspawner.commerce.ShopBridge shops() { return shops; }
@@ -185,6 +187,7 @@ public final class BravenSpawner extends JavaPlugin {
         restrictions = new dev.yanianz.bravenspawner.restrictions.RestrictedSpawners(this);
         events = new dev.yanianz.bravenspawner.events.SpawnerEvents(this);
         holograms = new Holograms(this);
+        particles = new dev.yanianz.bravenspawner.particles.SpawnerParticles(this);
         gui = new SpawnerGui(this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
@@ -343,6 +346,7 @@ public final class BravenSpawner extends JavaPlugin {
         placeholders = new Placeholders();
         gui.reloadMenus();
         wands.reload();
+        if (particles != null) particles.reload();
         boosters.reload(settings);
         restrictions.reload();
         events.reload();
