@@ -4,7 +4,6 @@ import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.gui.GuiLock;
 import dev.yanianz.bravenspawner.gui.SpawnerGui;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.util.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -90,7 +89,7 @@ public final class GuiGuardListener implements Listener {
         boolean otherWorld = !player.getWorld().getName().equals(spawner.world());
         if (!otherWorld && dx * dx + dy * dy + dz * dz <= max * max) return;
 
-        player.sendMessage(Text.of("&cYou moved too far from the spawner; the menu was closed."));
+        dev.yanianz.bravenspawner.util.Messages.of(plugin).send(player, "lock.moved-away");
         player.closeInventory();
         lastCheck.remove(playerId);
     }

@@ -1,0 +1,181 @@
+# ================================
+#   BravenSpawner: Messages
+# ================================
+# Every chat line the plugin sends to players lives here. Reload with /bspawner reload.
+#
+# Formatting: legacy &a / &l codes, hex (&#RRGGBB, <#RRGGBB>, {#RRGGBB}) and any
+# MiniMessage tag (<gradient:...>, <bold>, ...) can be mixed freely.
+#
+# Colour roles: write {success}, {info}, {error}, {usage}, {highlight}, {muted} or
+# {accent} instead of a colour. Change a role below to restyle every message at once.
+#
+# Placeholders (%name%) are filled in by the plugin. Player names and other
+# player-controlled values are inserted literally and can never add colours.
+# A key you delete falls back to the bundled default.
+# ================================
+
+prefix: "<gradient:#F7B733:#FC4A1A><bold>Braven</bold></gradient> <dark_gray>»</dark_gray> "
+
+roles:
+  success: "<#7EE787>"
+  info: "<#C9D1D9>"
+  error: "<#FF7B72>"
+  usage: "<#F7B733>"
+  highlight: "<#FFFFFF>"
+  muted: "<#8B949E>"
+  accent: "<#F7B733>"
+
+general:
+  not-ready: "{error}Spawner storage is still loading. Try again in a moment."
+  no-permission: "{error}You don't have permission to do that."
+  players-only: "{error}Only players can use this command."
+  player-not-found: "{error}Player {highlight}%player%{error} is not online."
+  unknown-subcommand: "{error}Unknown subcommand {highlight}%sub%{error}. Type {usage}/bspawner{error} for help."
+  no-spawners: "{muted}You don't own any spawners yet."
+  look-at-spawner: "{error}Look at a spawner (within 6 blocks) first."
+  amount-range: "{error}Amount must be a whole number from 1 to 64."
+
+help:
+  - "{accent}Commands"
+  - " {usage}/bspawner give {muted}<mob|item:ID> [player] [stack] {info}— give a spawner"
+  - " {usage}/bspawner list {info}— list your spawners"
+  - " {usage}/bspawner menu {info}— open the spawner you are looking at"
+  - " {usage}/bspawner booster {muted}<player> <multiplier> [seconds] {info}— grant a booster"
+  - " {usage}/bspawner boosteritem {muted}<player> <normal|personal> <id> [amount]"
+  - " {usage}/bspawner sellwand {muted}<player> [uses|Nd|inf] [amount]"
+  - " {usage}/bspawner modifier {muted}<player> <type> <value> [amount]"
+  - " {usage}/bspawner corrupt {muted}| {usage}repair {info}— on the spawner you are looking at"
+  - " {usage}/bspawner doctor {info}— storage and catalogue health check"
+  - " {usage}/bspawner reload {info}— reload configuration, menus and messages"
+  - " {usage}/bmodify {muted}<player> {info}— trust or untrust a player"
+  - " {usage}/bhtoggle {info}— toggle holograms on your spawners"
+
+reload:
+  success: "{success}Configuration, menus and messages reloaded."
+  failed: "{error}Reload was not applied: {highlight}%reason%{error}. Nothing changed; see the console."
+
+give:
+  usage: "{usage}Usage: /bspawner give <mob|item:ID> [player] [stack]"
+  unknown-product: "{error}Unknown spawner type {highlight}%product%{error}."
+  invalid-stack: "{error}Stack must be a whole number of 1 or more."
+  received: "{success}You received {highlight}%amount%× %product%{success} spawner."
+  sent: "{success}Gave {highlight}%amount%× %product%{success} spawner to {highlight}%player%{success}."
+
+list:
+  console: "{info}Total spawners: {highlight}%count%"
+  header: "{info}Your spawners: {highlight}%count%"
+  entry: " {muted}• {highlight}%product% {muted}×%stack% · %stored% stored · %world% %x%, %y%, %z%"
+
+booster:
+  usage: "{usage}Usage: /bspawner booster <player> <multiplier> [seconds]"
+  invalid-multiplier: "{error}Multiplier must be a positive number."
+  invalid-seconds: "{error}Seconds must be a whole number; using {highlight}%seconds%s{error}."
+  granted: "{success}Granted a {highlight}%multiplier%×{success} booster to {highlight}%player%{success} for {highlight}%seconds%s{success}."
+
+booster-item:
+  usage: "{usage}Usage: /bspawner boosteritem <player> <normal|personal> <id> [amount]"
+  invalid-scope: "{error}Scope must be {highlight}normal{error} or {highlight}personal{error}."
+  unknown: "{error}Unknown booster id, or boosters are disabled."
+  scheduled: "{success}Booster item on its way to {highlight}%player%{success}."
+
+sellwand:
+  usage: "{usage}Usage: /bspawner sellwand <player> [uses|Nd|inf] [amount]"
+  disabled: "{error}Sell wands are disabled."
+  invalid-duration: "{error}Invalid duration. Use a number of uses, {highlight}Nd{error} for days, or {highlight}inf{error}."
+  received: "{success}You received {highlight}%amount%{success} sell wand(s)."
+  scheduled: "{success}Sell wand on its way to {highlight}%player%{success}."
+
+modifier:
+  usage: "{usage}Usage: /bspawner modifier <player> <range|price_multiplier> <value> [amount]"
+  invalid-value: "{error}Value must be a finite, non-negative number."
+  unknown-type: "{error}Unknown modifier type."
+  received: "{success}You received modifiers. {info}Drop one onto a sell wand in your inventory to apply it."
+  scheduled: "{success}Modifier on its way to {highlight}%player%{success}."
+
+corrupt:
+  done: "{error}Spawner corrupted."
+repair:
+  done: "{success}Spawner repaired."
+
+doctor:
+  header: "{accent}Doctor {muted}— storage and catalogue health"
+  line: " {muted}%key%: {highlight}%value%"
+  empty-catalogue: "{error}The catalogue is empty: check plugins/BravenSpawner/mobs/*.yml"
+
+modify:
+  usage: "{usage}Usage: /bmodify <player> {muted}(while looking at your spawner)"
+  not-owner: "{error}Only the owner can manage trust."
+  trusted: "{success}Trusted {highlight}%player%{success} on this spawner."
+  untrusted: "{info}Removed trust for {highlight}%player%{info}."
+
+hologram:
+  toggled-on: "{success}Holograms shown on your spawners."
+  toggled-off: "{info}Holograms hidden on your spawners."
+  command-disabled: "{error}Hologram toggling is disabled on this server."
+  feature-disabled: "{error}Holograms are disabled on this server."
+
+lock:
+  unavailable: "{error}That spawner is not available."
+  settling: "{info}This spawner was just closed. You can open it again in {highlight}%seconds%s{info}."
+  in-use: "{error}Another player is using this spawner right now."
+  cooldown: "{info}Please wait {highlight}%seconds%s{info} before reopening this spawner."
+  moved-away: "{info}You moved too far from the spawner, so the menu was closed."
+
+gui:
+  not-yours: "{error}That spawner is not yours."
+  extract-denied: "{error}You cannot take items out of spawners."
+  log-denied: "{error}Only the owner can view this spawner's history."
+  corruption-unavailable: "{error}The repair puzzle is unavailable; ask an administrator to check gui/corruption.yml."
+  trusted-hint: "{info}Look at the spawner and type {usage}/bmodify <player>{info} to trust someone."
+  boosters-hint: "{info}Use a booster item on this spawner to activate it."
+  confirm: "{usage}Click again within {highlight}%seconds%s{usage} to confirm: {highlight}%action%"
+  confirm-sell: "sell %items% item(s) for %value%"
+  confirm-collect: "sell %items% item(s) for %value% and collect %xp% XP"
+  confirm-buy-max: "buy as many stacks as you can afford at %price% each"
+  take-mode-one: "{info}Clicking an item now takes {highlight}one{info} at a time."
+  take-mode-stack: "{info}Clicking an item now takes {highlight}a stack{info} at a time."
+  xp:
+    must-be-full: "{error}XP storage must be full before collecting."
+    none: "{muted}No XP stored yet."
+    collected: "{success}Collected {highlight}%xp%{success} XP."
+  take:
+    nothing: "{muted}Nothing stored yet."
+    done: "{success}Took {highlight}%amount%{success} item(s)."
+    partial: "{success}Took {highlight}%amount%{success} item(s). {info}Inventory full; {highlight}%left%{info} stay in storage."
+    full: "{error}Your inventory is full."
+  drop:
+    done: "{success}Dropped {highlight}%amount%{success} item(s) at your feet."
+  sell:
+    must-be-full: "{error}Item storage must be full before selling."
+    sold: "{success}Sold {highlight}%items%{success} item(s) for {highlight}%value%{success}."
+    nothing: "{muted}Nothing stored has a sell price."
+    disabled: "{error}Selling is disabled on this server."
+    no-economy: "{error}No economy is available, so nothing was sold."
+    failed: "{error}The sale failed and nothing was removed."
+    failed-reason: "{error}The sale failed and nothing was removed. {muted}(%reason%)"
+    pending: "{info}A previous payout is still being settled; no new sale was made."
+  buy:
+    unavailable: "{error}Buying this spawner is not available."
+    no-room: "{error}No room on this spawner, or not enough money."
+    payment-failed: "{error}Payment failed; no spawners were added."
+    refunded: "{error}The spawner filled up first; your payment was refunded."
+    success: "{success}Bought {highlight}%amount%{success} spawner(s) for {highlight}%price%{success}."
+  upgrade:
+    max: "{muted}This spawner is already at the highest tier."
+    no-economy: "{error}No economy is available."
+    insufficient: "{error}You need {highlight}%cost%{error} to upgrade to {highlight}%tier%{error}."
+    success: "{success}Upgraded to {highlight}%tier%{success}."
+
+log:
+  # Java DateTimeFormatter pattern, in the server's time zone.
+  time-format: "yyyy-MM-dd HH:mm"
+  all: "All"
+  all-time: "All time"
+  last-hour: "Last hour"
+  last-day: "Last 24 hours"
+  entry-name: "&#F7B733%action% &8· &7%time%"
+  entry-lore:
+    - "&7Player: &f%player%"
+    - "&7Amount: &f%amount%"
+    - "&7Where: &f%world% %x%, %y%, %z%"
+    - "&8%detail%"

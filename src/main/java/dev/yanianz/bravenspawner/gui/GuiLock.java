@@ -1,6 +1,7 @@
 package dev.yanianz.bravenspawner.gui;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.util.Messages;
 import dev.yanianz.bravenspawner.util.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -104,7 +105,7 @@ public final class GuiLock {
         String denial = denialReason(player, spawnerId);
         if (denial == null) return true;
         if (player != null && Bukkit.getPlayer(player) instanceof Player online) {
-            online.sendMessage(Text.of(denial));
+            online.sendMessage(Text.of(Messages.of(plugin).prefix() + denial));
         }
         return false;
     }
@@ -115,8 +116,9 @@ public final class GuiLock {
      * own title instead of duplicating the rules.
      */
     public String denialReason(UUID player, UUID spawnerId) {
+        Messages messages = Messages.of(plugin);
         if (player == null || spawnerId == null) {
-            return "&cThat spawner is not available.";
+            return messages.format("lock.unavailable");
         }
 
         long now = System.currentTimeMillis();
@@ -124,23 +126,21 @@ public final class GuiLock {
         Long locked = lockedUntil.get(spawnerId);
         if (locked != null) {
             if (locked > now) {
-                return "&cThis spawner is still saving. Try again in &f"
-                        + seconds(locked - now) + "s&c.";
+                return messages.format("lock.settling", "seconds", seconds(locked - now));
             }
             lockedUntil.remove(spawnerId, locked);
         }
 
         UUID holder = spawnerPlayers.get(spawnerId);
         if (holder != null && !holder.equals(player)) {
-            return "&cAnother player is using this spawner.";
+            return messages.format("lock.in-use");
         }
 
         SessionKey key = new SessionKey(player, spawnerId);
         Long reopen = reopenUntil.get(key);
         if (reopen != null) {
             if (reopen > now) {
-                return "&cPlease wait &f" + seconds(reopen - now)
-                        + "s&c before reopening this spawner.";
+                return messages.format("lock.cooldown", "seconds", seconds(reopen - now));
             }
             reopenUntil.remove(key, reopen);
         }
