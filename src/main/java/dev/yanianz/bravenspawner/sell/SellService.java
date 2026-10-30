@@ -4,6 +4,10 @@ import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
 import dev.yanianz.bravenspawner.util.Text;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import dev.yanianz.bravenspawner.econ.Currency;
+import dev.yanianz.bravenspawner.econ.CurrencyAction;
+import dev.yanianz.bravenspawner.econ.CurrencyMath;
+import dev.yanianz.bravenspawner.econ.CurrencyRegistry;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
@@ -79,9 +83,9 @@ public final class SellService {
     private record ShopQuote(ItemStack template, double unit) {}
 
     private record PriceTable(Map<String, Double> unitPrices, double multiplier, Player viewer,
-                              List<ShopQuote> shopQuotes, int roundTo) {
+                              List<ShopQuote> shopQuotes, int roundTo, Currency currency) {
         PriceTable withMultiplier(double value) {
-            return new PriceTable(unitPrices, value, viewer, shopQuotes, roundTo);
+            return new PriceTable(unitPrices, value, viewer, shopQuotes, roundTo, currency);
         }
     }
 
@@ -236,9 +240,10 @@ public final class SellService {
         if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation()))
             return Sale.refused(Status.DISABLED, "claim protection denied this sale");
         if (!enabled()) return Sale.refused(Status.DISABLED, "selling is disabled by config");
-        if (!economyReady()) return Sale.refused(Status.NO_ECONOMY, "no Vault economy provider is registered");
+        Currency currency = currency();
+        if (!economyReady(currency)) return Sale.refused(Status.NO_ECONOMY, currency.unavailableReason());
 
-        PriceTable base = prices(spawner, player);
+        PriceTable base = prices(spawner, player, currency);
         double combined = base.multiplier() * multiplier;
         if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
         synchronized (spawner) {
@@ -248,14 +253,17 @@ public final class SellService {
         }
     }
 
-    /** Money text using the same {@code money-decimals} rules as the rest of the plugin. */
+    /**
+     * Payout text in the sell currency: {@code economy.format.<currency>} symbol and
+     * suffix around the shared {@code money-decimals} compaction.
+     */
     public String format(double amount) {
-        var settings = plugin.settings();
-        if (settings != null) {
-            return Text.money(amount, settings.moneyEnabled, settings.moneyApplyOnAmount, settings.moneyFormats);
-        }
-        var parsed = dev.yanianz.bravenspawner.config.Settings.load(plugin.getConfig(), null, null);
-        return Text.money(amount, parsed.moneyEnabled, parsed.moneyApplyOnAmount, parsed.moneyFormats);
+        return currency().format(amount);
+    }
+
+    /** The currency sales pay out in ({@code economy.currencies.sell}); never null. */
+    public Currency currency() {
+        return CurrencyRegistry.select(plugin, CurrencyAction.SELL);
     }
 
     /** Cancels the autosell pass when a host wires plugin shutdown explicitly. */
@@ -285,7 +293,8 @@ public final class SellService {
         try {
             autosellTask = Bukkit.getGlobalRegionScheduler()
                     .runAtFixedRate(plugin, task -> autosellPass(), ticks, ticks);
-            plugin.getLogger().info("Autosell enabled — every " + seconds + "s; payouts go through Vault"
+            plugin.getLogger().info("Autosell enabled — every " + seconds + "s; payouts go through "
+                    + currency().id()
                     + (shop.available() ? " (shop hook: " + shop.detectedPlugin() + ")" : "") + ".");
         } catch (RuntimeException e) {
             plugin.getLogger().warning("could not schedule autosell: " + e.getMessage());
@@ -296,7 +305,7 @@ public final class SellService {
         if (!plugin.isEnabled() || !enabled()) return;
         var manager = plugin.manager();
         if (manager == null) return;
-        if (!economyReady()) return;
+        if (!economyReady(currency())) return;
 
         for (Spawner spawner : manager.all()) {
             if (spawner == null) continue;
@@ -323,7 +332,11 @@ public final class SellService {
                 }
                 return;
             }
-            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), table, null);
+            OfflinePlayer owner = Bukkit.getOfflinePlayer(spawner.owner());
+            // Experience and item currencies live on the player: an offline owner
+            // simply keeps their stock until they are back.
+            if (table.currency().requiresOnline() && !owner.isOnline()) return;
+            sale = attemptSale(spawner, owner, table, null);
         }
         if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
     }
@@ -350,9 +363,11 @@ public final class SellService {
      * Reads the live config on every call: {@code reloadConfig()} swaps the object,
      * so a cached table would silently keep paying last boot's prices.
      */
-    private PriceTable prices(Spawner spawner) { return prices(spawner, null); }
+    private PriceTable prices(Spawner spawner) { return prices(spawner, null, currency()); }
 
-    private PriceTable prices(Spawner spawner, Player viewer) {
+    private PriceTable prices(Spawner spawner, Player viewer) { return prices(spawner, viewer, currency()); }
+
+    private PriceTable prices(Spawner spawner, Player viewer, Currency currency) {
         Map<String, Double> units = new HashMap<>();
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("sell-prices");
         if (section != null) {
@@ -380,7 +395,7 @@ public final class SellService {
         if (plugin.events() != null) multiplier *= plugin.events().cashMultiplier();
         if (viewer != null && plugin.boosters() != null) multiplier *= plugin.boosters().personalMultiplier(
                 dev.yanianz.bravenspawner.boosters.Boosters.Type.CASH, viewer.getUniqueId());
-        return new PriceTable(Map.copyOf(units), multiplier, viewer, shopQuotes(spawner, viewer), roundTo());
+        return new PriceTable(Map.copyOf(units), multiplier, viewer, shopQuotes(spawner, viewer), roundTo(), currency);
     }
 
     /**
@@ -460,7 +475,9 @@ public final class SellService {
             items += amount;
             total += unit * amount;
         }
-        return new Priced(List.copyOf(reserved), items, round(total * table.multiplier(), table.roundTo()));
+        // Whole-unit currencies (points, levels, items) round the payout down.
+        return new Priced(List.copyOf(reserved), items,
+                CurrencyMath.payout(total * table.multiplier(), table.roundTo(), table.currency().wholeUnits()));
     }
 
     // ---------------------------------------------------------- settlement
@@ -513,9 +530,10 @@ public final class SellService {
             }
 
             SaleAttempt attempt = new SaleAttempt(spawner.id(), priced.reserved(), priced.items(), priced.value(), actor);
-            if (!deposit(target, attempt.value)) {
+            String refusal = deposit(table.currency(), target, attempt.value);
+            if (refusal != null) {
                 attempt.failBeforePayment();
-                return new Sale(Status.FAILED, attempt.value, attempt.items, "Vault rejected the deposit");
+                return new Sale(Status.FAILED, attempt.value, attempt.items, refusal);
             }
             if (!attempt.markPaid()) {
                 // Only reachable if a future caller reuses the attempt; refusing here
@@ -606,32 +624,38 @@ public final class SellService {
     }
 
     /**
-     * Pays through Vault and reports whether the provider confirmed the credit.
+     * Pays through the sell currency; null means the provider confirmed the credit.
      *
-     * <p>{@link dev.yanianz.bravenspawner.econ.Economy#deposit} reads
-     * {@code EconomyResponse.transactionSuccess()}; a thrown provider exception or
-     * a failed response both read as "not paid", which keeps the storage untouched
-     * instead of deleting loot for money that never arrived.
+     * <p>A thrown provider exception or a failed result both read as "not paid",
+     * which keeps the storage untouched instead of deleting loot for money that
+     * never arrived. The returned text is the refusal reason.
      */
-    private boolean deposit(OfflinePlayer target, double amount) {
-        if (target == null) return false;
-        if (plugin.economy() == null || !plugin.economy().enabled()) return false;
+    private String deposit(Currency currency, OfflinePlayer target, double amount) {
+        if (target == null) return "no payout target";
+        if (currency == null || !currency.available()) {
+            return currency == null ? "no currency" : currency.unavailableReason();
+        }
         try {
-            return plugin.economy().deposit(target, amount);
+            Currency.Result result = currency.deposit(target, amount);
+            if (result.success()) return null;
+            if (!currency.requiresOnline()) plugin.getLogger().warning(currency.id() + " deposit of " + currency.format(amount) + " to "
+                    + target.getUniqueId() + " was rejected: " + result.error());
+            return result.error().isBlank() ? currency.displayName() + " rejected the deposit" : result.error();
         } catch (RuntimeException e) {
             plugin.getLogger().warning("deposit of " + format(amount) + " failed: " + e.getMessage());
-            return false;
+            return currency.displayName() + " rejected the deposit";
         }
     }
 
-    private boolean economyReady() {
-        if (plugin.economy() != null && plugin.economy().enabled()) {
+    private boolean economyReady(Currency currency) {
+        if (currency != null && currency.available()) {
             economyWarned.set(false);
             return true;
         }
         if (economyWarned.compareAndSet(false, true)) {
-            plugin.getLogger().warning("Sell skipped: no Vault economy provider is registered; "
-                    + "stored items were left untouched.");
+            plugin.getLogger().warning("Sell skipped: " + (currency == null ? "no currency"
+                    : currency.id() + " is unavailable (" + currency.unavailableReason() + ")")
+                    + "; stored items were left untouched.");
         }
         return false;
     }

@@ -16,6 +16,13 @@ softdepend:
   - EconomyShopGUI-Premium
   - WorldEdit
   - Vault
+  - PlayerPoints
+  - CoinsEngine
+  - ExcellentEconomy
+  - zShop
+  - ExcellentShop
+  - Nascraft
+  - DonutWorth
   - WorldGuard
   - Lands
   - Towny

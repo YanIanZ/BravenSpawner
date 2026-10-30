@@ -31,7 +31,7 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 | **Production** | mob spawners and item generators, per-tier interval, stack multiplier |
 | **Storage** | per-spawner inventory with capacity tiers, unlimited mode, paged GUI |
 | **Stacking** | shift-right-click to merge up to `stack-limit`, per-chunk cap |
-| **Economy** | Vault sell/autosell and upgrades, validated deposits, guarded stock settlement, and typed shop price adapters |
+| **Economy** | Per-action currencies (Vault, PlayerPoints, CoinsEngine, XP levels/points, items), validated deposits with refunds, guarded stock settlement, and shop price adapters |
 | **Corruption** | random corruption countdown, repair radius, production halt |
 | **Protection** | ownership/trust, reconnect cooldown, lock timeout, teleport guard, and WorldGuard access checks |
 | **World rules** | blacklist, activation radius, silk-touch, explosion guard and durability settings |
@@ -45,7 +45,7 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 |---|---|
 | Server | Built against Paper API 1.21.1; other versions/Folia require runtime validation |
 | Java | 21 for current build; newer Paper API versions may require Java 25 |
-| Optional | Vault, PlaceholderAPI, Floodgate, WorldGuard; EssentialsX, ShopGUI+ and EconomyShopGUI pricing |
+| Optional | Vault, PlayerPoints, CoinsEngine/ExcellentEconomy, PlaceholderAPI, Floodgate, WorldGuard; ShopGUI+, EconomyShopGUI, EssentialsX, ZShop, ExcellentShop, Nascraft, DonutWorth pricing |
 
 ## Install
 
@@ -65,6 +65,8 @@ then `/vspawner give ZOMBIE`.
 | `/vspawner give <mob\|item:ID> [player] [stack]` | `bravenspawner.admin` | hand out a spawner item |
 | `/vspawner list` | `bravenspawner.admin` | your spawners, stacks and stored totals |
 | `/vspawner reload` | `bravenspawner.admin` | reload config, rebuild schedules |
+| `/vspawner doctor` | `bravenspawner.admin` | storage, catalogue and currency health |
+| `/vspawner economy` | `bravenspawner.admin` | currency per action, every detected currency, active shop |
 | `/vspawner booster <player> <mult> [sec]` | `bravenspawner.admin` | grant a production multiplier |
 | `/vspawner menu` | `bravenspawner.admin` | open the GUI for your nearest spawner |
 | `/vspawner corrupt\|repair` | `bravenspawner.admin` | drive the corruption system |
@@ -86,6 +88,41 @@ active-boosters.properties   runtime timed-effect ledger (generated on save)
 Every switch in `config.yml` is documented inline. The full surface is large by
 design — a server that wants only "spawn mobs, store loot" can leave everything
 else at defaults.
+
+## Economy
+
+`economy.enabled` is the master switch. Each action picks its own currency in
+`config.yml`:
+
+```yaml
+economy:
+  enabled: true
+  currencies:
+    sell: VAULT              # payouts (manual sell, sell wand, autosell)
+    buy-stack: PLAYERPOINTS  # buying extra stacks in the GUI
+    upgrade: coinsengine:gems
+    spawner-buy: VAULT       # reserved: no spawner shop flow exists yet
+  format:
+    VAULT: { symbol: "$" }
+    PLAYERPOINTS: { suffix: " points", decimals: 0 }
+  item-currency: { material: EMERALD, name: "", custom-model-data: 0 }
+```
+
+| Id | Provider | Notes |
+|---|---|---|
+| `VAULT` | any Vault economy | default; late-registering providers are picked up |
+| `PLAYERPOINTS` | PlayerPoints | whole points, works for offline players |
+| `coinsengine:<id>` | CoinsEngine 2.x or ExcellentEconomy | ExcellentEconomy needs the player online |
+| `EXP_LEVELS`, `EXP_POINTS` | built in | online players only |
+| `ITEM` | built in | items in the inventory; overflow is dropped at the player's feet |
+
+Whole-unit currencies round payouts down and prices up. An unknown, missing or
+disabled currency refuses the action with a message (logged once) — nothing is
+ever free. `hooks.yml: currency` is the default for any action left unset.
+SuperMobCoins is not supported: it has no public API. Messages can use
+`%currency%` and `%currency_symbol%`; formatted amounts already carry the
+configured symbol/suffix. Shop pricing is described in
+[docs/SHOP_INTEGRATIONS.md](docs/SHOP_INTEGRATIONS.md).
 
 ## Colours & Unicode
 

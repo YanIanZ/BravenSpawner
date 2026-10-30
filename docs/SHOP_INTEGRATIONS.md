@@ -1,10 +1,11 @@
-# Typed price and protection integrations
+# Price, currency and protection integrations
 
 `ShopBridge(BravenSpawner)` reads `hooks.yml` and selects only its `shop` value.
 `None` disables provider pricing. Both price overloads quote one item while
 retaining its metadata; the player overload lets a provider apply player pricing.
 Providers never deposit money or remove virtual stock. SellService remains the
-single Vault settlement path and controls its own configured multipliers.
+single settlement path — it pays in `economy.currencies.sell` (Vault by default)
+and controls its own configured multipliers.
 
 ## API evidence
 
@@ -13,6 +14,20 @@ single Vault settlement path and controls its own configured multipliers.
 | EssentialsX | `net.essentialsx:EssentialsX:2.21.2` | Installed `IEssentials.getWorth().getPrice(essentials, unit)` |
 | ShopGUI+ | `com.github.brcdev-minecraft:shopgui-api:3.2.0` | `ShopGuiPlusApi.getItemStackPriceSell(unit)` or player overload; checks `areShopsLoaded()` |
 | EconomyShopGUI | `com.github.Gypopo:EconomyShopGUI-API:1.11.0` | `getShopItem`, `isSellAble`, `getItemSellPrice`; player-aware overload when supplied |
+
+### Reflective shop adapters
+
+These shops publish no artifact on a public Maven repository this build uses, so
+their API is reached by reflection through the shop's own class loader. Any
+missing class/method makes the adapter unavailable (logged once) and the local
+`sell-prices` apply.
+
+| Provider | API evidence | Calls |
+| --- | --- | --- |
+| ZShop | [Maxlego08/zShop-API](https://github.com/Maxlego08/zShop-API) source + reference `ZShopBridge` | `ShopPlugin#getShopManager()`, `getItemButton(Player, ItemStack)` or `getItemButton(Material)` → `Optional<ItemButton>`, `getSellPrice(Player,1)` / `getSellPrice(1)` / `getSellPrice()` |
+| ExcellentShop | [nulli0n/ExcellentShop-spigot](https://github.com/nulli0n/ExcellentShop-spigot) source (`su.nightexpress.excellentshop`) + reference `ExcellentShopBridge` (`su.nightexpress.nexshop`) | static `ShopAPI.getVirtualShop()`, `getBestProductFor(ItemStack, TradeType.SELL[, Player])`, `Product#getFinalPrice(TradeType, Player)` or `getPrice(TradeType)`, divided by `getUnitSize()` |
+| Nascraft | [Bounser/Nascraft](https://github.com/Bounser/Nascraft) source + reference `NascraftBridge` | `MarketManager` static `instance` (checked non-null; `getInstance()` would build a new market), `getItem(ItemStack)`, `Item#getPrice()`, `Price#getSellPrice()` |
+| DonutWorth | closed source; reference `DonutWorthBridge` bytecode only | static `me.serbob.donutworth.api.util.Prices.getPrice(ItemStack)` |
 
 The supplied reference JAR's `EssentialsXBridge.getSellPrice`,
 `ShopGuiPlusBridge.getSellPrice` and `EconomyShopGUIBridge.getSellPrice` were
@@ -34,11 +49,40 @@ These are unit price integrations, not replicas of provider transactions.
 EconomyShopGUI items using non-Vault currencies, multiple prices or limited sell
 stock are refused by its adapter. Dynamic market transaction bookkeeping,
 quantity-dependent prices and shop-specific sale events are not implemented.
-ShopGUI+ deployments must use a currency consistent with Vault settlement.
+Shop quotes are plain numbers: a shop priced in one currency while
+`economy.currencies.sell` pays in another is a configuration choice the plugin
+cannot detect (ExcellentShop/Nascraft products with their own currencies included).
 No-player quotes do not include personal shop permissions or price modifiers.
-Other provider adapters remain unavailable. Missing/unready APIs, invalid quotes
+Reflective adapters are verified against public source or reference bytecode only,
+never against a running shop. Missing/unready APIs, invalid quotes
 and unsupported items return no provider price; callers use their configured
 fallback. No runtime provider, payout or Folia compatibility has been qualified.
+
+## Currencies
+
+`econ/CurrencyRegistry` resolves `economy.currencies.<sell|buy-stack|upgrade|spawner-buy>`
+(fallback `hooks.yml: currency`, then `VAULT`). Lookup is case-insensitive and
+re-checks availability on every call; plugin enable/disable and service
+registration events re-announce selections that became usable. An unknown id,
+an unavailable provider or `economy.enabled: false` refuses the action.
+
+| Id | Access | API evidence |
+| --- | --- | --- |
+| `VAULT` | typed (`vault-api` compile-only) | existing `Economy` bridge; checks `EconomyResponse.transactionSuccess()` |
+| `PLAYERPOINTS` | reflection | [PlayerPointsAPI source](https://github.com/Rosewood-Development/PlayerPoints/blob/master/src/main/java/org/black_ixx/playerpoints/PlayerPointsAPI.java): plugin `getAPI()`, `look(UUID)`, `give(UUID,int)`, `take(UUID,int)` |
+| `coinsengine:<id>` | reflection | [ExcellentEconomyAPI](https://github.com/nulli0n/ExcellentEconomy) Bukkit service: `getCurrency(String)`, `getBalance/deposit/withdraw(Player, String[, double])`, `canPerformOperations()`; legacy [CoinsEngineAPI](https://github.com/FreshSMP/CoinsEngine-folia) statics `getCurrency(String)`, `getBalance/addBalance/removeBalance(UUID, Currency[, double])` |
+| `EXP_LEVELS`, `EXP_POINTS` | built in | vanilla XP curve (`ExpMath`); only on the thread owning the player |
+| `ITEM` | built in | `economy.item-currency` material/name/custom-model-data |
+
+SuperMobCoins (the reference plugin's second currency) is not implemented: it is a
+paid plugin without a published API, and the reference JAR contains no
+SuperMobCoins call site to verify against. Selecting it logs the reason and
+refuses the action.
+
+Withdrawals in the GUI are refunded through the same currency when the stack
+cannot be added; a failed refund is logged as severe. A failed sale deposit
+leaves stock untouched (QUOTED → FAILED); a paid sale whose drain fails stays
+quarantined until stock returns and is never paid twice.
 
 ## WorldGuard
 

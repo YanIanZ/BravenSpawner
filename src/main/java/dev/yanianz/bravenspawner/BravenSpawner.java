@@ -70,6 +70,8 @@ public final class BravenSpawner extends JavaPlugin {
     public Settings settings() { return settings; }
     public SpawnerManager manager() { return manager; }
     public Economy economy() { return economy; }
+    private dev.yanianz.bravenspawner.econ.CurrencyRegistry currencies;
+    public dev.yanianz.bravenspawner.econ.CurrencyRegistry currencies() { return currencies; }
     public Boosters boosters() { return boosters; }
     public Holograms holograms() { return holograms; }
     public SpawnerGui gui() { return gui; }
@@ -177,6 +179,8 @@ public final class BravenSpawner extends JavaPlugin {
         storage = openStorage();
         economy = new Economy();
         if (settings.economy.enabled) economy.hook();
+        currencies = dev.yanianz.bravenspawner.econ.CurrencyRegistry.create(this);
+        getServer().getPluginManager().registerEvents(currencies, this);
         boosters = new Boosters(this);
         manager = new SpawnerManager(this, settings);
         audit = new AuditLog(this);
@@ -351,6 +355,7 @@ public final class BravenSpawner extends JavaPlugin {
         restrictions.reload();
         events.reload();
         shops = new dev.yanianz.bravenspawner.commerce.ShopBridge(this);
+        if (currencies != null) currencies.reload();
         manager.settings(settings);
         holograms.reload();
     }

@@ -16,10 +16,10 @@ import java.util.logging.Logger;
  * lookup is the only probe that is both cheap and safe on every host, and it
  * cannot accidentally trigger a shop's API initialisation or load a class that
  * is not installed. The price capability itself is supplied by
- * {@link #apiPresent()}; typed integrations override it only when their runtime
- * API and price registry are ready. Reflection is not used. Reporting unavailable is
- * the honest answer; inventing a price would let the plugin delete loot for
- * money that was never quoted.
+ * {@link #apiPresent()}; integrations override it only when their runtime
+ * API and price registry are ready (typed, or reflective through the shop's own
+ * class loader). Reporting unavailable is the honest answer; inventing a price
+ * would let the plugin delete loot for money that was never quoted.
  *
  * <p>The unavailable warning is emitted once per adapter instance. A reload may
  * legitimately build a new bridge, and then a second warning is correct because
@@ -83,9 +83,10 @@ public abstract class AbstractPluginShopAdapter implements ShopAdapter {
     /**
      * Whether this build can call the shop's price API.
      *
-     * <p>False here by design. A subclass may only override this when its shop
-     * client is a real compile dependency of this plugin; a reflective bridge is
-     * not an acceptable implementation and would break on any shop update.
+     * <p>False here by design. A subclass overrides this when it can reach the
+     * shop's price API, either as a compile-only dependency or through
+     * reflection against a verified API shape; any lookup failure must read as
+     * false so a shop update degrades to local prices instead of breaking.
      */
     protected boolean apiPresent() {
         return false;

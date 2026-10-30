@@ -1,5 +1,9 @@
 package dev.yanianz.bravenspawner.gui;
 
+import dev.yanianz.bravenspawner.econ.Currency;
+import dev.yanianz.bravenspawner.econ.CurrencyAction;
+import dev.yanianz.bravenspawner.econ.CurrencyMath;
+import dev.yanianz.bravenspawner.econ.CurrencyRegistry;
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.audit.AuditEvent;
 import dev.yanianz.bravenspawner.boosters.Boosters;
@@ -331,12 +335,13 @@ public final class SpawnerGui implements Listener {
         int limit = plugin.stackLimit(spawner);
         int room = spawner.roomFor(limit);
         int batch = room <= 0 ? 64 : Math.min(64, room);
+        Currency buyCurrency = CurrencyRegistry.select(plugin, CurrencyAction.BUY_STACK);
         MenuPlaceholders.Snapshot snapshot = new MenuPlaceholders.Snapshot(
                 spawner.product(), displayName(spawner), HologramConfig.productColor(spawner.product()),
                 spawner.tier(), spawner.stack(), limit,
                 spawner.storedCount(), plugin.maximumItems(spawner), spawner.storedXp(), plugin.maximumXp(spawner),
                 sellService.format(sellService.value(player, spawner)),
-                sellService.format(price), sellService.format(price * batch),
+                buyCurrency.format(price), buyCurrency.format(price * batch),
                 minTicks, maxTicks,
                 (int) Math.min(Integer.MAX_VALUE, (long) dropMin * stack),
                 (int) Math.min(Integer.MAX_VALUE, (long) dropMax * stack),
@@ -690,27 +695,33 @@ public final class SpawnerGui implements Listener {
         if (!authorized(player, spawner)) return;
         var product = plugin.product(spawner);
         double price = product == null ? 0.0 : product.spawnerPrice();
-        if (!Double.isFinite(price) || price <= 0 || !plugin.economy().enabled()) {
+        if (!Double.isFinite(price) || price <= 0) {
             fail(player, "gui.buy.unavailable");
             return;
         }
+        Currency currency = CurrencyRegistry.select(plugin, CurrencyAction.BUY_STACK);
+        if (!currency.available()) {
+            fail(player, "gui.buy.currency-unavailable", currencyValues(currency));
+            return;
+        }
+        double unit = CurrencyMath.charge(price, currency.wholeUnits());
         var world = Bukkit.getWorld(spawner.world());
         if (world == null) return;
         int chunkRoom = plugin.manager().chunkUnitRoom(world, spawner.x() >> 4, spawner.z() >> 4);
         int limit = plugin.stackLimit(spawner);
         int count = PurchaseMath.quantity(requested, spawner.roomFor(limit), chunkRoom,
-                plugin.economy().balance(player), price);
+                currency.balance(player), unit);
         if (count <= 0) {
             fail(player, "gui.buy.no-room");
             return;
         }
-        double total = count * price;
-        if (!Double.isFinite(total) || !plugin.economy().withdraw(player, total)) {
-            fail(player, "gui.buy.payment-failed");
+        double total = count * unit;
+        if (!Double.isFinite(total) || !currency.withdraw(player, total).success()) {
+            fail(player, "gui.buy.payment-failed", currencyValues(currency));
             return;
         }
         if (!spawner.tryAddStack(count, limit)) {
-            if (!plugin.economy().deposit(player, total)) {
+            if (!currency.deposit(player, total).success()) {
                 plugin.getLogger().severe("Failed to refund spawner purchase for " + player.getUniqueId() + ": " + total);
             }
             fail(player, "gui.buy.refunded");
@@ -720,9 +731,20 @@ public final class SpawnerGui implements Listener {
         plugin.record(spawner, AuditEvent.Action.STACK, player, count, "buy_stack: " + total);
         plugin.manager().reschedule(spawner);
         messages().send(player, "gui.buy.success", "amount", count,
-                "price", Messages.raw(Text.escape(plugin.economy().format(total))));
+                "price", Messages.raw(Text.escape(currency.format(total))),
+                "currency", currency.displayName(), "currency_symbol", currency.symbol());
         play(player, SoundFeedback.Cue.STACKING);
         openBuyStack(player, spawner);
+    }
+
+    /** {@code %currency%} and {@code %currency_symbol%} appended to the given placeholder pairs. */
+    private static Object[] currencyValues(Currency currency, Object... values) {
+        Object[] out = java.util.Arrays.copyOf(values, values.length + 4);
+        out[values.length] = "currency";
+        out[values.length + 1] = currency.displayName();
+        out[values.length + 2] = "currency_symbol";
+        out[values.length + 3] = currency.symbol();
+        return out;
     }
 
     private void fail(Player player, String key, Object... values) {
@@ -833,7 +855,8 @@ public final class SpawnerGui implements Listener {
             case BUY_64 -> buyStack(player, spawner, 64);
             case BUY_MAX -> {
                 var product = plugin.product(spawner);
-                String price = sellService.format(product == null ? 0.0 : product.spawnerPrice());
+                String price = CurrencyRegistry.select(plugin, CurrencyAction.BUY_STACK)
+                        .format(product == null ? 0.0 : product.spawnerPrice());
                 if (confirmed(player, spawner, GuiAction.BUY_MAX,
                         messages().format("gui.confirm-buy-max", "price", price))) {
                     buyStack(player, spawner, Integer.MAX_VALUE);
@@ -1110,13 +1133,13 @@ public final class SpawnerGui implements Listener {
         SellService.Sale sale = sellService.sell(player, spawner);
         switch (sale.status()) {
             case SOLD -> {
-                messages().send(player, "gui.sell.sold", "items", MenuPlaceholders.number(sale.items()),
-                        "value", sellService.format(sale.value()));
+                messages().send(player, "gui.sell.sold", currencyValues(sellService.currency(),
+                        "items", MenuPlaceholders.number(sale.items()), "value", sellService.format(sale.value())));
                 play(player, SoundFeedback.Cue.SELL_STOCK);
             }
             case NOTHING_TO_SELL -> messages().send(player, "gui.sell.nothing");
             case DISABLED -> fail(player, "gui.sell.disabled");
-            case NO_ECONOMY -> fail(player, "gui.sell.no-economy");
+            case NO_ECONOMY -> fail(player, "gui.sell.no-economy", currencyValues(sellService.currency()));
             case FAILED -> {
                 if (sale.reason().isBlank()) fail(player, "gui.sell.failed");
                 else fail(player, "gui.sell.failed-reason", "reason", sale.reason());
@@ -1145,13 +1168,16 @@ public final class SpawnerGui implements Listener {
             return;
         }
         Settings.Tier tier = s.tiers.get(next);
-        if (!plugin.economy().enabled()) {
-            fail(player, "gui.upgrade.no-economy");
+        Currency currency = CurrencyRegistry.select(plugin, CurrencyAction.UPGRADE);
+        if (!currency.available()) {
+            fail(player, "gui.upgrade.no-economy", currencyValues(currency));
             return;
         }
-        if (!plugin.economy().withdraw(player, tier.cost)) {
+        double cost = CurrencyMath.charge(tier.cost, currency.wholeUnits());
+        if (!currency.withdraw(player, cost).success()) {
             fail(player, "gui.upgrade.insufficient",
-                    "cost", Messages.raw(Text.escape(plugin.economy().format(tier.cost))), "tier", tier.name);
+                    "cost", Messages.raw(Text.escape(currency.format(cost))), "tier", tier.name,
+                    "currency", currency.displayName(), "currency_symbol", currency.symbol());
             return;
         }
         spawner.tier(next);

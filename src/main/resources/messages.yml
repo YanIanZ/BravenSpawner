@@ -47,6 +47,7 @@ help:
   - " {usage}/bspawner modifier {muted}<player> <type> <value> [amount]"
   - " {usage}/bspawner corrupt {muted}| {usage}repair {info}— on the spawner you are looking at"
   - " {usage}/bspawner doctor {info}— storage and catalogue health check"
+  - " {usage}/bspawner economy {info}— currencies and shop pricing in use"
   - " {usage}/bspawner reload {info}— reload configuration, menus and messages"
   - " {usage}/bmodify {muted}<player> {info}— trust or untrust a player"
   - " {usage}/bhtoggle {info}— toggle holograms on your spawners"
@@ -103,6 +104,13 @@ doctor:
   line: " {muted}%key%: {highlight}%value%"
   empty-catalogue: "{error}The catalogue is empty: check plugins/BravenSpawner/mobs/*.yml"
 
+economy:
+  header: "{accent}Economy {muted}— currencies and shop pricing"
+  master: " {muted}economy.enabled: {highlight}%value%"
+  action: " {muted}%action%: {highlight}%currency% {muted}(%state%)"
+  currency: " {muted}- {highlight}%id% {muted}%name%: %state%"
+  shop: " {muted}shop: {highlight}%value%"
+
 modify:
   usage: "{usage}Usage: /bmodify <player> {muted}(while looking at your spawner)"
   not-owner: "{error}Only the owner can manage trust."
@@ -151,22 +159,24 @@ gui:
     done: "{success}Dropped {highlight}%amount%{success} item(s) at your feet."
   sell:
     must-be-full: "{error}Item storage must be full before selling."
+    # %value% is already formatted with economy.format; %currency% / %currency_symbol% are also available.
     sold: "{success}Sold {highlight}%items%{success} item(s) for {highlight}%value%{success}."
     nothing: "{muted}Nothing stored has a sell price."
     disabled: "{error}Selling is disabled on this server."
-    no-economy: "{error}No economy is available, so nothing was sold."
+    no-economy: "{error}%currency% is not available right now, so nothing was sold."
     failed: "{error}The sale failed and nothing was removed."
     failed-reason: "{error}The sale failed and nothing was removed. {muted}(%reason%)"
     pending: "{info}A previous payout is still being settled; no new sale was made."
   buy:
     unavailable: "{error}Buying this spawner is not available."
+    currency-unavailable: "{error}%currency% is not available right now; nothing was charged."
     no-room: "{error}No room on this spawner, or not enough money."
     payment-failed: "{error}Payment failed; no spawners were added."
     refunded: "{error}The spawner filled up first; your payment was refunded."
     success: "{success}Bought {highlight}%amount%{success} spawner(s) for {highlight}%price%{success}."
   upgrade:
     max: "{muted}This spawner is already at the highest tier."
-    no-economy: "{error}No economy is available."
+    no-economy: "{error}%currency% is not available right now; nothing was charged."
     insufficient: "{error}You need {highlight}%cost%{error} to upgrade to {highlight}%tier%{error}."
     success: "{success}Upgraded to {highlight}%tier%{success}."
 

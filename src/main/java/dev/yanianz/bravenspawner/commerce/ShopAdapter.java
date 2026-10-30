@@ -18,9 +18,10 @@ import java.util.List;
  * false. {@link #priceOf(ItemStack)} returning {@code -1} is the "no opinion"
  * answer and is never silently interpreted as a free item; the bridge skips it
  * and the local {@code sell-prices} table decides instead. This build carries no
- * runtime requirement on shop plugins and forbids reflection, so an adapter
- * may only become available through a channel that is genuinely on the
- * classpath — never through a guessed class name.
+ * runtime requirement on shop plugins. Adapters use a typed compile-only API
+ * when one is published on a public repository, and otherwise reflection
+ * against an API shape verified from public source (or, for closed plugins,
+ * the reference plugin's bridge); any lookup failure reports unavailable.
  */
 public interface ShopAdapter {
 
@@ -32,7 +33,7 @@ public interface ShopAdapter {
 
     /**
      * True only when the shop is installed <em>and</em> this build can read a
-     * sell price from it without reflection.
+     * sell price from it right now.
      */
     boolean available();
 
@@ -58,7 +59,7 @@ public interface ShopAdapter {
      * items into the shop's inventory or trigger its payout. Zero means "nothing
      * was credited", which callers must treat as a refusal and leave storage
      * untouched. Implementing this in an adapter is only correct when the shop
-     * exposes a real, non-reflective transaction entry point.
+     * exposes a real transaction entry point.
      */
     default double sell(Player player, List<ItemStack> stacks) {
         return 0.0;

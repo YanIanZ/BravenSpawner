@@ -20,6 +20,32 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   1.21.1) are skipped with one info line; unknown drop materials are skipped with one
   summarised warning instead of per-file errors. `mushroom_cow.yml` keeps its id and now
   names `MOOSHROOM`.
+- Currency abstraction (`econ/Currency`, `CurrencyRegistry`) with per-action selection
+  in `economy.currencies` (`sell`, `buy-stack`, `upgrade`, `spawner-buy`). Providers:
+  `VAULT` (default), `PLAYERPOINTS`, `coinsengine:<id>` (CoinsEngine 2.x and
+  ExcellentEconomy), `EXP_LEVELS`, `EXP_POINTS` and `ITEM` (`economy.item-currency`).
+- `economy.format.<currency>`: symbol, suffix, decimals, compact and display name,
+  reusing `money-decimals` compaction; `%currency%` / `%currency_symbol%` in sell,
+  buy and upgrade messages; new `gui.buy.currency-unavailable` message.
+- Shop pricing for ZShop, ExcellentShop, Nascraft and DonutWorth through their
+  public APIs (reflection); `ShopBridge` order and the `sell-prices` fallback are unchanged.
+- `/bspawner economy` summary; `/bspawner doctor` lists available currencies and the
+  selection per action.
+
+### Changed
+- Sale payouts, buy-stack and upgrade charges go through the selected currency.
+  Whole-unit currencies round payouts down and charges up; an unavailable or unknown
+  currency refuses the action with a message and is logged once.
+- `hooks.yml: currency` is now the default for actions without an explicit
+  `economy.currencies` entry instead of being ignored.
+- Buy/upgrade messages format amounts with the plugin's money format (same as menus)
+  instead of the Vault provider's own format.
+- Autosell skips offline owners when the sell currency is online-only (XP, items).
+
+### Not implemented
+- SuperMobCoins: no public API. Per-product `currency:` overrides: products have no
+  generic extras map yet. `spawner-buy` is reserved; no spawner shop flow exists.
+  `%currency%` is not added to menu placeholders (formatted prices already carry the symbol).
 
 ## [1.2.1] - 2026-10-30
 

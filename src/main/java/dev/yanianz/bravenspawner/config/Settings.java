@@ -451,21 +451,34 @@ public final class Settings {
         public final double purchasePrice;
         public final double sellMultiplier;
         public final boolean autosell;
+        /** {@code economy.currencies}: action key (sell, buy-stack, upgrade, spawner-buy) to currency id. */
+        public final java.util.Map<String, String> currencies;
 
-        private EconomySection(boolean enabled, double purchasePrice, double sellMultiplier, boolean autosell) {
+        private EconomySection(boolean enabled, double purchasePrice, double sellMultiplier, boolean autosell,
+                               java.util.Map<String, String> currencies) {
             this.enabled = enabled;
             this.purchasePrice = purchasePrice;
             this.sellMultiplier = sellMultiplier;
             this.autosell = autosell;
+            this.currencies = currencies;
         }
 
         static EconomySection from(ConfigurationSection s) {
-            if (s == null) return new EconomySection(false, 0, 1.0, false);
+            if (s == null) return new EconomySection(false, 0, 1.0, false, java.util.Map.of());
+            java.util.Map<String, String> currencies = new java.util.LinkedHashMap<>();
+            ConfigurationSection selected = s.getConfigurationSection("currencies");
+            if (selected != null) {
+                for (String key : selected.getKeys(false)) {
+                    String value = selected.getString(key, "");
+                    if (value != null && !value.isBlank()) currencies.put(key.toLowerCase(java.util.Locale.ROOT), value.trim());
+                }
+            }
             return new EconomySection(
                     s.getBoolean("enabled", false),
                     s.getDouble("purchase-price", 0.0),
                     s.getDouble("sell-multiplier", 1.0),
-                    s.getBoolean("autosell", false));
+                    s.getBoolean("autosell", false),
+                    java.util.Map.copyOf(currencies));
         }
     }
 
