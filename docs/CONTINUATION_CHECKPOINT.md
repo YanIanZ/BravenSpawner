@@ -1,4 +1,13 @@
-# Continuation checkpoint — 2026-10-30 (1.2.1)
+# Continuation checkpoint — 2026-10-30 (1.3.0)
+
+1.3.0 released: item codec v2 (amount >99 on Paper 26.x), head textures, storage amount lore,
+90 mobs up to MC 26.2 (loot tables cached at /Volumes/Ext/DevCache/agent-skills/cache/bravenspawner/mc26.2),
+multi-currency (Vault/PlayerPoints/CoinsEngine/EXP/ITEM), ZShop/ExcellentShop/Nascraft/DonutWorth pricing,
+particles. 209 tests; live boot on Paper 1.21.1-133 and 26.2-135; codec probes verified legacy→v2.
+Smoke servers: /Volumes/Ext/DevCache/agent-tmp/{bspawner-smoke,bs262}. Open: SuperMobCoins (no API),
+per-product currency, sulfur_cube head texture, in-game/Folia/live-economy qualification.
+
+## Previous (1.2.1)
 
 Goal: ship 1.2.1 "shipped config works", then the next update per `docs/GAP_AUDIT.md` §4.4.
 
