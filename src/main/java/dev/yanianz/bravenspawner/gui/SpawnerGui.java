@@ -1,25 +1,29 @@
 package dev.yanianz.bravenspawner.gui;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.audit.AuditEvent;
+import dev.yanianz.bravenspawner.boosters.Boosters;
 import dev.yanianz.bravenspawner.config.Settings;
-import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.menu.MenuClick;
 import dev.yanianz.bravenspawner.menu.MenuDefinition;
 import dev.yanianz.bravenspawner.menu.MenuHolder;
-import dev.yanianz.bravenspawner.menu.MenuService;
-import dev.yanianz.bravenspawner.menu.PurchaseMath;
-import dev.yanianz.bravenspawner.menu.OrderedPuzzle;
 import dev.yanianz.bravenspawner.menu.MenuRenderer;
-import dev.yanianz.bravenspawner.audit.AuditEvent;
-import java.util.LinkedHashMap;
-import java.util.function.Consumer;
+import dev.yanianz.bravenspawner.menu.MenuService;
+import dev.yanianz.bravenspawner.menu.OrderedPuzzle;
+import dev.yanianz.bravenspawner.menu.PurchaseMath;
+import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.platform.HologramConfig;
 import dev.yanianz.bravenspawner.sell.SellService;
+import dev.yanianz.bravenspawner.util.Messages;
 import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.wand.SoundFeedback;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -28,8 +32,13 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,8 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Chest GUI: a paged storage view plus a control menu.
  *
  * <p>Displayed storage is read-only; action callbacks withdraw from the model, so the inventory can
- * never be used to dupe or to move items the model still owns. Page navigation is
- * instant when configured, otherwise delayed by one tick.
+ * never be used to dupe or to move items the model still owns.
  *
  * <p>Sessions are identified by the window itself, not by the player: every open
  * inventory is attached to a typed {@link GuiHolder} session with the spawner id and
@@ -53,12 +61,19 @@ public final class SpawnerGui implements Listener {
 
     private enum View { MENU, STORAGE, PUZZLE, LOG }
 
+    /** Window in which a second click confirms a sale or a maximum purchase. */
+    static final long CONFIRM_MS = 3_000L;
+    /** Items taken by a right-click on a storage cell, per the shipped informative lore. */
+    static final int RIGHT_CLICK_AMOUNT = 64;
+
     private static final class LogQuery {
         int type = -1;
         boolean mine;
         int limit = 64;
         long since;
     }
+
+    private record Pending(GuiAction action, UUID spawner, long until) { }
 
     /**
      * Identity of one open spawner window.
@@ -124,6 +139,10 @@ public final class SpawnerGui implements Listener {
     private final MenuService menus;
     private final AtomicLong generations = new AtomicLong();
     private final Map<UUID, GuiHolder> sessions = new ConcurrentHashMap<>();
+    private final Map<UUID, Pending> confirmations = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> takeModes = new ConcurrentHashMap<>();
+    private volatile SoundFeedback sounds;
+    private volatile boolean soundsUnavailable;
 
     public SpawnerGui(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -139,46 +158,81 @@ public final class SpawnerGui implements Listener {
 
     public MenuService menus() { return menus; }
 
-    public int reloadMenus() { return menus.reload(); }
+    /** Reloads menus, messages and sound cues; called from the plugin reload. */
+    public int reloadMenus() {
+        messages().reload();
+        SoundFeedback current = sounds;
+        if (current != null) {
+            try { current.reload(); } catch (RuntimeException ignored) { sounds = null; }
+        }
+        soundsUnavailable = false;
+        return menus.reload();
+    }
+
+    private Messages messages() {
+        return Messages.of(plugin);
+    }
+
+    private void play(Player player, SoundFeedback.Cue cue) {
+        if (player == null || soundsUnavailable) return;
+        SoundFeedback feedback = sounds;
+        if (feedback == null) {
+            try {
+                feedback = new SoundFeedback(plugin);
+                sounds = feedback;
+            } catch (RuntimeException unavailable) {
+                soundsUnavailable = true;
+                return;
+            }
+        }
+        try {
+            feedback.play(player, cue);
+        } catch (RuntimeException ignored) {
+            // Feedback must never break the action it accompanies.
+        }
+    }
 
     public void openMenu(Player player, Spawner spawner) {
         Settings s = plugin.settings();
         if (!authorized(player, spawner)) return;
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) {
-            player.sendMessage(Text.of("&cThat spawner is not yours."));
-            return;
-        }
-        if (!locks.canOpen(player.getUniqueId(), spawner.id())) {
-            player.sendMessage(Text.of("&c" + locks.denialReason(player.getUniqueId(), spawner.id())));
-            return;
-        }
+        // canOpen sends its own refusal, so no second message here.
+        if (!locks.canOpen(player.getUniqueId(), spawner.id())) return;
 
         if (spawner.corrupted()) { openCorruption(player, spawner); return; }
         if (openConfigured(player, spawner, "spawner", 0, 1)) return;
 
         GuiHolder holder = new GuiHolder(spawner.id(), generations.incrementAndGet(), View.MENU, 0);
-        Inventory inv = Bukkit.createInventory(holder, 27, Text.of("&8Spawner — " + spawner.product()));
+        String name = displayName(spawner);
+        Inventory inv = Bukkit.createInventory(holder, 27,
+                Text.of("&#F7B733✦ &8" + name + " Spawner"));
         holder.attach(inv);
-        inv.setItem(10, button(Material.CHEST, "&aStorage",
-                List.of("&7Stored: &f" + spawner.storedCount(),
+        fill(inv);
+        Map<String, String> values = placeholders(player, spawner, 0, 1);
+        inv.setItem(4, button(Material.SPAWNER, HologramConfig.productColor(spawner.product()) + "&l" + name + " Spawner",
+                List.of("&7Speed: &f" + values.get("speed") + "s",
+                        "&7Stack: &f" + values.get("stack") + "&7/&f" + values.get("max_stack"),
+                        "&7Tier: &f" + spawner.tier())));
+        inv.setItem(10, button(Material.CHEST, "&#7EE787&lStorage",
+                List.of("&7Items: &f" + values.get("storage_value"),
                         "&7Slots: &f" + spawner.distinctSlots(),
-                        "&7XP: &f" + spawner.storedXp())));
+                        "", "&#F7B733» &7Click: &fopen storage")));
         inv.setItem(11, sellButton(player, spawner));
-        inv.setItem(12, button(Material.EXPERIENCE_BOTTLE, "&eCollect XP",
-                List.of("&7Move stored XP to you.")));
-        inv.setItem(13, button(Material.HOPPER, "&bCollect items",
-                List.of("&7Withdraw everything that fits.")));
-        inv.setItem(14, button(Material.ANVIL, "&6Upgrade",
-                List.of("&7Tier: &f" + spawner.tier(),
-                        "&7Stack: &f" + spawner.stack())));
-        inv.setItem(15, button(Material.NAME_TAG, "&dTrusted",
-                List.of("&7/bmodify <player>")));
-        inv.setItem(16, button(Material.BARRIER, "&cClose", List.of()));
+        inv.setItem(12, button(Material.EXPERIENCE_BOTTLE, "&#FFD93D&lCollect XP",
+                List.of("&7Stored: &f" + values.get("xp_value"), "", "&#F7B733» &7Click: &fcollect")));
+        inv.setItem(13, button(Material.HOPPER, "&#4D96FF&lTake all",
+                List.of("&7Moves everything that fits", "&7into your inventory.", "", "&#F7B733» &7Click: &ftake all")));
+        inv.setItem(14, button(Material.ANVIL, "&#FF9F45&lUpgrade",
+                List.of("&7Tier: &f" + spawner.tier(), "", "&#F7B733» &7Click: &fupgrade")));
+        inv.setItem(15, button(Material.NAME_TAG, "&#C780FA&lTrusted players",
+                List.of("&7Look at the spawner and use", "&f/bmodify <player>")));
+        inv.setItem(16, button(Material.BARRIER, "&#FF7B72&lClose", List.of()));
+        inv.setItem(22, button(Material.WRITABLE_BOOK, "&#C9D1D9&lHistory",
+                List.of("&7Recent actions on this spawner.", "", "&#F7B733» &7Click: &fview")));
 
         if (!show(player, inv)) return;
         sessions.put(player.getUniqueId(), holder);
         locks.markOpened(player.getUniqueId(), spawner.id());
-        if (s.enableLogger) {
+        if (s != null && s.enableLogger) {
             plugin.getLogger().info(player.getName() + " opened menu of " + spawner.id());
         }
     }
@@ -196,26 +250,32 @@ public final class SpawnerGui implements Listener {
 
         UUID viewer = player.getUniqueId();
         boolean sameSpawner = spawner.id().equals(locks.sessionSpawner(viewer));
-        if (!sameSpawner && !locks.canOpen(viewer, spawner.id())) {
-            player.sendMessage(Text.of("&c" + locks.denialReason(viewer, spawner.id())));
-            return;
-        }
+        if (!sameSpawner && !locks.canOpen(viewer, spawner.id())) return;
 
         GuiHolder holder = new GuiHolder(spawner.id(), generations.incrementAndGet(), View.STORAGE, safePage);
         Inventory inv = Bukkit.createInventory(holder, rows * 9,
-                Text.of("&8Storage " + (safePage + 1) + "/" + pages));
+                Text.of("&#F7B733✦ &8" + displayName(spawner) + " &7» &8Storage &7(" + (safePage + 1) + "/" + pages + ")"));
         holder.attach(inv);
 
+        List<Integer> slots = new ArrayList<>(perPage);
+        for (int i = 0; i < perPage; i++) slots.add(i);
+        holder.contentSlots = List.copyOf(slots);
+        holder.displayed = contents;
+        List<String> hint = List.of("", "&#F7B733» &7Left-click: &ftake 1",
+                "&#F7B733» &7Right-click: &ftake 64", "&#F7B733» &7Shift-click: &ftake a stack");
         int start = safePage * perPage;
         for (int i = 0; i < perPage && start + i < contents.size(); i++) {
-            inv.setItem(i, contents.get(start + i).clone());
+            inv.setItem(i, display(contents.get(start + i), hint));
         }
 
         int navRow = (rows - 1) * 9;
-        if (safePage > 0) inv.setItem(navRow, button(Material.ARROW, "&ePrevious page", List.of()));
-        if (safePage < pages - 1) inv.setItem(navRow + 8, button(Material.ARROW, "&eNext page", List.of()));
-        inv.setItem(navRow + 4, button(Material.HOPPER, "&aTake all", List.of("&7Withdraw everything.")));
-        inv.setItem(navRow + 3, button(Material.BARRIER, "&cBack", List.of()));
+        for (int slot = navRow; slot < navRow + 9; slot++) inv.setItem(slot, filler());
+        if (safePage > 0) inv.setItem(navRow, button(Material.ARROW, "&#F7B733&lPrevious page", List.of()));
+        if (safePage < pages - 1) inv.setItem(navRow + 8, button(Material.ARROW, "&#F7B733&lNext page", List.of()));
+        inv.setItem(navRow + 3, button(Material.SPECTRAL_ARROW, "&#C9D1D9&lBack", List.of()));
+        inv.setItem(navRow + 4, button(Material.HOPPER, "&#4D96FF&lTake all",
+                List.of("&7Moves everything that fits", "&7into your inventory.")));
+        inv.setItem(navRow + 5, sellButton(player, spawner));
 
         if (!show(player, inv)) return;
         sessions.put(viewer, holder);
@@ -223,36 +283,77 @@ public final class SpawnerGui implements Listener {
     }
 
     private boolean authorized(Player player, Spawner spawner) {
-        if (player != null && spawner != null) {
-            if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return false;
-            if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation())) return false;
-        }
+        if (player == null || spawner == null) return false;
+        if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return false;
+        if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation())) return false;
         if (spawner.canUse(player.getUniqueId()) || player.hasPermission("bravenspawner.admin")) return true;
-        player.sendMessage(Text.of("&cThat spawner is not yours."));
+        messages().send(player, "gui.not-yours");
         return false;
     }
 
-    private Map<String, String> placeholders(Player player, Spawner spawner, int page, int pages) {
-        Map<String, String> values = new LinkedHashMap<>();
-        values.put("entity", spawner.product());
-        values.put("tier", String.valueOf(spawner.tier()));
-        values.put("stack", String.valueOf(spawner.stack()));
-        values.put("stored", String.valueOf(spawner.storedCount()));
-        values.put("xp", String.valueOf(spawner.storedXp()));
-        values.put("value", sellService.format(sellService.value(player, spawner)));
-        values.put("page", String.valueOf(page + 1));
-        values.put("pages", String.valueOf(pages));
-        values.put("head_texture", "");
+    private String displayName(Spawner spawner) {
         var product = plugin.product(spawner);
+        String name = product == null ? null : product.displayName();
+        if (name == null || name.isBlank()) name = spawner.product() == null ? "Spawner" : spawner.product();
+        return name;
+    }
+
+    private Map<String, String> placeholders(Player player, Spawner spawner, int page, int pages) {
+        var product = plugin.product(spawner);
+        Settings settings = plugin.settings();
+        int stack = Math.max(1, spawner.stack());
+        long minTicks;
+        long maxTicks;
+        if (product != null && spawner.tier() == 0) {
+            minTicks = product.intervalTicks();
+            maxTicks = product.maxIntervalTicks();
+        } else if (settings != null && settings.tiers != null && !settings.tiers.isEmpty()) {
+            Settings.Tier tier = settings.tiers.get(Math.min(Math.max(0, spawner.tier()), settings.tiers.size() - 1));
+            minTicks = maxTicks = Math.max(20L, tier.intervalTicks);
+        } else {
+            minTicks = maxTicks = product == null ? 0 : product.intervalTicks();
+        }
+        double speed = plugin.boosters() == null ? 1.0
+                : plugin.boosters().multiplier(Boosters.Type.SPEED, spawner.owner(), spawner.id());
+        if (Double.isFinite(speed) && speed > 0.0 && speed != 1.0) {
+            minTicks = Math.max(20L, Math.round(minTicks / speed));
+            maxTicks = Math.max(20L, Math.round(maxTicks / speed));
+        }
+        int dropMin = 0;
+        int dropMax = 0;
+        if (product != null) {
+            for (var drop : product.drops()) {
+                if (drop.chance() >= 1.0) dropMin += drop.minAmount();
+                dropMax += drop.maxAmount();
+            }
+        }
         double price = product == null ? 0.0 : product.spawnerPrice();
-        values.put("max_stack", String.valueOf(plugin.stackLimit(spawner)));
-        values.put("price", plugin.economy().format(price));
-        values.put("total_price", plugin.economy().format(price * 64));
-        values.put("player", "All");
-        values.put("logtype", "All");
-        values.put("limit", "64");
-        values.put("time", "All time");
+        int limit = plugin.stackLimit(spawner);
+        int room = spawner.roomFor(limit);
+        int batch = room <= 0 ? 64 : Math.min(64, room);
+        MenuPlaceholders.Snapshot snapshot = new MenuPlaceholders.Snapshot(
+                spawner.product(), displayName(spawner), HologramConfig.productColor(spawner.product()),
+                spawner.tier(), spawner.stack(), limit,
+                spawner.storedCount(), plugin.maximumItems(spawner), spawner.storedXp(), plugin.maximumXp(spawner),
+                sellService.format(sellService.value(player, spawner)),
+                sellService.format(price), sellService.format(price * batch),
+                minTicks, maxTicks,
+                (int) Math.min(Integer.MAX_VALUE, (long) dropMin * stack),
+                (int) Math.min(Integer.MAX_VALUE, (long) dropMax * stack),
+                (int) Math.min(Integer.MAX_VALUE, (long) (product == null ? 0 : product.xp()) * stack),
+                (int) Math.min(Integer.MAX_VALUE, (long) (product == null ? 0 : product.maxXpPerCycle()) * stack),
+                page, pages);
+        Map<String, String> values = MenuPlaceholders.build(snapshot);
+        Messages messages = messages();
+        values.put("player", messages.format("log.all"));
+        values.put("logtype", messages.format("log.all"));
+        values.put("time", messages.format("log.all-time"));
         return values;
+    }
+
+    private String layoutFor(Player player, MenuDefinition definition) {
+        boolean bedrock = plugin.platform() != null && plugin.platform().configured() && plugin.platform().isBedrock(player);
+        return bedrock && definition.hasLayout("bedrock_mode") ? "bedrock_mode" : definition.defaultLayout();
     }
 
     private boolean openConfigured(Player player, Spawner spawner, String name, int page, int pages) {
@@ -261,10 +362,10 @@ public final class SpawnerGui implements Listener {
         UUID viewer = player.getUniqueId();
         if (!authorized(player, spawner)) return true;
         if (!spawner.id().equals(locks.sessionSpawner(viewer)) && !locks.canOpen(viewer, spawner.id())) return true;
-        Map<Character, Consumer<Player>> actions = new LinkedHashMap<>();
+        Map<Character, MenuClick> actions = new LinkedHashMap<>();
         for (var entry : definition.items().entrySet()) {
             String action = entry.getValue().action();
-            actions.put(entry.getKey(), clicker -> {
+            actions.put(entry.getKey(), (clicker, click) -> {
                 GuiHolder current = session(clicker);
                 MenuHolder window = menus.session(clicker);
                 if (current == null || window == null || current.getInventory() != window.getInventory()) return;
@@ -278,13 +379,13 @@ public final class SpawnerGui implements Listener {
                     openCorruption(clicker, live);
                     return;
                 }
-                configuredAction(clicker, live, name, action, page);
+                configuredAction(clicker, live, name, action, page, click);
             });
         }
-        String layout = name.equals("spawner") && plugin.platform() != null
-                && plugin.platform().configured() && plugin.platform().isBedrock(player)
-                ? "bedrock_mode" : definition.defaultLayout();
-        MenuHolder opened = menus.open(player, name, layout, placeholders(player, spawner, page, pages), actions);
+        String layout = name.equals("spawner") || name.equals("storage") ? layoutFor(player, definition)
+                : definition.defaultLayout();
+        Map<String, String> values = placeholders(player, spawner, page, pages);
+        MenuHolder opened = menus.open(player, name, layout, values, actions);
         if (opened == null) return true;
         GuiHolder session = new GuiHolder(spawner.id(), generations.incrementAndGet(),
                 name.equals("storage") ? View.STORAGE : name.equals("corruption") ? View.PUZZLE
@@ -292,14 +393,84 @@ public final class SpawnerGui implements Listener {
         session.attach(opened.getInventory());
         sessions.put(viewer, session);
         locks.markOpened(viewer, spawner.id());
+        decorate(player, spawner, definition, opened);
         return true;
     }
 
+    /** Dynamic lore the static template cannot express: active boosters and the selected take mode. */
+    private void decorate(Player player, Spawner spawner, MenuDefinition definition, MenuHolder opened) {
+        Inventory inventory = opened.getInventory();
+        if (inventory == null) return;
+        String layout = opened.layout();
+        String boosterFormat = definition.option("special.booster_display", "");
+        List<String> boosterLines = boosterFormat.isBlank() ? List.of() : boosterLines(spawner, boosterFormat);
+        int mode = takeModes.getOrDefault(player.getUniqueId(), 1);
+        String selected = definition.option("selected_text", "&7 (&aSELECTED&7)");
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            MenuDefinition.ItemDefinition item = definition.item(definition.symbol(layout, slot));
+            if (item == null) continue;
+            GuiAction action = GuiAction.parse(item.action());
+            if (action == null) continue;
+            ItemStack stack = inventory.getItem(slot);
+            if (stack == null) continue;
+            ItemMeta meta = stack.getItemMeta();
+            if (meta == null) continue;
+            boolean changed = false;
+            if (action == GuiAction.BOOSTERS && !boosterLines.isEmpty()) {
+                List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+                lore.addAll(Text.items(boosterLines));
+                meta.lore(lore);
+                changed = true;
+            }
+            if ((action == GuiAction.TAKE_ONE && mode == 1)
+                    || (action == GuiAction.TAKE_STACK && mode == RIGHT_CLICK_AMOUNT)) {
+                Component name = meta.displayName() == null ? Component.empty() : meta.displayName();
+                meta.displayName(name.append(Text.item(selected)));
+                changed = true;
+            }
+            if (changed) stack.setItemMeta(meta);
+        }
+    }
+
+    private List<String> boosterLines(Spawner spawner, String format) {
+        Boosters boosters = plugin.boosters();
+        if (boosters == null) return List.of();
+        List<String> lines = new ArrayList<>();
+        long now = System.currentTimeMillis();
+        try {
+            for (var effect : boosters.activeFor(spawner.owner(), spawner.id())) {
+                String remaining = effect.expiresAt() == Long.MAX_VALUE ? "∞"
+                        : duration(Math.max(0L, (effect.expiresAt() - now) / 1000L));
+                String name = effect.type().name().charAt(0)
+                        + effect.type().name().substring(1).toLowerCase(Locale.ROOT).replace('_', ' ');
+                lines.add(format.replace("%booster_name%", name)
+                        .replace("%booster_multiplier%", "x" + trim(effect.multiplier()))
+                        .replace("%remaining_time%", remaining));
+            }
+        } catch (RuntimeException unavailable) {
+            return List.of();
+        }
+        return lines;
+    }
+
+    static String duration(long seconds) {
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long rest = seconds % 60;
+        if (hours > 0) return hours + "h " + minutes + "m";
+        if (minutes > 0) return minutes + "m " + rest + "s";
+        return rest + "s";
+    }
+
+    private static String trim(double value) {
+        return value == Math.rint(value) ? String.valueOf((long) value) : String.format(Locale.ROOT, "%.2f", value);
+    }
+
     /** Content cells are filler cells above the last control row. Controls may be moved freely. */
-    private List<Integer> storageSlots(MenuDefinition definition) {
+    private List<Integer> storageSlots(MenuDefinition definition, String layout) {
         List<Integer> slots = new ArrayList<>();
         for (int slot = 0; slot < (definition.rows() - 1) * 9; slot++) {
-            char symbol = definition.symbol(definition.defaultLayout(), slot);
+            char symbol = definition.symbol(layout, slot);
             if (symbol == 0 || symbol == definition.filler()) slots.add(slot);
         }
         return slots;
@@ -308,10 +479,12 @@ public final class SpawnerGui implements Listener {
     private boolean openConfiguredStorage(Player player, Spawner spawner, int requested) {
         MenuDefinition definition = menus.definition("storage");
         if (definition == null) return false;
-        List<Integer> slots = storageSlots(definition);
+        List<Integer> slots = storageSlots(definition, layoutFor(player, definition));
         if (slots.isEmpty()) return false;
         List<ItemStack> contents = spawner.contents();
         int pages = Math.max(1, (contents.size() + slots.size() - 1) / slots.size());
+        int maxPages = definition.number("max_page_amount", 0);
+        if (maxPages > 0) pages = Math.min(pages, maxPages);
         int page = Math.max(0, Math.min(requested, pages - 1));
         MenuHolder previous = menus.session(player);
         if (!openConfigured(player, spawner, "storage", page, pages)) return false;
@@ -320,23 +493,46 @@ public final class SpawnerGui implements Listener {
         if (current == null || !current.spawnerId().equals(spawner.id()) || current.page() != page) return true;
         current.contentSlots = List.copyOf(slots);
         current.displayed = contents.stream().map(ItemStack::clone).toList();
+        List<String> hint = definition.flag("enable_informative_lore", false)
+                ? definition.lines("informative_lore") : List.of();
         for (int i = 0; i < slots.size(); i++) {
             int index = page * slots.size() + i;
-            ItemStack display = index < contents.size() ? contents.get(index).clone() : null;
-            if (display != null) display.setAmount(Math.min(display.getAmount(), display.getMaxStackSize()));
+            ItemStack display = index < contents.size() ? display(contents.get(index), hint) : null;
             current.getInventory().setItem(slots.get(i), display);
         }
         return true;
     }
 
+    /** A view-only copy capped at one vanilla stack, with the hint lines appended. */
+    private ItemStack display(ItemStack stored, List<String> hint) {
+        ItemStack display = stored.clone();
+        if (display == null) return null;
+        display.setAmount(Math.max(1, Math.min(display.getAmount(), display.getMaxStackSize())));
+        if (!hint.isEmpty()) {
+            ItemMeta meta = display.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+                lore.add(Text.item("&7Stored: &f" + MenuPlaceholders.number(stored.getAmount())));
+                lore.addAll(Text.items(hint));
+                meta.lore(lore);
+                display.setItemMeta(meta);
+            }
+        }
+        return display;
+    }
+
+    private boolean canViewLog(Player player, Spawner spawner) {
+        return player.hasPermission("bravenspawner.admin") || spawner.isOwner(player.getUniqueId());
+    }
+
     public void openLog(Player player, Spawner spawner, int requestedPage) {
-        if (!player.hasPermission("bravenspawner.admin")) {
-            player.sendMessage(Text.of("&cYou cannot view spawner audit logs."));
+        if (!canViewLog(player, spawner)) {
+            messages().send(player, "gui.log-denied");
             return;
         }
         MenuDefinition definition = menus.definition("log");
         if (definition == null || plugin.audit() == null) return;
-        List<Integer> slots = storageSlots(definition);
+        List<Integer> slots = storageSlots(definition, definition.defaultLayout());
         if (slots.isEmpty()) return;
         GuiHolder before = session(player);
         LogQuery query = before != null && before.query != null ? before.query : new LogQuery();
@@ -353,21 +549,32 @@ public final class SpawnerGui implements Listener {
         GuiHolder current = session(player);
         if (current == null || current.view != View.LOG) return;
         current.query = query;
+        Messages messages = messages();
+        DateTimeFormatter formatter = timeFormatter(messages);
         for (int cell = 0; cell < slots.size(); cell++) {
             int index = page * slots.size() + cell;
             if (index >= events.size()) { current.getInventory().setItem(slots.get(cell), null); continue; }
             AuditEvent event = events.get(index);
-            current.getInventory().setItem(slots.get(cell), button(Material.PAPER,
-                    "&e" + event.action(), List.of("&7" + java.time.Instant.ofEpochMilli(event.timestamp()),
-                            "&7Player: &f" + Text.escape(event.actorName()), "&7Amount: &f" + event.amount(),
-                            "&7" + event.world() + " " + event.x() + ", " + event.y() + ", " + event.z(),
-                            "&f" + Text.escape(event.detail()))));
+            Object[] values = {
+                    "action", pretty(event.action().name()),
+                    "time", formatter.format(Instant.ofEpochMilli(event.timestamp()).atZone(ZoneId.systemDefault())),
+                    "player", event.actorName(),
+                    "amount", MenuPlaceholders.number(event.amount()),
+                    "world", event.world().isEmpty() ? "-" : event.world(),
+                    "x", event.x(), "y", event.y(), "z", event.z(),
+                    "detail", event.detail()};
+            List<String> lore = new ArrayList<>(messages.lines("log.entry-lore", values));
+            lore.removeIf(line -> Text.strip(line).isBlank());
+            current.getInventory().setItem(slots.get(cell),
+                    button(Material.PAPER, messages.format("log.entry-name", values), lore));
         }
         Map<String, String> values = new LinkedHashMap<>(placeholders(player, spawner, page, pages));
-        values.put("player", query.mine ? Text.escape(player.getName()) : "All");
-        values.put("logtype", query.type < 0 ? "All" : AuditEvent.Action.values()[query.type].name());
+        values.put("player", query.mine ? Text.escape(player.getName()) : messages.format("log.all"));
+        values.put("logtype", query.type < 0 ? messages.format("log.all")
+                : pretty(AuditEvent.Action.values()[query.type].name()));
         values.put("limit", String.valueOf(query.limit));
-        values.put("time", query.since == 0 ? "All time" : query.since == 3_600_000 ? "1 hour" : "24 hours");
+        values.put("time", messages.format(query.since == 0 ? "log.all-time"
+                : query.since == 3_600_000 ? "log.last-hour" : "log.last-day"));
         for (int slot = 0; slot < definition.rows() * 9; slot++) {
             char symbol = definition.symbol(definition.defaultLayout(), slot);
             if (symbol != definition.filler() && symbol != 0) {
@@ -376,16 +583,29 @@ public final class SpawnerGui implements Listener {
         }
     }
 
-    private void updateLogQuery(Player player, Spawner spawner, String action) {
-        if (!player.hasPermission("bravenspawner.admin")) return;
+    static DateTimeFormatter timeFormatter(Messages messages) {
+        try {
+            return DateTimeFormatter.ofPattern(messages.template("log.time-format"), Locale.ROOT);
+        } catch (IllegalArgumentException invalid) {
+            return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT);
+        }
+    }
+
+    private static String pretty(String constant) {
+        String lower = constant.toLowerCase(Locale.ROOT).replace('_', ' ');
+        return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+    }
+
+    private void updateLogQuery(Player player, Spawner spawner, GuiAction action) {
+        if (!canViewLog(player, spawner)) return;
         GuiHolder current = session(player);
         if (current == null || current.query == null) return;
         LogQuery query = current.query;
         switch (action) {
-            case "target" -> query.mine = !query.mine;
-            case "logtype" -> query.type = query.type + 1 >= AuditEvent.Action.values().length ? -1 : query.type + 1;
-            case "limit" -> query.limit = query.limit == 64 ? 16 : query.limit == 16 ? 32 : 64;
-            case "time" -> query.since = query.since == 0 ? 3_600_000 : query.since == 3_600_000 ? 86_400_000 : 0;
+            case LOG_TARGET -> query.mine = !query.mine;
+            case LOG_TYPE -> query.type = query.type + 1 >= AuditEvent.Action.values().length ? -1 : query.type + 1;
+            case LOG_LIMIT -> query.limit = query.limit == 64 ? 16 : query.limit == 16 ? 32 : 64;
+            case LOG_TIME -> query.since = query.since == 0 ? 3_600_000 : query.since == 3_600_000 ? 86_400_000 : 0;
             default -> { }
         }
         openLog(player, spawner, 0);
@@ -394,7 +614,7 @@ public final class SpawnerGui implements Listener {
     private void openCorruption(Player player, Spawner spawner) {
         MenuDefinition definition = menus.definition("corruption");
         if (definition == null || definition.puzzleSlots().isEmpty()) {
-            player.sendMessage(Text.of("&cThe corruption puzzle is unavailable; ask an administrator to check gui/corruption.yml."));
+            messages().send(player, "gui.corruption-unavailable");
             return;
         }
         MenuHolder previous = menus.session(player);
@@ -430,7 +650,7 @@ public final class SpawnerGui implements Listener {
                 resetPuzzle(current);
                 puzzleSound(player, current.definition, "incorrect");
                 String message = current.definition.message("reset");
-                if (!message.isBlank()) player.sendMessage(Text.of(message));
+                if (!message.isBlank()) player.sendMessage(Text.of(messages().prefix() + message));
             }
             case CORRECT -> {
                 current.getInventory().setItem(slot, current.correct == null ? null : current.correct.clone());
@@ -442,7 +662,7 @@ public final class SpawnerGui implements Listener {
                 plugin.markDirty(spawner);
                 puzzleSound(player, current.definition, "completion");
                 String message = current.definition.message("completion");
-                if (!message.isBlank()) player.sendMessage(Text.of(message));
+                if (!message.isBlank()) player.sendMessage(Text.of(messages().prefix() + message));
             }
         }
     }
@@ -466,7 +686,7 @@ public final class SpawnerGui implements Listener {
         var product = plugin.product(spawner);
         double price = product == null ? 0.0 : product.spawnerPrice();
         if (!Double.isFinite(price) || price <= 0 || !plugin.economy().enabled()) {
-            player.sendMessage(Text.of("&cPurchasing this spawner is unavailable."));
+            fail(player, "gui.buy.unavailable");
             return;
         }
         var world = Bukkit.getWorld(spawner.world());
@@ -480,51 +700,155 @@ public final class SpawnerGui implements Listener {
         int count = PurchaseMath.quantity(requested, spawner.roomFor(limit), chunkRoom,
                 plugin.economy().balance(player), price);
         if (count <= 0) {
-            player.sendMessage(Text.of("&cNo room or insufficient funds for this purchase."));
+            fail(player, "gui.buy.no-room");
             return;
         }
         double total = count * price;
         if (!Double.isFinite(total) || !plugin.economy().withdraw(player, total)) {
-            player.sendMessage(Text.of("&cPayment failed; no spawners were added."));
+            fail(player, "gui.buy.payment-failed");
             return;
         }
         if (!spawner.tryAddStack(count, limit)) {
             if (!plugin.economy().deposit(player, total)) {
                 plugin.getLogger().severe("Failed to refund spawner purchase for " + player.getUniqueId() + ": " + total);
             }
-            player.sendMessage(Text.of("&cThe spawner filled before the purchase; a refund was requested."));
+            fail(player, "gui.buy.refunded");
             return;
         }
         plugin.markDirty(spawner);
         plugin.record(spawner, AuditEvent.Action.STACK, player, count, "buy_stack: " + total);
         plugin.manager().reschedule(spawner);
-        player.sendMessage(Text.of("&aPurchased &f" + count + " &aspawner(s) for &f" + plugin.economy().format(total)));
+        messages().send(player, "gui.buy.success", "amount", count,
+                "price", Messages.raw(Text.escape(plugin.economy().format(total))));
+        play(player, SoundFeedback.Cue.STACKING);
         openBuyStack(player, spawner);
     }
 
-    private void configuredAction(Player player, Spawner spawner, String menu, String action, int page) {
-        switch (action.toLowerCase(java.util.Locale.ROOT)) {
-            case "storage" -> openStorage(player, spawner, 0);
-            case "xp", "collect_xp" -> { collectXp(player, spawner); plugin.markDirty(spawner); openMenu(player, spawner); }
-            case "takeall", "take_all", "collect_items" -> { collectAll(player, spawner); plugin.markDirty(spawner); openStorage(player, spawner, page); }
-            case "sellall", "sell_all" -> sellAll(player, spawner);
-            case "previous" -> { if (menu.equals("log")) openLog(player, spawner, page - 1); else openStorage(player, spawner, page - 1); }
-            case "next" -> { if (menu.equals("log")) openLog(player, spawner, page + 1); else openStorage(player, spawner, page + 1); }
-            case "goback", "back" -> openMenu(player, spawner);
-            case "close" -> player.closeInventory();
-            case "upgrade" -> upgrade(player, spawner);
-            case "trusted" -> player.sendMessage(Text.of("&7/bmodify <player> while looking at the spawner"));
-            case "buy_stack", "information" -> openBuyStack(player, spawner);
-            case "log" -> openLog(player, spawner, 0);
-            case "target", "logtype", "limit", "time" -> {
+    private void fail(Player player, String key, Object... values) {
+        messages().send(player, key, values);
+        play(player, SoundFeedback.Cue.ERROR);
+    }
+
+    /**
+     * Requires a second click on the same action and spawner within {@link #CONFIRM_MS}.
+     *
+     * @return true when this click confirms a pending request
+     */
+    boolean confirmed(Player player, Spawner spawner, GuiAction action, String description) {
+        long now = System.currentTimeMillis();
+        UUID id = player.getUniqueId();
+        Pending pending = confirmations.get(id);
+        if (pending != null && pending.action() == action && pending.spawner().equals(spawner.id())
+                && pending.until() >= now) {
+            confirmations.remove(id, pending);
+            return true;
+        }
+        confirmations.put(id, new Pending(action, spawner.id(), now + CONFIRM_MS));
+        messages().send(player, "gui.confirm", "seconds", CONFIRM_MS / 1000, "action", Messages.raw(description));
+        return false;
+    }
+
+    private String sellDescription(Player player, Spawner spawner, String key) {
+        return messages().format(key,
+                "items", MenuPlaceholders.number(sellService.sellableItems(player, spawner)),
+                "value", sellService.format(sellService.value(player, spawner)),
+                "xp", MenuPlaceholders.number(spawner.storedXp()));
+    }
+
+    /** Reopens whichever view the action came from, so the player stays where they were. */
+    private void reopen(Player player, Spawner spawner, String menu, int page) {
+        switch (menu) {
+            case "storage" -> openStorage(player, spawner, page);
+            case "buy_stack" -> openBuyStack(player, spawner);
+            case "log" -> openLog(player, spawner, page);
+            default -> openMenu(player, spawner);
+        }
+    }
+
+    private void configuredAction(Player player, Spawner spawner, String menu, String raw, int page, ClickType click) {
+        GuiAction action = GuiAction.parse(raw);
+        if (action == null) return;
+        perform(player, spawner, menu, action, page, click == null ? ClickType.LEFT : click);
+    }
+
+    private void perform(Player player, Spawner spawner, String menu, GuiAction action, int page, ClickType click) {
+        play(player, SoundFeedback.Cue.UI_CLICK);
+        switch (action) {
+            case STORAGE -> {
+                MenuDefinition definition = menus.definition("spawner");
+                boolean sellOnRight = definition == null || definition.flag("special.allow_sell_with_storage", true);
+                if (click.isRightClick() && sellOnRight) {
+                    sellWithConfirmation(player, spawner, menu, page, GuiAction.STORAGE);
+                } else {
+                    openStorage(player, spawner, 0);
+                }
+            }
+            case COLLECT_XP -> {
+                collectXp(player, spawner);
+                reopen(player, spawner, menu, page);
+            }
+            case TAKE_ALL -> {
+                collectAll(player, spawner);
+                reopen(player, spawner, menu, page);
+            }
+            case SELL_ALL -> sellWithConfirmation(player, spawner, menu, page, GuiAction.SELL_ALL);
+            case COLLECT_ALL -> {
+                boolean anything = sellService.sellableItems(player, spawner) > 0 || spawner.storedXp() > 0;
+                if (anything && !confirmed(player, spawner, GuiAction.COLLECT_ALL,
+                        sellDescription(player, spawner, "gui.confirm-collect"))) return;
+                if (sellService.sellableItems(player, spawner) > 0) sellAll(player, spawner);
+                if (spawner.storedXp() > 0) collectXp(player, spawner);
+                if (!anything) messages().send(player, "gui.take.nothing");
+                reopen(player, spawner, menu, page);
+            }
+            case TAKE_ONE, TAKE_STACK -> {
+                boolean one = action == GuiAction.TAKE_ONE;
+                takeModes.put(player.getUniqueId(), one ? 1 : RIGHT_CLICK_AMOUNT);
+                messages().send(player, one ? "gui.take-mode-one" : "gui.take-mode-stack");
+                reopen(player, spawner, menu, page);
+            }
+            case DROP_ALL -> {
+                dropPage(player, spawner);
+                reopen(player, spawner, menu, page);
+            }
+            case PREVIOUS -> {
+                if (menu.equals("log")) openLog(player, spawner, page - 1);
+                else openStorage(player, spawner, page - 1);
+            }
+            case NEXT -> {
+                if (menu.equals("log")) openLog(player, spawner, page + 1);
+                else openStorage(player, spawner, page + 1);
+            }
+            case BACK -> openMenu(player, spawner);
+            case CLOSE -> player.closeInventory();
+            case UPGRADE -> upgrade(player, spawner);
+            case TRUSTED -> messages().send(player, "gui.trusted-hint");
+            case BUY_STACK_MENU -> openBuyStack(player, spawner);
+            case LOG -> openLog(player, spawner, 0);
+            case LOG_TARGET, LOG_TYPE, LOG_LIMIT, LOG_TIME -> {
                 if (menu.equals("log")) updateLogQuery(player, spawner, action);
             }
-            case "buy_1" -> buyStack(player, spawner, 1);
-            case "buy_64" -> buyStack(player, spawner, 64);
-            case "buy_max" -> buyStack(player, spawner, Integer.MAX_VALUE);
-            case "boosters" -> player.sendMessage(Text.of("&7Apply a booster item to this spawner to activate it."));
-            default -> { }
+            case BUY_ONE -> buyStack(player, spawner, 1);
+            case BUY_64 -> buyStack(player, spawner, 64);
+            case BUY_MAX -> {
+                var product = plugin.product(spawner);
+                String price = sellService.format(product == null ? 0.0 : product.spawnerPrice());
+                if (confirmed(player, spawner, GuiAction.BUY_MAX,
+                        messages().format("gui.confirm-buy-max", "price", price))) {
+                    buyStack(player, spawner, Integer.MAX_VALUE);
+                }
+            }
+            case BOOSTERS -> messages().send(player, "gui.boosters-hint");
         }
+    }
+
+    private void sellWithConfirmation(Player player, Spawner spawner, String menu, int page, GuiAction key) {
+        if (sellService.enabled() && sellService.sellableItems(player, spawner) > 0
+                && !confirmed(player, spawner, key, sellDescription(player, spawner, "gui.confirm-sell"))) {
+            return;
+        }
+        sellAll(player, spawner);
+        reopen(player, spawner, menu, page);
     }
 
     /**
@@ -571,8 +895,10 @@ public final class SpawnerGui implements Listener {
         }
         if (!authorized(player, spawner)) { player.closeInventory(); return; }
         int slot = event.getSlot();
-        if (current.menu()) handleMenu(player, spawner, slot);
-        else handleStorage(player, spawner, current.page(), slot);
+        ClickType click = event.getClick() == null ? ClickType.LEFT : event.getClick();
+        if (current.menu()) handleMenu(player, spawner, slot, click);
+        else if (current.contentSlots.contains(slot)) cellClick(player, spawner, current, slot, click);
+        else handleStorage(player, spawner, current.page(), slot, click);
     }
 
     private void onConfiguredDataClick(InventoryClickEvent event) {
@@ -593,35 +919,52 @@ public final class SpawnerGui implements Listener {
             return;
         }
         if (current.view != View.STORAGE) return;
-        int cell = current.contentSlots.indexOf(event.getSlot());
-        if (cell < 0) return;
-        if (event.getClick() != org.bukkit.event.inventory.ClickType.LEFT
-                && event.getClick() != org.bukkit.event.inventory.ClickType.SHIFT_LEFT) return;
+        if (!current.contentSlots.contains(event.getSlot())) return;
         Spawner spawner = plugin.manager() == null ? null : plugin.manager().byId(current.spawnerId());
         if (spawner == null || !authorized(player, spawner)
                 || !spawner.id().equals(locks.sessionSpawner(player.getUniqueId()))) {
             player.closeInventory();
             return;
         }
+        cellClick(player, spawner, current, event.getSlot(),
+                event.getClick() == null ? ClickType.LEFT : event.getClick());
+    }
+
+    /** Amount a click on a storage cell takes: left = take mode (1 by default), right = 64, shift = one stack. */
+    int cellAmount(Player player, ClickType click, ItemStack expected) {
+        int max = Math.max(1, expected.getMaxStackSize());
+        return switch (click) {
+            case LEFT -> Math.min(expected.getAmount(), takeModes.getOrDefault(player.getUniqueId(), 1));
+            case RIGHT -> Math.min(expected.getAmount(), RIGHT_CLICK_AMOUNT);
+            case SHIFT_LEFT, SHIFT_RIGHT -> Math.min(expected.getAmount(), max);
+            default -> 0;
+        };
+    }
+
+    private void cellClick(Player player, Spawner spawner, GuiHolder current, int slot, ClickType click) {
+        int cell = current.contentSlots.indexOf(slot);
+        if (cell < 0) return;
         if (spawner.corrupted()) { openCorruption(player, spawner); return; }
-        if (!player.hasPermission("bravenspawner.item.extract")) {
-            player.sendMessage(Text.of("&cYou cannot withdraw from spawners."));
-            return;
-        }
-        if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
         int index = current.page() * current.contentSlots.size() + cell;
         if (index >= current.displayed.size()) return;
         ItemStack expected = current.displayed.get(index);
-        int amount = event.getClick() == org.bukkit.event.inventory.ClickType.SHIFT_LEFT
-                ? Math.min(expected.getAmount(), expected.getMaxStackSize()) : 1;
+        int amount = cellAmount(player, click, expected);
+        if (amount <= 0) return;
+        if (!player.hasPermission("bravenspawner.item.extract")) {
+            fail(player, "gui.extract-denied");
+            return;
+        }
+        if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
         ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected, amount);
         if (withdrawn != null) {
-            int original = withdrawn.getAmount();
-            Map<Integer, ItemStack> remainder = player.getInventory().addItem(withdrawn);
-            remainder.values().forEach(item -> spawner.storeVirtual(item, 0));
+            Withdrawals.Result result = Withdrawals.deliver(player, spawner, List.of(withdrawn));
             plugin.markDirty(spawner);
-            long transferred = original - remainder.values().stream().mapToLong(ItemStack::getAmount).sum();
-            if (transferred > 0) plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, transferred, "storage cell");
+            if (result.moved() > 0) {
+                plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, result.moved(), "storage cell");
+                play(player, SoundFeedback.Cue.WITHDRAW);
+            } else {
+                fail(player, "gui.take.full");
+            }
         }
         openStorage(player, spawner, current.page());
     }
@@ -639,36 +982,32 @@ public final class SpawnerGui implements Listener {
         event.setCancelled(true);
     }
 
-    private void handleMenu(Player player, Spawner spawner, int slot) {
-        switch (slot) {
-            case 10 -> openStorage(player, spawner, 0);
-            case 11 -> sellAll(player, spawner);
-            case 12 -> collectXp(player, spawner);
-            case 13 -> collectAll(player, spawner);
-            case 14 -> upgrade(player, spawner);
-            case 15 -> player.sendMessage(Text.of("&7/bmodify <player> while looking at the spawner"));
-            case 16 -> player.closeInventory();
-            default -> { }
-        }
+    private void handleMenu(Player player, Spawner spawner, int slot, ClickType click) {
+        GuiAction action = switch (slot) {
+            case 10 -> GuiAction.STORAGE;
+            case 11 -> GuiAction.SELL_ALL;
+            case 12 -> GuiAction.COLLECT_XP;
+            case 13 -> GuiAction.TAKE_ALL;
+            case 14 -> GuiAction.UPGRADE;
+            case 15 -> GuiAction.TRUSTED;
+            case 16 -> GuiAction.CLOSE;
+            case 22 -> GuiAction.LOG;
+            default -> null;
+        };
+        if (action == GuiAction.STORAGE) click = ClickType.LEFT;
+        if (action != null) perform(player, spawner, "spawner", action, 0, click);
     }
 
-    private void handleStorage(Player player, Spawner spawner, int page, int slot) {
+    private void handleStorage(Player player, Spawner spawner, int page, int slot, ClickType click) {
         int navRow = 45;
-        if (slot == navRow) {
-            openStorage(player, spawner, page - 1);
-            return;
-        }
-        if (slot == navRow + 8) {
-            openStorage(player, spawner, page + 1);
-            return;
-        }
-        if (slot == navRow + 4) {
-            collectAll(player, spawner);
-            return;
-        }
-        if (slot == navRow + 3) {
-            openMenu(player, spawner);
-        }
+        GuiAction action;
+        if (slot == navRow) action = GuiAction.PREVIOUS;
+        else if (slot == navRow + 8) action = GuiAction.NEXT;
+        else if (slot == navRow + 3) action = GuiAction.BACK;
+        else if (slot == navRow + 4) action = GuiAction.TAKE_ALL;
+        else if (slot == navRow + 5) action = GuiAction.SELL_ALL;
+        else return;
+        perform(player, spawner, "storage", action, page, click);
     }
 
     private void collectXp(Player player, Spawner spawner) {
@@ -676,15 +1015,15 @@ public final class SpawnerGui implements Listener {
         var product = plugin.product(spawner);
         double eventMultiplier = plugin.events() == null ? 1.0 : plugin.events().xpMultiplier();
         double personalMultiplier = plugin.boosters() == null ? 1.0
-                : plugin.boosters().personalMultiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP, player.getUniqueId());
+                : plugin.boosters().personalMultiplier(Boosters.Type.XP, player.getUniqueId());
         long payout = Math.min(Integer.MAX_VALUE, Math.round(Math.round(spawner.storedXp() * eventMultiplier) * personalMultiplier));
         long full = Math.min(Integer.MAX_VALUE, Math.round(plugin.maximumXp(spawner) * eventMultiplier));
         if (product != null && product.mustBeFullToCollect() && payout < full) {
-            player.sendMessage(Text.of("&cXP storage must be full before collecting."));
+            fail(player, "gui.xp.must-be-full");
             return;
         }
         if (payout <= 0) {
-            player.sendMessage(Text.of("&7No XP stored."));
+            messages().send(player, "gui.xp.none");
             return;
         }
         int banked = spawner.takeXp();
@@ -701,92 +1040,126 @@ public final class SpawnerGui implements Listener {
         }
         plugin.markDirty(spawner);
         plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, xp, "XP");
-        player.sendMessage(Text.of("&aCollected &f" + xp + " &aXP."));
+        messages().send(player, "gui.xp.collected", "xp", MenuPlaceholders.number(xp));
+        play(player, SoundFeedback.Cue.SELL_XP);
         }
     }
 
     private void collectAll(Player player, Spawner spawner) {
         if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
         if (!player.hasPermission("bravenspawner.item.extract")) {
-            player.sendMessage(Text.of("&cYou cannot withdraw from spawners."));
+            fail(player, "gui.extract-denied");
             return;
         }
         List<ItemStack> items = spawner.drainAll();
         if (items.isEmpty()) {
-            player.sendMessage(Text.of("&7Nothing stored."));
+            messages().send(player, "gui.take.nothing");
             return;
         }
-        long before = items.stream().mapToLong(ItemStack::getAmount).sum();
-        Map<Integer, ItemStack> leftover = player.getInventory().addItem(items.toArray(new ItemStack[0]));
-        leftover.values().forEach(item -> spawner.storeVirtual(item, 0));
+        Withdrawals.Result result = Withdrawals.deliver(player, spawner, items);
         plugin.markDirty(spawner);
-        long withdrawn = before - leftover.values().stream().mapToLong(ItemStack::getAmount).sum();
-        if (withdrawn > 0) plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, withdrawn, "take all");
-        player.sendMessage(Text.of("&aWithdrew &f" + withdrawn + " &aitem(s)."));
+        if (result.moved() > 0) {
+            plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, result.moved(), "take all");
+            play(player, SoundFeedback.Cue.WITHDRAW);
+        }
+        if (result.moved() <= 0) fail(player, "gui.take.full");
+        else if (result.returned() > 0) messages().send(player, "gui.take.partial",
+                "amount", MenuPlaceholders.number(result.moved()), "left", MenuPlaceholders.number(result.returned()));
+        else messages().send(player, "gui.take.done", "amount", MenuPlaceholders.number(result.moved()));
+    }
+
+    /** Drops one vanilla stack of every item shown on the player's current storage page. */
+    private void dropPage(Player player, Spawner spawner) {
+        GuiHolder current = session(player);
+        if (current == null || current.view != View.STORAGE || current.contentSlots.isEmpty()) return;
+        if (!player.hasPermission("bravenspawner.item.extract")) {
+            fail(player, "gui.extract-denied");
+            return;
+        }
+        if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
+        int first = current.page() * current.contentSlots.size();
+        int last = Math.min(current.displayed.size(), first + current.contentSlots.size()) - 1;
+        long dropped = 0;
+        // Descending, so a fully drained cell cannot shift the indices still to visit.
+        for (int index = last; index >= first; index--) {
+            ItemStack expected = current.displayed.get(index);
+            int amount = Math.min(expected.getAmount(), Math.max(1, expected.getMaxStackSize()));
+            ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected, amount);
+            if (withdrawn == null || withdrawn.getAmount() <= 0) continue;
+            player.getWorld().dropItemNaturally(player.getLocation(), withdrawn);
+            dropped += withdrawn.getAmount();
+        }
+        if (dropped <= 0) {
+            messages().send(player, "gui.take.nothing");
+            return;
+        }
+        plugin.markDirty(spawner);
+        plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, dropped, "drop page");
+        messages().send(player, "gui.drop.done", "amount", MenuPlaceholders.number(dropped));
+        play(player, SoundFeedback.Cue.WITHDRAW);
     }
 
     private void sellAll(Player player, Spawner spawner) {
         var product = plugin.product(spawner);
         if (product != null && product.mustBeFullToCollect()
                 && spawner.storedCount() < plugin.maximumItems(spawner)) {
-            player.sendMessage(Text.of("&cItem storage must be full before selling."));
+            fail(player, "gui.sell.must-be-full");
             return;
         }
         SellService.Sale sale = sellService.sell(player, spawner);
         switch (sale.status()) {
-            case SOLD -> player.sendMessage(Text.of("&aSold &f" + sale.items()
-                    + " &aitem(s) for &f" + sellService.format(sale.value()) + "&a."));
-            case NOTHING_TO_SELL -> player.sendMessage(Text.of("&7Nothing stored with a sell price."));
-            case DISABLED -> player.sendMessage(Text.of("&cSelling is disabled on this server."));
-            case NO_ECONOMY -> player.sendMessage(Text.of("&cEconomy not available — nothing was sold."));
-            case FAILED -> player.sendMessage(Text.of("&cSale failed — nothing was removed."
-                    + (sale.reason().isBlank() ? "" : " &7(" + sale.reason() + ")")));
-            case PENDING -> player.sendMessage(Text.of("&eA previous payout is still being settled; "
-                    + "no new sale was made."));
+            case SOLD -> {
+                messages().send(player, "gui.sell.sold", "items", MenuPlaceholders.number(sale.items()),
+                        "value", sellService.format(sale.value()));
+                play(player, SoundFeedback.Cue.SELL_STOCK);
+            }
+            case NOTHING_TO_SELL -> messages().send(player, "gui.sell.nothing");
+            case DISABLED -> fail(player, "gui.sell.disabled");
+            case NO_ECONOMY -> fail(player, "gui.sell.no-economy");
+            case FAILED -> {
+                if (sale.reason().isBlank()) fail(player, "gui.sell.failed");
+                else fail(player, "gui.sell.failed-reason", "reason", sale.reason());
+            }
+            case PENDING -> messages().send(player, "gui.sell.pending");
         }
-        openMenu(player, spawner);
     }
 
     private ItemStack sellButton(Player player, Spawner spawner) {
         if (!sellService.enabled()) {
-            return button(Material.GOLD_INGOT, "&6Sell all",
-                    List.of("&cSelling is disabled on this server."));
+            return button(Material.GOLD_INGOT, "&#F7B733&lSell all",
+                    List.of("&#FF7B72Selling is disabled on this server."));
         }
-        return button(Material.GOLD_INGOT, "&6Sell all", List.of(
-                "&7Value: &f" + sellService.format(sellService.value(player, spawner)),
-                "&7Items: &f" + sellService.sellableItems(player, spawner),
-                "&7Sells every priced stack in storage.",
-                "&7Click to sell."));
+        return button(Material.GOLD_INGOT, "&#F7B733&lSell all", List.of(
+                "&7Worth: &f" + sellService.format(sellService.value(player, spawner)),
+                "&7Items: &f" + MenuPlaceholders.number(sellService.sellableItems(player, spawner)),
+                "",
+                "&#F7B733» &7Click twice: &fsell everything"));
     }
 
     private void upgrade(Player player, Spawner spawner) {
         Settings s = plugin.settings();
         int next = spawner.tier() + 1;
         if (next >= s.tiers.size()) {
-            player.sendMessage(Text.of("&7Already at the highest tier."));
+            messages().send(player, "gui.upgrade.max");
             return;
         }
         Settings.Tier tier = s.tiers.get(next);
         if (!plugin.economy().enabled()) {
-            player.sendMessage(Text.of("&cEconomy not available."));
+            fail(player, "gui.upgrade.no-economy");
             return;
         }
         if (!plugin.economy().withdraw(player, tier.cost)) {
-            player.sendMessage(Text.of("&cNeed &f" + plugin.economy().format(tier.cost) + " &cfor " + tier.name));
+            fail(player, "gui.upgrade.insufficient",
+                    "cost", Messages.raw(Text.escape(plugin.economy().format(tier.cost))), "tier", tier.name);
             return;
         }
         spawner.tier(next);
         plugin.markDirty(spawner);
         plugin.record(spawner, AuditEvent.Action.UPGRADE, player, next, tier.name);
         plugin.manager().reschedule(spawner);
-        player.sendMessage(Text.of("&aUpgraded to &f" + tier.name));
+        messages().send(player, "gui.upgrade.success", "tier", tier.name);
+        play(player, SoundFeedback.Cue.STACKING);
         openMenu(player, spawner);
-    }
-
-    private int capacityFor(Spawner spawner) {
-        Settings s = plugin.settings();
-        if (s.unlimitedStorage) return 0;
-        return s.tiers.get(Math.min(spawner.tier(), s.tiers.size() - 1)).capacity;
     }
 
     /**
@@ -806,6 +1179,15 @@ public final class SpawnerGui implements Listener {
         // Releases the save lock and starts the reconnect cooldown so a reopen
         // cannot race the persistence pass.
         locks.markClosed(player);
+    }
+
+    private ItemStack filler() {
+        return button(Material.BLACK_STAINED_GLASS_PANE, " ", List.of());
+    }
+
+    private void fill(Inventory inventory) {
+        ItemStack pane = filler();
+        for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, pane.clone());
     }
 
     private ItemStack button(Material material, String name, List<String> lore) {

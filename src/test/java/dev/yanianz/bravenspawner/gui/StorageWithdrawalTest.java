@@ -17,10 +17,12 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class StorageWithdrawalTest {
-    @Test void leftClickWithdrawsOneFromTheDisplayedAuthoritativeStack() throws Exception { withdraw(ClickType.LEFT, 1); }
-    @Test void shiftLeftClickWithdrawsTheDisplayedStack() throws Exception { withdraw(ClickType.SHIFT_LEFT, 20); }
+    @Test void leftClickWithdrawsOneFromTheDisplayedAuthoritativeStack() throws Exception { withdraw(ClickType.LEFT, 20, 16, 1); }
+    @Test void shiftLeftClickWithdrawsTheDisplayedStack() throws Exception { withdraw(ClickType.SHIFT_LEFT, 20, 64, 20); }
+    @Test void shiftClickIsCappedAtOneVanillaStack() throws Exception { withdraw(ClickType.SHIFT_LEFT, 500, 16, 16); }
+    @Test void rightClickTakesSixtyFourAsTheShippedLoreSays() throws Exception { withdraw(ClickType.RIGHT, 500, 16, 64); }
 
-    private void withdraw(ClickType click, int amount) throws Exception {
+    private void withdraw(ClickType click, int stored, int maxStack, int amount) throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
         when(plugin.restrictions()).thenReturn(null);
         when(plugin.protection()).thenReturn(null);
@@ -36,8 +38,8 @@ class StorageWithdrawalTest {
         when(plugin.manager().byId(id)).thenReturn(spawner);
         ItemStack template = mock(ItemStack.class);
         when(template.clone()).thenReturn(template);
-        when(template.getAmount()).thenReturn(20);
-        when(template.getMaxStackSize()).thenReturn(64);
+        when(template.getAmount()).thenReturn(stored);
+        when(template.getMaxStackSize()).thenReturn(maxStack);
         when(spawner.contents()).thenReturn(List.of(template));
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.loadFromString("menu:\n  layout: ['---------', '---------']\nitems:\n  filler:\n    material: STONE\n    symbol: '-'\n");

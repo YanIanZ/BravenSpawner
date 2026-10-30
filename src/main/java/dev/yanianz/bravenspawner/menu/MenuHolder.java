@@ -4,7 +4,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.function.Consumer;
 import org.bukkit.inventory.InventoryHolder;
 
 import java.util.Map;
@@ -24,13 +23,13 @@ public final class MenuHolder implements InventoryHolder {
     private final MenuSession session;
     private Inventory inventory;
     private final MenuDefinition definition;
-    private final Map<Character, Consumer<Player>> actions;
+    private final Map<Character, MenuClick> actions;
 
     public MenuHolder(MenuSession session) {
         this(session, null, Map.of());
     }
 
-    public MenuHolder(MenuSession session, MenuDefinition definition, Map<Character, Consumer<Player>> actions) {
+    public MenuHolder(MenuSession session, MenuDefinition definition, Map<Character, MenuClick> actions) {
         this.session = Objects.requireNonNull(session, "session");
         this.definition = definition;
         this.actions = actions == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(actions));
@@ -44,14 +43,14 @@ public final class MenuHolder implements InventoryHolder {
      * <p>Actions are captured per holder, so a later open or a definition reload
      * cannot reinterpret the buttons of a window that is already on screen.
      */
-    Consumer<Player> action(int slot) {
+    MenuClick action(int slot) {
         if (definition == null) return null;
         return actions.get(definition.symbol(layout(), slot));
     }
 
-    void click(Player player, int slot) {
-        Consumer<Player> action = action(slot);
-        if (action != null) action.accept(player);
+    void click(Player player, int slot, org.bukkit.event.inventory.ClickType type) {
+        MenuClick action = action(slot);
+        if (action != null) action.click(player, type);
     }
 
     /**

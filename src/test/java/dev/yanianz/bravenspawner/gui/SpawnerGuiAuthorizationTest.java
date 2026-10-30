@@ -1,6 +1,7 @@
 package dev.yanianz.bravenspawner.gui;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.menu.MenuClick;
 import dev.yanianz.bravenspawner.menu.MenuDefinition;
 import dev.yanianz.bravenspawner.menu.MenuHolder;
 import dev.yanianz.bravenspawner.menu.MenuService;
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -50,7 +50,7 @@ class SpawnerGuiAuthorizationTest {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.loadFromString("menu:\n  layout: ['111111111']\nitems:\n  filler:\n    material: STONE\n    symbol: '-'\n  buy:\n    material: EMERALD\n    symbol: '1'\n    nbt: buy_1\n");
         MenuDefinition definition = MenuDefinition.parse("buy_stack", yaml.getConfigurationSection("menu"), yaml.getConfigurationSection("items"));
-        AtomicReference<Map<Character, Consumer<Player>>> callbacks = new AtomicReference<>();
+        AtomicReference<Map<Character, MenuClick>> callbacks = new AtomicReference<>();
         try (var selling = mockStatic(SellService.class);
              var menus = mockConstruction(MenuService.class, (service, context) -> {
                  when(service.definition("buy_stack")).thenReturn(definition);
@@ -67,7 +67,7 @@ class SpawnerGuiAuthorizationTest {
             SpawnerGui gui = new SpawnerGui(plugin);
             gui.openBuyStack(player, spawner);
             when(spawner.canUse(viewer)).thenReturn(false);
-            callbacks.get().get('1').accept(player);
+            callbacks.get().get('1').click(player, org.bukkit.event.inventory.ClickType.LEFT);
             verify(player).closeInventory();
             verify(plugin.economy(), never()).withdraw(any(), anyDouble());
         }

@@ -152,6 +152,14 @@ public final class Boosters {
     }
 
     public long remainingSeconds(UUID player) { return enabled ? state.remainingSeconds(player) : 0; }
+
+    /** Display-only: timed effects on this spawner or its owner. */
+    public List<BoosterState.SavedEffect> activeFor(UUID owner, UUID spawner) {
+        if (!enabled) return List.of();
+        return state.snapshot().stream()
+                .filter(effect -> effect.player() ? effect.subject().equals(owner) : effect.subject().equals(spawner))
+                .toList();
+    }
     public boolean enabled() { return enabled; }
 
     public List<String> itemIds(Scope scope) { return definitions(scope).keySet().stream().sorted().toList(); }

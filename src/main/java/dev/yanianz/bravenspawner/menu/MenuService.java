@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 /**
  * Facade the rest of the plugin uses to open YAML menus.
@@ -57,7 +56,7 @@ public final class MenuService {
      */
     public MenuHolder open(Player player, String menu,
                            Map<String, String> placeholders,
-                           Map<Character, Consumer<Player>> actions) {
+                           Map<Character, MenuClick> actions) {
         return open(player, menu, null, placeholders, actions);
     }
 
@@ -70,7 +69,7 @@ public final class MenuService {
      */
     public MenuHolder open(Player player, String menu, String layout,
                            Map<String, String> placeholders,
-                           Map<Character, Consumer<Player>> actions) {
+                           Map<Character, MenuClick> actions) {
         Objects.requireNonNull(player, "player");
         if (!player.isOnline()) return null;
 

@@ -27,8 +27,31 @@ import java.util.Set;
  */
 public final class SoundFeedback {
 
-    /** The three moments the wand reports. */
-    public enum Cue { SUCCESS, FAILURE, COOLDOWN }
+    /**
+     * Every cue in {@code sounds.yml}: the three sell-wand moments plus the
+     * menu, withdraw, sell, stacking and booster cues.
+     */
+    public enum Cue {
+        SUCCESS, FAILURE, COOLDOWN,
+        UI_CLICK("ui.click", Sound.UI_BUTTON_CLICK),
+        ERROR("error", Sound.ENTITY_VILLAGER_NO),
+        WITHDRAW("stock.withdraw", Sound.ENTITY_EXPERIENCE_ORB_PICKUP),
+        SELL_STOCK("sell.stock", Sound.BLOCK_NOTE_BLOCK_PLING),
+        SELL_XP("sell.xp", Sound.ENTITY_EXPERIENCE_ORB_PICKUP),
+        STACKING("stacking", Sound.BLOCK_NOTE_BLOCK_PLING),
+        BOOSTER_ADD("booster.add", Sound.BLOCK_BEACON_ACTIVATE),
+        BOOSTER_REMOVE("booster.remove", Sound.BLOCK_BEACON_DEACTIVATE);
+
+        private final String path;
+        private final Sound fallback;
+
+        Cue() { this(null, null); }
+
+        Cue(String path, Sound fallback) {
+            this.path = path;
+            this.fallback = fallback;
+        }
+    }
 
     public static final String FILE_NAME = "sounds.yml";
 
@@ -54,6 +77,9 @@ public final class SoundFeedback {
         profiles.put(Cue.SUCCESS, read(root, "sell.wand.success", "sell.xp", FALLBACK_SUCCESS, warned));
         profiles.put(Cue.FAILURE, read(root, "sell.wand.failure", "error", FALLBACK_FAILURE, warned));
         profiles.put(Cue.COOLDOWN, read(root, "sell.wand.cooldown", null, FALLBACK_COOLDOWN, warned));
+        for (Cue cue : Cue.values()) {
+            if (cue.path != null) profiles.put(cue, read(root, cue.path, null, cue.fallback, warned));
+        }
     }
 
     private Profile read(YamlConfiguration root, String path, String legacyPath,

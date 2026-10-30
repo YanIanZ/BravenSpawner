@@ -42,8 +42,8 @@ class MenuSessionRoutingTest {
         Player second = player();
         AtomicInteger firstActions = new AtomicInteger();
         AtomicInteger secondActions = new AtomicInteger();
-        MenuHolder firstView = service.open(first, "spawner", Map.of(), Map.of('s', p -> firstActions.incrementAndGet()));
-        service.open(second, "spawner", Map.of(), Map.of('s', p -> secondActions.incrementAndGet()));
+        MenuHolder firstView = service.open(first, "spawner", Map.of(), Map.of('s', (p, c) -> firstActions.incrementAndGet()));
+        service.open(second, "spawner", Map.of(), Map.of('s', (p, c) -> secondActions.incrementAndGet()));
         click(service, first, firstView);
         assertEquals(1, firstActions.get());
         assertEquals(0, secondActions.get());

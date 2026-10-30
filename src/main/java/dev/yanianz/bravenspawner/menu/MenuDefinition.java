@@ -39,12 +39,14 @@ public final class MenuDefinition {
     private final List<Integer> puzzleSlots;
     private final Map<String, String> sounds;
     private final Map<String, String> messages;
+    private final Map<String, Object> options;
 
     private MenuDefinition(String name, String title, int rows,
                            Map<String, List<String>> layouts,
                            Map<Character, ItemDefinition> itemsBySymbol,
                            Map<String, ItemDefinition> itemsById,
-                           char filler, List<Integer> puzzleSlots, Map<String, String> sounds, Map<String, String> messages) {
+                           char filler, List<Integer> puzzleSlots, Map<String, String> sounds, Map<String, String> messages,
+                           Map<String, Object> options) {
         this.name = name;
         this.title = title;
         this.rows = rows;
@@ -55,6 +57,7 @@ public final class MenuDefinition {
         this.puzzleSlots = List.copyOf(puzzleSlots);
         this.sounds = Map.copyOf(sounds);
         this.messages = Map.copyOf(messages);
+        this.options = Collections.unmodifiableMap(new LinkedHashMap<>(options));
     }
 
     /**
@@ -108,7 +111,57 @@ public final class MenuDefinition {
         ConfigurationSection root = menu.getParent();
         return new MenuDefinition(name, title == null ? name : title, rows, layouts, bySymbol, byId, filler,
                 puzzleSlots, strings(root == null ? null : root.getConfigurationSection("sounds")),
-                strings(root == null ? null : root.getConfigurationSection("messages")));
+                strings(root == null ? null : root.getConfigurationSection("messages")), options(menu));
+    }
+
+    /** Every scalar or list under {@code menu:}, keyed by its dotted path, for menu-specific switches. */
+    private static Map<String, Object> options(ConfigurationSection menu) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : menu.getValues(true).entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof ConfigurationSection) continue;
+            result.put(entry.getKey(), value instanceof List<?> list ? List.copyOf(list.stream().map(String::valueOf).toList()) : value);
+        }
+        return result;
+    }
+
+    /** A string option under {@code menu:} such as {@code selected_text}. */
+    public String option(String path, String fallback) {
+        Object value = options.get(path);
+        return value == null || value instanceof List<?> ? fallback : String.valueOf(value);
+    }
+
+    /** A boolean option; anything but {@code true}/{@code false} yields the fallback. */
+    public boolean flag(String path, boolean fallback) {
+        Object value = options.get(path);
+        if (value instanceof Boolean bool) return bool;
+        if (value instanceof String text && (text.equalsIgnoreCase("true") || text.equalsIgnoreCase("false"))) {
+            return Boolean.parseBoolean(text);
+        }
+        return fallback;
+    }
+
+    /** An integer option; a non-number yields the fallback. */
+    public int number(String path, int fallback) {
+        Object value = options.get(path);
+        if (value instanceof Number number) return number.intValue();
+        try {
+            return value == null ? fallback : Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException invalid) {
+            return fallback;
+        }
+    }
+
+    /** A list option such as {@code informative_lore}; empty when absent. */
+    @SuppressWarnings("unchecked")
+    public List<String> lines(String path) {
+        Object value = options.get(path);
+        return value instanceof List<?> list ? (List<String>) list : List.of();
+    }
+
+    /** Every item, keyed by YAML id, in file order. */
+    public Map<String, ItemDefinition> itemsById() {
+        return itemsById;
     }
 
     private static Map<String, String> strings(ConfigurationSection section) {

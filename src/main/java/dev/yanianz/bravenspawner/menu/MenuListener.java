@@ -13,7 +13,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 /**
  * Routing for menu inventories: cancel every mutation, then dispatch the action
@@ -62,9 +61,9 @@ public final class MenuListener implements Listener {
         if (current == null || current != holder || !holder.isCurrent(top)) return;
 
         int slot = event.getSlot();
-        Consumer<Player> action = holder.action(slot);
+        MenuClick action = holder.action(slot);
         if (action != null) {
-            action.accept(player);
+            action.click(player, event.getClick() == null ? org.bukkit.event.inventory.ClickType.LEFT : event.getClick());
             return;
         }
         MenuAction fallback = fallback(holder.menu(), symbol(holder, slot));
