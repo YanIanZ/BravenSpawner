@@ -1,6 +1,6 @@
 plugins {
     java
-    id("com.gradleup.shadow") version "9.6.1"
+    alias(libs.plugins.shadow)
 }
 
 group = "dev.yanianz"
@@ -21,27 +21,28 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-    compileOnly("com.github.MilkBowl:VaultAPI:1.7") { isTransitive = false }
+    compileOnly(libs.paper.api)
+    compileOnly(libs.vault.api) { isTransitive = false }
     // Soft dependencies: present in the API surface, absent on most servers.
     // Non-transitive because only the interface/method signature is used.
-    compileOnly("org.geysermc.floodgate:api:2.2.5-SNAPSHOT") { isTransitive = false }
-    compileOnly("me.clip:placeholderapi:2.12.3") { isTransitive = false }
-    compileOnly("net.essentialsx:EssentialsX:2.21.2") { isTransitive = false }
-    compileOnly("com.github.brcdev-minecraft:shopgui-api:3.2.0") { isTransitive = false }
-    compileOnly("com.github.Gypopo:EconomyShopGUI-API:1.11.0") { isTransitive = false }
-    compileOnly("maven.modrinth:DKY9btbd:J66QOTLZ") { isTransitive = false }
-    compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.9") { isTransitive = false }
-    compileOnly("com.sk89q.worldedit:worldedit-core:7.3.9") { isTransitive = false }
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("org.mockito:mockito-core:5.14.2")
-    testImplementation("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
-    testImplementation("com.github.MilkBowl:VaultAPI:1.7") { isTransitive = false }
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation("org.mongodb:mongodb-driver-sync:5.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.3")
-    implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("com.mysql:mysql-connector-j:9.1.0")
+    compileOnly(libs.floodgate.api) { isTransitive = false }
+    compileOnly(libs.placeholderapi) { isTransitive = false }
+    compileOnly(libs.essentialsx) { isTransitive = false }
+    compileOnly(libs.shopgui.api) { isTransitive = false }
+    compileOnly(libs.economyshopgui.api) { isTransitive = false }
+    compileOnly(libs.modrinth.dky9btbd) { isTransitive = false }
+    compileOnly(libs.worldedit.bukkit) { isTransitive = false }
+    compileOnly(libs.worldedit.core) { isTransitive = false }
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.paper.api)
+    testImplementation(libs.vault.api) { isTransitive = false }
+    testRuntimeOnly(libs.junit.platform.launcher)
+    implementation(libs.mongodb.driver.sync)
+    implementation(libs.sqlite.jdbc)
+    implementation(libs.hikaricp)
+    implementation(libs.mysql.connector.j)
 }
 
 java {
@@ -51,6 +52,7 @@ java {
 tasks.withType<JavaCompile> {
     options.release.set(21)
     options.encoding = "UTF-8"
+    options.compilerArgs.addAll(listOf("-Xlint:deprecation", "-Xlint:unchecked"))
 }
 
 tasks.processResources {
@@ -62,6 +64,16 @@ tasks.shadowJar {
     archiveBaseName.set("BravenSpawner")
     archiveClassifier.set("")
     archiveVersion.set("")
+    // Shadow 9 drops duplicate entries before transformers run unless they are included.
+    filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
+    mergeServiceFiles()
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.EC")
+    exclude("module-info.class", "META-INF/versions/*/module-info.class")
+    dependencies {
+        // Paper ships SLF4J and the plugin class loader resolves it parent-first, so
+        // HikariCP logs through the server's binding; a bundled copy would be dead weight.
+        exclude(dependency("org.slf4j:.*:.*"))
+    }
     minimize {
         // JDBC drivers are instantiated by DriverManager from a string, so the
         // shrinker cannot see the reference and would strip them.
