@@ -89,6 +89,8 @@ tasks.shadowJar {
     // lookup fails with UnsatisfiedLinkError at the first connection. The package
     // stays untouched; only the pool and the MySQL driver are relocated.
     relocate("com.mysql", "dev.yanianz.bravenspawner.libs.mysql")
+    // Pulled in by mysql-connector-j; other plugins commonly bundle their own copy.
+    relocate("com.google.protobuf", "dev.yanianz.bravenspawner.libs.protobuf")
 }
 
 tasks.build { dependsOn(tasks.shadowJar) }
