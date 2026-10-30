@@ -5,6 +5,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-30
+
+### Added
+- `/bspawner doctor`: storage backend, load state, live spawner count, catalogue
+  size, economy, tier count and one sample product on a single screen.
+
+### Fixed
+- Product files written by the original plugin (`type:`, `display:`) were rejected
+  as malformed because only `entity-type:` and `display-name:` were read. Both
+  spellings now resolve, so a migrated catalogue is not silently emptied.
+
 ## [1.1.3] - 2026-10-30
 
 ### Fixed
@@ -121,7 +132,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.4...HEAD
+[1.1.4]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.4
 [1.1.3]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.3
 [1.1.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.2
 [1.1.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.1

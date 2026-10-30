@@ -95,6 +95,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "give" -> give(sender, args);
             case "list" -> list(sender);
+            case "doctor" -> {
+                doctor(sender);
+                return true;
+            }
             case "reload" -> {
                 plugin.reloadAll();
                 sender.sendMessage(Text.of("&aReloaded."));
@@ -159,6 +163,30 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             leftover.values().forEach(l -> target.getWorld().dropItemNaturally(target.getLocation(), l));
             target.sendMessage(Text.of("&aReceived &f" + product + " &ax" + units));
         }, () -> { });
+    }
+
+    /**
+     * One command that answers "why is nothing spawning": backend, load state,
+     * catalogue size and the live spawner count, each on its own line.
+     */
+    private void doctor(CommandSender sender) {
+        var p = plugin;
+        sender.sendMessage(Text.of("&8— &bBravenSpawner doctor &8—"));
+        sender.sendMessage(Text.of("&7storage    : &f" + p.settings().storageType));
+        sender.sendMessage(Text.of("&7loaded     : &f" + p.ready()));
+        sender.sendMessage(Text.of("&7spawners   : &f" + p.manager().size()));
+        sender.sendMessage(Text.of("&7catalogue  : &f" + p.products().allMobs().size()
+                + " mobs, " + p.products().allItems().size() + " items"));
+        sender.sendMessage(Text.of("&7economy    : &f" + p.economy().enabled()));
+        sender.sendMessage(Text.of("&7tiers      : &f" + p.settings().tiers.size()
+                + " (base interval " + p.settings().tiers.get(0).intervalTicks + "t)"));
+        var firstMob = p.products().allMobs().stream().findFirst().orElse(null);
+        sender.sendMessage(Text.of("&7sample     : &f" + (firstMob == null ? "none — catalogue empty"
+                : firstMob.id() + " -> " + firstMob.entityType() + " every "
+                  + firstMob.intervalTicks() + "t")));
+        if (p.products().allMobs().isEmpty()) {
+            sender.sendMessage(Text.of("&cCatalogue empty: check plugins/BravenSpawner/mobs/*.yml"));
+        }
     }
 
     private void list(CommandSender sender) {

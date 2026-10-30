@@ -189,9 +189,13 @@ public final class ProductLoader {
 
         ProductDefinition.Builder builder = ProductDefinition.builder(kind, id);
 
+        // The original ships `type:` and older BravenSpawner builds wrote
+        // `entity-type:`; both names must resolve to the same field or a migrated
+        // server silently loses its whole catalogue.
         String typeName = kind == ProductDefinition.Kind.MOB
-                ? yaml.getString("entity-type", id)
-                : yaml.getString("item-type", id);
+                ? firstString(yaml, "entity-type", "type", "entity")
+                : firstString(yaml, "item-type", "type", "material");
+        if (typeName == null || typeName.isBlank()) typeName = id;
         if (typeName == null || typeName.isBlank()) {
             throw new MalformedProductException("missing " + typeKey(kind));
         }
@@ -379,7 +383,17 @@ public final class ProductLoader {
         return colon >= 0 ? name.substring(colon + 1) : name;
     }
 
-    private static String firstString(YamlConfiguration yaml, String primary, String secondary) {
+    /** Returns the first non-blank value among the given keys. */
+    private static String firstString(YamlConfiguration yaml, String... keys) {
+        for (String key : keys) {
+            String value = yaml.getString(key);
+            if (value != null && !value.isBlank()) return value;
+        }
+        return null;
+    }
+
+    @Deprecated
+    private static String firstStringLegacy(YamlConfiguration yaml, String primary, String secondary) {
         String value = yaml.getString(primary);
         return value != null ? value : yaml.getString(secondary);
     }
