@@ -1,3 +1,13 @@
+# ---------------------------------------------------------------------------
+# Text formatting (every name, lore line, title, message and hologram line)
+#   Legacy codes   &a &l &r ...  (also §a)
+#   Hex colours    &#ff8800   {#ff8800}   <#ff8800>   &x&f&f&8&8&0&0
+#   MiniMessage    <red> <bold> <color:#ff8800> <gradient:#ff0000:#0000ff>text</gradient> <rainbow>text</rainbow>
+#   Unicode        raw UTF-8 (✦ ❤ 🔥) or escapes \u2764 and \U0001F525
+#   Literal chars  prefix with a backslash: \< \& \{ \\
+#                  (backslash forms need 'single quotes' or no quotes; "double quotes" are YAML escapes)
+#   Item names and lore are not italic unless you add &o or <italic>.
+# ---------------------------------------------------------------------------
 use_item_spawners: true
 item_spawner_optimization: false
 instant_page_navigation: true

@@ -165,7 +165,7 @@ public final class Wand {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
-        meta.displayName(Text.of(definition.nameFor(wand.lifetime)));
+        meta.displayName(Text.item(definition.nameFor(wand.lifetime)));
 
         List<String> lore = new ArrayList<>(definition.loreFor(wand.lifetime));
         List<Modifier> applied = new ArrayList<>(wand.modifiers.values());
@@ -176,7 +176,7 @@ public final class Wand {
             for (Modifier modifier : applied) lore.add(modifier.appliedLore());
             if (definition.modifierFooter() != null) lore.add(definition.modifierFooter());
         }
-        meta.lore(Text.of(lore));
+        meta.lore(Text.items(lore));
 
         if (definition.glow()) {
             meta.addEnchant(Enchantment.UNBREAKING, 1, true);

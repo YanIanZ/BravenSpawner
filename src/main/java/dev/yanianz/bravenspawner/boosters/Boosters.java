@@ -164,8 +164,8 @@ public final class Boosters {
         ItemStack item = new ItemStack(definition.material());
         var meta = item.getItemMeta();
         if (meta == null) return null;
-        meta.displayName(Text.of(render(definition.name(), definition)));
-        meta.lore(Text.of(definition.lore().stream().map(line -> render(line, definition)).toList()));
+        meta.displayName(Text.item(render(definition.name(), definition)));
+        meta.lore(Text.items(definition.lore().stream().map(line -> render(line, definition)).toList()));
         meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "booster_scope"), PersistentDataType.STRING, scope.name());
         meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "booster_id"), PersistentDataType.STRING, definition.id());
         item.setItemMeta(meta);

@@ -140,7 +140,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 ? plugin.settings().mobs().containsKey(product)
                 : plugin.settings().items().containsKey(product);
         if (!known) {
-            sender.sendMessage(Text.of("&cUnknown product: " + product));
+            sender.sendMessage(Text.of("&cUnknown product: " + Text.escape(product)));
             return;
         }
         Player target = args.length > 2 ? Bukkit.getPlayerExact(args[2])
@@ -231,7 +231,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         }
         seconds = Math.max(5L, Math.min(86_400L, seconds));
         plugin.boosters().grantPlayer(target.getUniqueId(), multiplier, seconds);
-        sender.sendMessage(Text.of("&aBooster " + multiplier + "x for " + target.getName()
+        sender.sendMessage(Text.of("&aBooster " + multiplier + "x for " + Text.escape(target.getName())
                 + " &7(" + seconds + "s)"));
     }
 
@@ -257,7 +257,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage(Text.of("&cUnknown booster id or boosters are disabled."));
             return;
         }
-        sender.sendMessage(Text.of("&aScheduled booster item delivery to " + target.getName() + "."));
+        sender.sendMessage(Text.of("&aScheduled booster item delivery to " + Text.escape(target.getName()) + "."));
     }
 
     private void grantWand(CommandSender sender, String[] args) {
@@ -291,7 +291,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             }
             target.sendMessage(Text.of("&aReceived " + amount + " sell wand(s)."));
         }, null);
-        sender.sendMessage(Text.of("&aScheduled sell wand delivery to " + target.getName() + "."));
+        sender.sendMessage(Text.of("&aScheduled sell wand delivery to " + Text.escape(target.getName()) + "."));
     }
 
     private void grantModifier(CommandSender sender, String[] args) {
@@ -330,7 +330,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             giveItem(target, item);
             target.sendMessage(Text.of("&aReceived modifiers. Place one on a sell wand in your inventory to apply it."));
         }, null);
-        sender.sendMessage(Text.of("&aScheduled modifier delivery to " + target.getName() + "."));
+        sender.sendMessage(Text.of("&aScheduled modifier delivery to " + Text.escape(target.getName()) + "."));
     }
 
     private int grantAmount(CommandSender sender, String[] args, int index) {
@@ -394,10 +394,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         }
         UUID id = target.getUniqueId();
         if (spawner.trusted().remove(id)) {
-            player.sendMessage(Text.of("&cRemoved trust: " + target.getName()));
+            player.sendMessage(Text.of("&cRemoved trust: " + Text.escape(target.getName())));
         } else {
             spawner.trusted().add(id);
-            player.sendMessage(Text.of("&aTrusted: " + target.getName()));
+            player.sendMessage(Text.of("&aTrusted: " + Text.escape(target.getName())));
         }
         plugin.markDirty(spawner);
         return true;

@@ -138,7 +138,7 @@ public final class ProductLoader {
         }
         String[] present = directory.list((dir, name) -> name.endsWith(".yml"));
         if (present != null && present.length > 0) {
-            try { java.nio.file.Files.writeString(new File(directory, ".migrated").toPath(), "catalogue initialized\n"); }
+            try { java.nio.file.Files.writeString(new File(directory, ".migrated").toPath(), "catalogue initialized\n", java.nio.charset.StandardCharsets.UTF_8); }
             catch (IOException error) { plugin.getLogger().warning("Could not mark catalogue initialized: " + error.getMessage()); }
         }
     }

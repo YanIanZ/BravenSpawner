@@ -238,8 +238,8 @@ public final class BravenSpawner extends JavaPlugin {
         ProductDefinition definition = kind == Spawner.Kind.MOB ? products.mob(product) : products.item(product);
         String display = definition == null ? product : definition.displayName();
         String name = definition != null && definition.spawnerItemName() != null ? definition.spawnerItemName() : settings.spawnerName;
-        meta.displayName(Text.of(name.replace("%displayname%", display).replace("%color%", "")));
-        meta.lore(Text.of(definition != null && definition.spawnerItemLore() != null ? definition.spawnerItemLore() : settings.spawnerLore));
+        meta.displayName(Text.item(name.replace("%displayname%", display).replace("%color%", "")));
+        meta.lore(Text.items(definition != null && definition.spawnerItemLore() != null ? definition.spawnerItemLore() : settings.spawnerLore));
         var pdc = meta.getPersistentDataContainer();
         pdc.set(itemKindKey, PersistentDataType.STRING, kind.name());
         pdc.set(itemProductKey, PersistentDataType.STRING, product);

@@ -299,7 +299,7 @@ public final class SpawnerManager {
             if (drop.displayName() != null || drop.customModelData() >= 0) {
                 var meta = output.getItemMeta();
                 if (meta != null) {
-                    if (drop.displayName() != null) meta.displayName(dev.yanianz.bravenspawner.util.Text.of(drop.displayName()));
+                    if (drop.displayName() != null) meta.displayName(dev.yanianz.bravenspawner.util.Text.item(drop.displayName()));
                     if (drop.customModelData() >= 0) meta.setCustomModelData(drop.customModelData());
                     output.setItemMeta(meta);
                 }

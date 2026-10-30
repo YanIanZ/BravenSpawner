@@ -304,8 +304,8 @@ public final class SellWandService {
         ItemStack item = new ItemStack(modifier.type().material());
         var meta = item.getItemMeta();
         if (meta == null) return null;
-        meta.displayName(Text.of(modifier.displayName()));
-        meta.lore(Text.of(modifier.itemLore()));
+        meta.displayName(Text.item(modifier.displayName()));
+        meta.lore(Text.items(modifier.itemLore()));
         if (modifier.type().enchanted()) {
             meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
             meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
