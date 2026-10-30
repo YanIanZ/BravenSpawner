@@ -106,6 +106,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 return true;
             }
             case "reload" -> reload(sender);
+            case "economy" -> new dev.yanianz.bravenspawner.econ.EconomyReport(plugin, messages()).send(sender);
             case "booster" -> booster(sender, args);
             case "boosteritem" -> boosterItem(sender, args);
             case "sellwand" -> grantWand(sender, args);
@@ -214,6 +215,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         m.sendPlain(sender, "doctor.line", "key", "catalogue", "value", p.products().allMobs().size()
                 + " mobs, " + p.products().allItems().size() + " items");
         m.sendPlain(sender, "doctor.line", "key", "economy", "value", p.economy().enabled());
+        new dev.yanianz.bravenspawner.econ.EconomyReport(p, m).doctorLines(sender);
         m.sendPlain(sender, "doctor.line", "key", "tiers", "value", p.settings().tiers.size()
                 + (p.settings().tiers.isEmpty() ? "" : " (base interval " + p.settings().tiers.get(0).intervalTicks + "t)"));
         m.sendPlain(sender, "doctor.line", "key", "holograms", "value",
@@ -469,7 +471,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "bspawner" -> {
                 if (!sender.hasPermission("bravenspawner.admin")) return List.of();
                 if (args.length == 1) {
-                    out.addAll(List.of("help", "give", "list", "doctor", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair"));
+                    out.addAll(List.of("help", "give", "list", "doctor", "economy", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair"));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
                     out.addAll(plugin.settings().mobs().keySet());
                     plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));

@@ -99,7 +99,50 @@ economy:
   sell-multiplier: 1.0
   autosell: false
   # Decimal places sale payouts are rounded to (HALF_UP). 0..6, default 2.
+  # Whole-unit currencies (points, levels, items) then round payouts DOWN and
+  # prices UP, so a price is never discounted to zero.
   round-to: 2
+  # Which currency each action uses. economy.enabled is the master switch for all.
+  #   VAULT              any Vault economy (default)
+  #   PLAYERPOINTS       PlayerPoints plugin (whole points)
+  #   coinsengine:<id>   a CoinsEngine / ExcellentEconomy currency, e.g. coinsengine:gems
+  #   EXP_LEVELS         player levels (online players only)
+  #   EXP_POINTS         raw experience points (online players only)
+  #   ITEM               physical items, see item-currency below (online players only)
+  # Unset keys fall back to hooks.yml "currency", then VAULT. An unavailable or
+  # unknown currency refuses the action with a message — it is never free.
+  # Autosell skips offline owners when sell uses an online-only currency.
+  currencies:
+    sell: VAULT
+    buy-stack: VAULT
+    upgrade: VAULT
+    spawner-buy: VAULT
+  # How amounts are written: symbol + number + suffix. The number uses
+  # money-decimals compaction (1.50K ...) from 1000 up when compact is true.
+  # decimals: -1 keeps the classic money-decimals output. "name" sets %currency%.
+  format:
+    VAULT:
+      symbol: ""
+      suffix: ""
+      decimals: -1
+    PLAYERPOINTS:
+      suffix: " points"
+      decimals: 0
+    EXP_LEVELS:
+      suffix: " levels"
+      decimals: 0
+    EXP_POINTS:
+      suffix: " XP"
+      decimals: 0
+    # "coinsengine:gems":
+    #   symbol: "♦"
+    #   decimals: 0
+  # The ITEM currency: what counts as one unit. Empty name / custom-model-data 0
+  # accept any item of that material.
+  item-currency:
+    material: EMERALD
+    name: ""
+    custom-model-data: 0
 
 sell:
   # Seconds between autosell passes; only used when economy.autosell is true.

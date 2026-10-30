@@ -18,7 +18,7 @@ import java.util.Map;
 
 /** Reads hooks.yml selection and reports plugin presence separately from API readiness.
  * Functional unit quotes are supplied by the selected commerce ShopBridge adapter;
- * settlement remains through Vault. Detection alone does not establish pricing.
+ * settlement uses the sell currency. Detection alone does not establish pricing.
  */
 public final class ShopHook {
 
@@ -27,7 +27,10 @@ public final class ShopHook {
     private static final String TEMPLATE = """
             # BravenSpawner hooks
             #
-            # currency: only "Vault" is implemented; any other value is logged and ignored.
+            # currency: default currency for every action that config.yml
+            #   economy.currencies does not set. Vault, PlayerPoints, coinsengine:<id>,
+            #   EXP_LEVELS, EXP_POINTS, ITEM. SuperMobCoins has no public API and is
+            #   not supported (the action is refused, never free).
             currency: "Vault"
             #
             # shop: selected sell-price source. None uses local prices.
@@ -35,9 +38,10 @@ public final class ShopHook {
             #              DonutWorth, EssentialsX, Nascraft
             #   "None" disables the integration.
             #
-            # EssentialsX, ShopGUI+ and EconomyShopGUI have typed price adapters. Other
-            # shops remain unavailable until their API adapters are implemented.
-            # Payouts use Vault; API failures fall back to configured local prices.
+            # EssentialsX, ShopGUI+ and EconomyShopGUI have typed price adapters; ZShop,
+            # ExcellentShop, Nascraft and DonutWorth are read through their public
+            # API by reflection. Payouts use economy.currencies.sell; any API
+            # failure falls back to the configured local sell-prices.
             shop: "None"
             """;
 
@@ -80,7 +84,7 @@ public final class ShopHook {
         report();
     }
 
-    /** Currency name exactly as configured; only {@code Vault} changes behaviour. */
+    /** Currency name exactly as configured; the registry uses it as the default selection. */
     public String currency() {
         return currency;
     }
@@ -122,8 +126,8 @@ public final class ShopHook {
 
     private void report() {
         if (!currency.equalsIgnoreCase("Vault")) {
-            plugin.getLogger().warning("hooks.yml currency '" + currency
-                    + "' is not implemented — only Vault is supported; sales still settle through Vault.");
+            plugin.getLogger().info("hooks.yml currency '" + currency
+                    + "' is the default for actions not set in config.yml economy.currencies.");
         }
 
         String key = normalize(configuredShop);
@@ -144,12 +148,12 @@ public final class ShopHook {
             if (present != null && present.isEnabled()) {
                 detectedPlugin = present.getName();
                 plugin.getLogger().info("Shop hook: '" + hook.display() + "' detected as plugin '"
-                        + detectedPlugin + "'; price capability is checked by the selected adapter, payouts use Vault.");
+                        + detectedPlugin + "'; price capability is checked by the selected adapter.");
                 return;
             }
         }
         plugin.getLogger().info("Shop hook: '" + hook.display() + "' configured but not installed (looked for "
-                + String.join(", ", hook.pluginNames()) + "); sales use Vault.");
+                + String.join(", ", hook.pluginNames()) + "); local sell-prices are used.");
     }
 
     private static String knownShops() {
