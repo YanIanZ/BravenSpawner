@@ -45,9 +45,39 @@ public final class YamlStorage implements Storage {
     private volatile boolean healthy = true;
 
     public YamlStorage(Plugin plugin) {
-        this.plugin = java.util.Objects.requireNonNull(plugin, "plugin");
-        this.file = new File(plugin.getDataFolder(), "spawners.yml");
+        this(plugin, "spawners.yml");
     }
+
+    /** Backend over a specific file in the data folder; used by the explicit DB fallback. */
+    public YamlStorage(Plugin plugin, String fileName) {
+        this.plugin = java.util.Objects.requireNonNull(plugin, "plugin");
+        this.file = new File(plugin.getDataFolder(), java.util.Objects.requireNonNull(fileName, "fileName"));
+    }
+
+    /**
+     * Fallback backend for a run whose configured database failed. It never reads
+     * {@code spawners.yml} (that file predates the database and would resurrect stale
+     * loot), and a leftover fallback file from an earlier run is archived so this run
+     * starts empty instead of replaying records the database may already hold.
+     */
+    public static YamlStorage freshFallback(Plugin plugin) {
+        YamlStorage storage = new YamlStorage(plugin, FALLBACK_FILE);
+        if (storage.file.exists()) {
+            File archived = new File(storage.file.getParentFile(),
+                    "spawners-fallback-" + System.currentTimeMillis() + ".yml.bak");
+            try {
+                Files.move(storage.file.toPath(), archived.toPath());
+            } catch (IOException e) {
+                throw new StorageException("could not archive stale " + FALLBACK_FILE, e);
+            }
+            plugin.getLogger().warning("archived previous " + FALLBACK_FILE + " to " + archived.getName());
+        }
+        return storage;
+    }
+
+    public static final String FALLBACK_FILE = "spawners-fallback.yml";
+
+    public File file() { return file; }
 
     @Override
     public void init() {
@@ -113,7 +143,8 @@ public final class YamlStorage implements Storage {
                 spawner.replaceContents(items);
                 spawner.addXp(s.getInt("xp", 0));
                 spawner.produced(s.getLong("produced", 0));
-                if (s.getBoolean("corrupted", false)) spawner.corrupt();
+                Storage.Codec.restoreCorruption(spawner, s.getBoolean("corrupted", false),
+                        s.getLong("corrupted-at", 0L));
                 out.add(spawner);
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("quarantined malformed spawner record " + key + ": " + e.getMessage());
@@ -199,6 +230,7 @@ public final class YamlStorage implements Storage {
         yaml.set(base + ".tier", s.tier());
         yaml.set(base + ".hologram", s.hologram());
         yaml.set(base + ".corrupted", s.corrupted());
+        yaml.set(base + ".corrupted-at", s.corruptedAt());
         yaml.set(base + ".xp", s.storedXp());
         yaml.set(base + ".produced", s.produced());
         yaml.set(base + ".trusted", Storage.Codec.encodeTrusted(s.trusted()));

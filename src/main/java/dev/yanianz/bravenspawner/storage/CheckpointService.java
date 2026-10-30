@@ -109,20 +109,21 @@ public final class CheckpointService implements AutoCloseable {
         unhealthyLogged = false;
         if (!storage.isDirty()) return;
         List<Spawner> snapshot = snapshot();
-        if (!flush(snapshot)) return;
+        if (!flush(snapshot, false)) return;
         plugin.getLogger().fine("checkpoint wrote " + snapshot.size() + " spawner record(s)");
     }
 
     /**
-     * Flushes pending state regardless of the dirty flag, but never while
-     * unhealthy. Returns true when the backend accepted the write.
+     * Flushes every live record regardless of the dirty flag (a full rewrite on
+     * row-based backends), but never while unhealthy. Returns true when the backend
+     * accepted the write.
      */
     public boolean flushNow() {
         if (!storage.isHealthy()) {
             plugin.getLogger().warning("manual flush refused: storage is unhealthy after a failed load");
             return false;
         }
-        return flush(snapshot());
+        return flush(snapshot(), true);
     }
 
     private List<Spawner> snapshot() {
@@ -131,10 +132,10 @@ public final class CheckpointService implements AutoCloseable {
         return new ArrayList<>(live);
     }
 
-    private boolean flush(List<Spawner> snapshot) {
+    private boolean flush(List<Spawner> snapshot, boolean full) {
         synchronized (flushLock) {
             try {
-                storage.flushAll(snapshot);
+                storage.flushAll(snapshot, full);
                 return true;
             } catch (RuntimeException e) {
                 plugin.getLogger().severe("checkpoint flush failed; records stay dirty: " + e.getMessage());
@@ -179,7 +180,7 @@ public final class CheckpointService implements AutoCloseable {
         AtomicReference<RuntimeException> failure = new AtomicReference<>();
         Runnable write = () -> {
             try {
-                if (!flush(snapshot)) failure.set(new Storage.StorageException("checkpoint drain flush failed"));
+                if (!flush(snapshot, false)) failure.set(new Storage.StorageException("checkpoint drain flush failed"));
             } catch (RuntimeException e) {
                 failure.set(e);
             } finally {
