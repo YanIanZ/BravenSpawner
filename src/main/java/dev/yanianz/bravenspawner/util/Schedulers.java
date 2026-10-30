@@ -40,6 +40,10 @@ public final class Schedulers {
         Bukkit.getRegionScheduler().execute(plugin, location, task);
     }
 
+    public static void atLater(Plugin plugin, Location location, long delayTicks, Runnable task) {
+        Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> task.run(), Math.max(1L, delayTicks));
+    }
+
     public static void onEntity(Plugin plugin, Entity entity, Runnable task, Runnable retired) {
         entity.getScheduler().execute(plugin, task, retired, 1L);
     }

@@ -57,6 +57,7 @@ public final class SellWandService {
     private final BravenSpawner plugin;
     private final SellService sellService;
     private final SoundFeedback sounds;
+    private final WandParticles particles;
     private final Map<UUID, Boolean> cooling = new ConcurrentHashMap<>();
     private final AtomicBoolean cooldownWarning = new AtomicBoolean();
 
@@ -68,6 +69,7 @@ public final class SellWandService {
         this.plugin = plugin;
         this.sellService = SellService.install(plugin);
         this.sounds = new SoundFeedback(plugin);
+        this.particles = new WandParticles(plugin);
         reload();
     }
 
@@ -106,6 +108,7 @@ public final class SellWandService {
         this.types = loadedTypes;
         this.template = Wand.template(plugin, loadedDefinition, loadedTypes);
         this.sounds.reload();
+        this.particles.reload(WandFiles.load(plugin, WandDefinition.FILE_NAME));
         plugin.getLogger().info(loadedDefinition.enabled()
                 ? "Sell wand enabled — material " + loadedDefinition.material().name()
                 + ", radius " + loadedDefinition.radius()
@@ -406,6 +409,7 @@ public final class SellWandService {
         int failed = 0;
         double base = 0.0;
         SellService.Status blocked = null;
+        List<org.bukkit.Location> soldAt = new ArrayList<>();
 
         for (Spawner spawner : spawners) {
             try {
@@ -417,6 +421,7 @@ public final class SellWandService {
                 switch (sale.status()) {
                     case SOLD -> {
                         sold++;
+                        soldAt.add(spawner.location());
                         items += sale.items();
                         base += sale.value();
                     }
@@ -446,6 +451,7 @@ public final class SellWandService {
                 .replace("%value%", sellService.format(paid));
         player.sendMessage(Text.of(message));
         sounds.play(player, SoundFeedback.Cue.SUCCESS);
+        particles.play(player, soldAt);
         return new Report(spawners.size(), sold, items, paid, failed);
     }
 
