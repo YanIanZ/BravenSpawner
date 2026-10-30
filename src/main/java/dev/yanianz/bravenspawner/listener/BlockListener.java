@@ -70,6 +70,11 @@ public final class BlockListener implements Listener {
         Spawner.Kind kind = StackService.kindOf(plugin, item);
         String product = StackService.productOf(plugin, item);
 
+        if (!plugin.ready() && (kind != null || isSpawnerBlock(event.getBlockPlaced()))) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of(unavailableMessage()));
+            return;
+        }
         if (kind == null || product == null) {
             if (s.convertSpawners && event.getBlockPlaced().getType() == Material.SPAWNER) {
                 convertVanilla(event, player);
@@ -81,11 +86,6 @@ public final class BlockListener implements Listener {
         if (definition == null || kind == Spawner.Kind.ITEM && !s.useItemSpawners) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cThat spawner product is unavailable."));
-            return;
-        }
-        if (!plugin.ready()) {
-            event.setCancelled(true);
-            player.sendMessage(Text.of("&cSpawner storage is still loading."));
             return;
         }
         Block block = event.getBlockPlaced();
@@ -166,9 +166,18 @@ public final class BlockListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
+        if (!plugin.ready()) {
+            // Until the stored records are loaded (or when storage could not be
+            // opened at all) a managed spawner looks like a vanilla block; breaking
+            // it would destroy the record's stack, loot and XP.
+            if (isSpawnerBlock(event.getBlock())) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+            }
+            return;
+        }
         Spawner spawner = plugin.manager().at(event.getBlock().getLocation());
         if (spawner == null) return;
-        if (!plugin.ready()) { event.setCancelled(true); return; }
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
@@ -246,9 +255,15 @@ public final class BlockListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
+        if (!plugin.ready()) {
+            if (isSpawnerBlock(block)) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+            }
+            return;
+        }
         Spawner spawner = plugin.manager().at(block.getLocation());
         if (spawner == null) return;
-        if (!plugin.ready()) { event.setCancelled(true); return; }
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
@@ -305,14 +320,32 @@ public final class BlockListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        if (!plugin.settings().disableExplosionDamage) return;
-        event.blockList().removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+        shieldFromExplosion(event.blockList());
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
+        shieldFromExplosion(event.blockList());
+    }
+
+    private void shieldFromExplosion(java.util.List<Block> blocks) {
+        if (!plugin.ready()) {
+            // Records are not loaded: any spawner block may be a managed one.
+            blocks.removeIf(BlockListener::isSpawnerBlock);
+            return;
+        }
         if (!plugin.settings().disableExplosionDamage) return;
-        event.blockList().removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+        blocks.removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+    }
+
+    static boolean isSpawnerBlock(Block block) {
+        return block != null && block.getType() == Material.SPAWNER;
+    }
+
+    private String unavailableMessage() {
+        return plugin.isStorageAvailable()
+                ? "&cSpawner storage is still loading."
+                : "&cSpawner storage is unavailable; spawners are locked until an administrator fixes it.";
     }
 
     /*
