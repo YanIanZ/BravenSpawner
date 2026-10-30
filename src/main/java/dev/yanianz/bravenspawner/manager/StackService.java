@@ -42,7 +42,7 @@ public final class StackService {
         NO_ITEM,
         /** Item is not a spawner item, or its kind/product differs from the target. */
         WRONG_ITEM,
-        /** Incoming count would push the chunk over {@code spawner-limit-in-chunk}. */
+        /** Incoming count would push the chunk over {@code spawner-limit-in-chunk} (stacks mode). */
         CHUNK_LIMIT,
         /** Incoming count would push this spawner over {@code stack-limit}. */
         STACK_LIMIT
@@ -112,14 +112,11 @@ public final class StackService {
         int stackLimit = plugin.stackLimit(target);
         int incoming = canonicalCount(plugin, item, s.stackLimit);
 
-        // 3. Per-chunk cap. The target's own stack is already part of the total,
-        //    so only the incoming amount can push the chunk over the limit.
-        if (s.spawnerLimitInChunk > 0) {
-            int chunkX = target.x() >> 4;
-            int chunkZ = target.z() >> 4;
+        // 3. Per-chunk cap. Merging adds no block, so only the stack-unit mode
+        //    (spawner-limit-in-chunk-mode: stacks) can refuse it.
+        if (s.spawnerLimitInChunk > 0 && s.chunkLimitCountsStacks) {
             var world = Bukkit.getWorld(target.world());
-            long total = (long) plugin.manager().stackedInChunk(world, chunkX, chunkZ);
-            if (total + incoming > s.spawnerLimitInChunk) {
+            if (incoming > plugin.manager().chunkUnitRoom(world, target.x() >> 4, target.z() >> 4)) {
                 return new Result(Status.CHUNK_LIMIT, 0, target.stack(), 0);
             }
         }

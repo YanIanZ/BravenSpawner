@@ -111,15 +111,10 @@ public final class BlockListener implements Listener {
             return;
         }
 
-        int chunkX = block.getX() >> 4;
-        int chunkZ = block.getZ() >> 4;
-        if (s.spawnerLimitInChunk > 0) {
-            long total = plugin.manager().stackedInChunk(block.getWorld(), chunkX, chunkZ);
-            if (total + stack > s.spawnerLimitInChunk) {
-                player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
-                event.setCancelled(true);
-                return;
-            }
+        if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, stack)) {
+            player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
+            event.setCancelled(true);
+            return;
         }
 
         Spawner existing = plugin.manager().at(block.getLocation());
@@ -150,20 +145,36 @@ public final class BlockListener implements Listener {
                 + (spawner.stack() > 1 ? " &7x" + spawner.stack() : "")));
     }
 
+    /**
+     * Turns a placed vanilla spawner into a managed one. Blacklisted worlds and mob
+     * types without a product stay vanilla (never silently become ZOMBIE), and the
+     * chunk cap applies exactly as for a spawner item.
+     */
     private void convertVanilla(BlockPlaceEvent event, Player player) {
         if (!plugin.ready()) { event.setCancelled(true); return; }
         Block block = event.getBlockPlaced();
-        String mob = "ZOMBIE";
-        if (block.getState() instanceof CreatureSpawner cs && cs.getSpawnedType() != null) {
-            mob = cs.getSpawnedType().name();
+        if (plugin.settings().isBlacklisted(block.getWorld().getName())) return;
+        String mob = vanillaProduct(block);
+        if (mob == null) return;
+        if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, 1)) {
+            player.sendMessage(Text.of("&cChunk spawner limit reached (" + plugin.settings().spawnerLimitInChunk + ")."));
+            event.setCancelled(true);
+            return;
         }
-        if (plugin.settings().mobs().get(mob) == null) mob = "ZOMBIE";
         Spawner spawner = new Spawner(UUID.randomUUID(), player.getUniqueId(),
                 block.getWorld().getName(), block.getX(), block.getY(), block.getZ(),
                 Spawner.Kind.MOB, mob, 1, 0, true);
-        plugin.manager().register(spawner);
+        if (!plugin.manager().register(spawner)) return;
         plugin.holograms().update(spawner);
         player.sendMessage(Text.of("&aConverted vanilla spawner: &f" + mob));
+    }
+
+    /** Product id for the vanilla spawner's mob, or null when it has none or no product exists. */
+    private String vanillaProduct(Block block) {
+        if (!(block.getState() instanceof CreatureSpawner cs) || cs.getSpawnedType() == null) return null;
+        String mob = cs.getSpawnedType().name();
+        if (plugin.products().mob(mob) != null) return mob;
+        return plugin.settings().mob(mob) != null ? mob : null;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

@@ -38,7 +38,12 @@ activation-radius: 10
 
 block-collection-in-inventory: true
 unlimited-storage: false
+# Maximum spawners per chunk (0 = no limit). By default this counts spawner BLOCKS,
+# so stacking onto an existing spawner is never refused by it. Set
+# spawner-limit-in-chunk-mode: stacks to count stack units instead (then a chunk
+# holds at most this many units in total, across all its spawners).
 spawner-limit-in-chunk: 100
+spawner-limit-in-chunk-mode: blocks
 convert-spawners: true
 full-stack: false
 allow-hoppers: false

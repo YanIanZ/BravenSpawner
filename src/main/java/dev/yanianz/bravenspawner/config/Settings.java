@@ -41,6 +41,8 @@ public final class Settings {
     public final boolean blockCollectionInInventory;
     public final boolean unlimitedStorage;
     public final int spawnerLimitInChunk;
+    /** True when {@code spawner-limit-in-chunk-mode: stacks}; the default counts spawner blocks. */
+    public final boolean chunkLimitCountsStacks;
     public final boolean convertSpawners;
     public final boolean fullStack;
     public final boolean allowHoppers;
@@ -108,6 +110,7 @@ public final class Settings {
         this.blockCollectionInInventory = b.blockCollectionInInventory;
         this.unlimitedStorage = b.unlimitedStorage;
         this.spawnerLimitInChunk = b.spawnerLimitInChunk;
+        this.chunkLimitCountsStacks = b.chunkLimitCountsStacks;
         this.convertSpawners = b.convertSpawners;
         this.fullStack = b.fullStack;
         this.allowHoppers = b.allowHoppers;
@@ -183,6 +186,7 @@ public final class Settings {
         b.blockCollectionInInventory = root.getBoolean("block-collection-in-inventory", false);
         b.unlimitedStorage = root.getBoolean("unlimited-storage", false);
         b.spawnerLimitInChunk = root.getInt("spawner-limit-in-chunk", 100);
+        b.chunkLimitCountsStacks = "stacks".equalsIgnoreCase(root.getString("spawner-limit-in-chunk-mode", "blocks"));
         b.convertSpawners = root.getBoolean("convert-spawners", false);
         b.fullStack = root.getBoolean("full-stack", false);
         b.allowHoppers = root.getBoolean("allow-hoppers", false);
@@ -480,6 +484,7 @@ public final class Settings {
         boolean noActivationRange;
         int activationRadius;
         long boosterSeconds;
+        boolean chunkLimitCountsStacks;
         boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, fullStack, allowHoppers,
                 enableMending, dropXpAsOrbs, placeholdersInGui, removeDurabilityOnBreak, silkTouchOnly,
                 disableExplosionDamage, multipleDrop, enableBoosters, disableAutosellNotifications,

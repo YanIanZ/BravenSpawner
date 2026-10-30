@@ -46,6 +46,8 @@ public final class SpawnerManager {
     private final BravenSpawner plugin;
     private final Map<String, Spawner> byBlock = new ConcurrentHashMap<>();
     private final Map<UUID, Spawner> byId = new ConcurrentHashMap<>();
+    /** Per-chunk index ({@code world:cx:cz}) so the chunk caps never scan every spawner. */
+    private final Map<String, java.util.Set<Spawner>> byChunk = new ConcurrentHashMap<>();
     private final Map<UUID, TaskLease> tasks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGuiOpen = new ConcurrentHashMap<>();
 
@@ -92,22 +94,52 @@ public final class SpawnerManager {
         return out;
     }
 
-    /**
-     * Sum of virtual stack units recorded in one chunk.
-     *
-     * <p>Used by the placement and merge caps. The index is a full map scan; it is
-     * only reached from a player action, never from the tick pass.
-     */
+    private static String chunkKey(String world, int chunkX, int chunkZ) {
+        return world + ':' + chunkX + ':' + chunkZ;
+    }
+
+    private static String chunkKey(Spawner spawner) {
+        return chunkKey(spawner.world(), spawner.x() >> 4, spawner.z() >> 4);
+    }
+
+    private java.util.Set<Spawner> chunk(World world, int chunkX, int chunkZ) {
+        if (world == null) return java.util.Set.of();
+        return byChunk.getOrDefault(chunkKey(world.getName(), chunkX, chunkZ), java.util.Set.of());
+    }
+
+    /** Sum of virtual stack units recorded in one chunk (per-chunk index, no full scan). */
     public int stackedInChunk(World world, int chunkX, int chunkZ) {
-        if (world == null) return 0;
-        String name = world.getName();
         long total = 0;
-        for (Spawner s : byId.values()) {
-            if (s == null || !s.world().equals(name)) continue;
-            if ((s.x() >> 4) != chunkX || (s.z() >> 4) != chunkZ) continue;
-            total += s.stack();
-        }
+        for (Spawner s : chunk(world, chunkX, chunkZ)) total += s.stack();
         return total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+    }
+
+    /** Number of managed spawner blocks in one chunk. */
+    public int spawnersInChunk(World world, int chunkX, int chunkZ) {
+        return chunk(world, chunkX, chunkZ).size();
+    }
+
+    /**
+     * Whether a new spawner block carrying {@code units} stack units may be placed.
+     * {@code spawner-limit-in-chunk} counts blocks by default; with
+     * {@code spawner-limit-in-chunk-mode: stacks} it counts stack units.
+     */
+    public boolean chunkAllowsNewSpawner(World world, int chunkX, int chunkZ, int units) {
+        Settings s = settings;
+        if (s == null || s.spawnerLimitInChunk <= 0) return true;
+        if (!s.chunkLimitCountsStacks) return spawnersInChunk(world, chunkX, chunkZ) + 1L <= s.spawnerLimitInChunk;
+        return (long) stackedInChunk(world, chunkX, chunkZ) + Math.max(0, units) <= s.spawnerLimitInChunk;
+    }
+
+    /**
+     * Stack units that may still be added to existing spawners in this chunk (merge,
+     * buy-stack). Unlimited in the default block-count mode, where stacking does not
+     * add blocks.
+     */
+    public int chunkUnitRoom(World world, int chunkX, int chunkZ) {
+        Settings s = settings;
+        if (s == null || s.spawnerLimitInChunk <= 0 || !s.chunkLimitCountsStacks) return Integer.MAX_VALUE;
+        return Math.max(0, s.spawnerLimitInChunk - stackedInChunk(world, chunkX, chunkZ));
     }
 
     public boolean register(Spawner spawner) {
@@ -115,6 +147,7 @@ public final class SpawnerManager {
         String key = key(spawner.world(), spawner.x(), spawner.y(), spawner.z());
         if (byBlock.putIfAbsent(key, spawner) != null) return false;
         byId.put(spawner.id(), spawner);
+        byChunk.computeIfAbsent(chunkKey(spawner), k -> ConcurrentHashMap.newKeySet()).add(spawner);
         schedule(spawner);
         plugin.markDirty(spawner);
         return true;
@@ -123,6 +156,10 @@ public final class SpawnerManager {
     public void unregister(Spawner spawner) {
         if (spawner == null) return;
         byBlock.remove(key(spawner.world(), spawner.x(), spawner.y(), spawner.z()), spawner);
+        byChunk.computeIfPresent(chunkKey(spawner), (k, set) -> {
+            set.remove(spawner);
+            return set.isEmpty() ? null : set;
+        });
         if (byId.remove(spawner.id(), spawner)) plugin.markDeleted(spawner.id());
         synchronized (scheduleLock) {
             cancelLocked(spawner.id());
