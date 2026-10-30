@@ -135,6 +135,9 @@ gui:
   confirm-buy-max: "buy as many stacks as you can afford at %price% each"
   take-mode-one: "{info}Clicking an item now takes {highlight}one{info} at a time."
   take-mode-stack: "{info}Clicking an item now takes {highlight}a stack{info} at a time."
+  storage:
+    # Lore line added to every storage cell; %amount% is the exact stored total.
+    amount-lore: "&7Stored: &f%amount%"
   xp:
     must-be-full: "{error}XP storage must be full before collecting."
     none: "{muted}No XP stored yet."

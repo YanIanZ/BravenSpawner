@@ -503,20 +503,23 @@ public final class SpawnerGui implements Listener {
         return true;
     }
 
-    /** A view-only copy capped at one vanilla stack, with the hint lines appended. */
+    /**
+     * A view-only copy (never the stored instance) capped at one vanilla stack, with the
+     * true stored amount and the hint lines appended to its lore.
+     */
     private ItemStack display(ItemStack stored, List<String> hint) {
+        if (stored == null) return null;
+        int amount = stored.getAmount();
         ItemStack display = stored.clone();
         if (display == null) return null;
-        display.setAmount(Math.max(1, Math.min(display.getAmount(), display.getMaxStackSize())));
-        if (!hint.isEmpty()) {
-            ItemMeta meta = display.getItemMeta();
-            if (meta != null) {
-                List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-                lore.add(Text.item("&7Stored: &f" + MenuPlaceholders.number(stored.getAmount())));
-                lore.addAll(Text.items(hint));
-                meta.lore(lore);
-                display.setItemMeta(meta);
-            }
+        display.setAmount(StorageDisplay.visibleAmount(amount, display.getMaxStackSize()));
+        ItemMeta meta = display.getItemMeta();
+        if (meta != null) {
+            List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+            lore.add(Text.item(StorageDisplay.amountLore(messages(), amount)));
+            lore.addAll(Text.items(hint));
+            meta.lore(lore);
+            display.setItemMeta(meta);
         }
         return display;
     }
