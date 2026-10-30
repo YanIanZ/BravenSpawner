@@ -1,4 +1,4 @@
-# YAML | SQLITE | MYSQL
+# YAML | SQLITE | MYSQL | MONGODB
 type: "sqlite"
 
 thread_pool_size: 5
@@ -12,3 +12,9 @@ mysql:
   password: ''
   max-pool: 15
   use-ssl: false
+
+# Used only when type is MONGODB. This is BravenSpawner's own schema.
+mongodb:
+  uri: 'mongodb://localhost:27017/?serverSelectionTimeoutMS=5000'
+  database: bravenspawner
+  collection: braven_spawners

@@ -89,6 +89,10 @@ public final class BlockListener implements Listener {
             return;
         }
         Block block = event.getBlockPlaced();
+        if (plugin.protection() != null && !plugin.protection().canPlace(player, block.getLocation())) {
+            event.setCancelled(true);
+            return;
+        }
         if (s.isBlacklisted(block.getWorld().getName())) {
             player.sendMessage(Text.of("&cSpawners are disabled in this world."));
             event.setCancelled(true);
@@ -170,6 +174,10 @@ public final class BlockListener implements Listener {
         Settings s = plugin.settings();
         boolean admin = player.hasPermission("bravenspawner.admin");
 
+        if (plugin.protection() != null && !plugin.protection().canBreak(player, event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            return;
+        }
         if (!admin && !spawner.isOwner(player.getUniqueId())) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cThat spawner is not yours."));
@@ -191,15 +199,17 @@ public final class BlockListener implements Listener {
             }
         }
 
-        if (!plugin.ready() || spawner.storedCount() > 0 || spawner.storedXp() > 0) {
+        if (!plugin.ready() || spawner.storedCount() > 0) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cCollect the stored items and XP before breaking this spawner."));
+            player.sendMessage(Text.of("&cCollect the stored items before breaking this spawner."));
             return;
         }
 
         // Repair first, then apply the normal break cost, so a Mending tool gets
         // the spawner's banked XP instead of losing durability to this break.
         Mending.repair(plugin, player, spawner);
+        int remainingXp = spawner.takeXp();
+        if (remainingXp > 0) player.giveExp(remainingXp);
 
         if (s.removeDurabilityOnBreak && player.getGameMode() != GameMode.CREATIVE) {
             ItemStack hand = player.getInventory().getItemInMainHand();
@@ -228,8 +238,10 @@ public final class BlockListener implements Listener {
         player.sendMessage(Text.of("&eSpawner removed; contents dropped."));
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND) return;
+        if (plugin.boosters() != null && plugin.boosters().isBooster(event.getItem())) return;
         if (plugin.wands() != null && plugin.wands().isWand(event.getItem())) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
@@ -240,6 +252,9 @@ public final class BlockListener implements Listener {
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
+        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) return;
+        if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return;
+        if (plugin.protection() != null && !plugin.protection().canUse(player, block.getLocation())) return;
         event.setCancelled(true);
 
         if (plugin.manager().guiThrottled(player.getUniqueId(), s.cooldownGuiMs)) return;

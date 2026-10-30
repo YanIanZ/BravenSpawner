@@ -89,6 +89,7 @@ public final class HopperLink {
      * @return true when at least one item actually entered the hopper
      */
     private boolean moveOne(Spawner spawner, Hopper hopper) {
+        if (plugin.restrictions() != null && !plugin.restrictions().rules().canTakeItems(spawner.product(), false)) return false;
         List<ItemStack> contents = spawner.contents();
         if (contents.isEmpty()) return false;
 

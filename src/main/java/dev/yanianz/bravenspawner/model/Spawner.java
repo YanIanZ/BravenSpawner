@@ -128,6 +128,11 @@ public final class Spawner {
         this.corruptedAt = System.currentTimeMillis();
     }
 
+    public void restoreCorruption(boolean corrupted, long timestamp) {
+        this.corrupted = corrupted;
+        this.corruptedAt = corrupted ? Math.max(0L, timestamp) : 0L;
+    }
+
     public void repair() {
         this.corrupted = false;
         this.corruptedAt = 0;

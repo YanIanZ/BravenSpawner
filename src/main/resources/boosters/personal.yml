@@ -1,0 +1,35 @@
+# You can add as many as you want
+
+personal_xp_multiplier:
+  type: XP_MULTIPLIER
+  multiplier: 1.1
+  display-name: "&a&lPersonal XP Multiplier"
+  item:
+    material: EXPERIENCE_BOTTLE
+    name: "&a&lPersonal XP Multiplier"
+    lore:
+      - "&7Enhances your spawner XP gain by &a10%"
+      - ""
+      - "&6➤ Permanent effect"
+      - "&6➤ Applies only to you"
+      - ""
+      - "&e&lMultiplier: &fx1.1"
+      - ""
+      - "&c&lNOTE: &7This is a special personal multiplier"
+
+personal_cash_multiplier:
+  type: CASH_MULTIPLIER
+  multiplier: 1.5
+  display-name: "&6&lPersonal Cash Multiplier"
+  item:
+    material: GOLD_INGOT
+    name: "&6&lPersonal Cash Multiplier"
+    lore:
+      - "&7Increases your spawner cash earnings by &650%"
+      - ""
+      - "&6➤ Permanent effect"
+      - "&6➤ Applies only to you"
+      - ""
+      - "&e&lMultiplier: &fx1.5"
+      - ""
+      - "&c&lNOTE: &7This is a special personal multiplier"

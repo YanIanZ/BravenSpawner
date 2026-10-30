@@ -22,6 +22,8 @@ class StorageWithdrawalTest {
 
     private void withdraw(ClickType click, int amount) throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.restrictions()).thenReturn(null);
+        when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class, RETURNS_DEEP_STUBS);
         UUID viewer = UUID.randomUUID();

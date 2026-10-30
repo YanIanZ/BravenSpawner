@@ -1,5 +1,7 @@
 package dev.yanianz.bravenspawner.commerce;
 
+import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.sell.ShopHook;
 import dev.yanianz.bravenspawner.commerce.adapters.EconomyShopGuiAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.EssentialsXAdapter;
 import dev.yanianz.bravenspawner.commerce.adapters.ExcellentShopAdapter;
@@ -17,8 +19,8 @@ import java.util.logging.Logger;
 /**
  * Routes price questions to the first shop adapter that can answer them.
  *
- * <p>Adapter order is the priority order an admin expects from {@code hooks.yml}:
- * ShopGUI+, EconomyShopGUI, ZShop, ExcellentShop, then EssentialsX. A single
+ * <p>The production constructor selects only the shop named by {@code hooks.yml}.
+ * Explicit adapter-list constructors preserve the caller's routing order. A single
  * price is never averaged or summed across shops: the first available adapter
  * with an opinion on the item wins, and a sale is offered only to the first
  * adapter that can actually transact, so the same stacks cannot be sold twice.
@@ -47,6 +49,40 @@ public final class ShopBridge {
     public ShopBridge(Logger logger) {
         this(logger, defaultAdapters(logger));
     }
+
+    /** Production routing honors the single shop selected in hooks.yml. */
+    public ShopBridge(BravenSpawner plugin) {
+        this(plugin.getLogger(), configuredAdapters(plugin));
+    }
+
+    private static List<ShopAdapter> configuredAdapters(BravenSpawner plugin) {
+        ShopHook hook = new ShopHook(plugin);
+        hook.load();
+        return select(defaultAdapters(plugin.getLogger()), hook.configuredShop());
+    }
+
+    /** Explicit configured routing, also usable by hosts with custom adapters. */
+    public ShopBridge(Logger logger, List<ShopAdapter> adapters, String configuredShop) {
+        this(logger, select(adapters, configuredShop));
+    }
+
+    private static List<ShopAdapter> select(List<ShopAdapter> adapters, String configuredShop) {
+        String selected = normalize(configuredShop);
+        if (selected.isEmpty() || selected.equals("NONE") || selected.equals("DISABLED")) return List.of();
+        return adapters.stream().filter(adapter -> normalize(adapter.name()).equals(selected)).toList();
+    }
+
+    private static String normalize(String name) {
+        if (name == null) return "";
+        String key = name.trim().toUpperCase(java.util.Locale.ROOT).replace(" ", "");
+        return switch (key) {
+            case "SHOPGUIPLUS", "SHOPGUI+" -> "SHOPGUI+";
+            case "ESSENTIALS", "ESSENTIALSX" -> "ESSENTIALSX";
+            case "ECONOMYSHOPGUI-PREMIUM", "ECONOMYSHOPGUIPREMIUM" -> "ECONOMYSHOPGUI";
+            default -> key;
+        };
+    }
+
 
     /**
      * Builds a bridge over an explicit adapter list, used by tests and by hosts
@@ -91,10 +127,19 @@ public final class ShopBridge {
      * unpriceable item look free and could delete loot for no money.
      */
     public double priceOf(ItemStack stack) {
-        if (stack == null || stack.getType().isAir()) return -1.0;
+        return priceOf(null, stack);
+    }
+
+    /** Unit quote retaining metadata and, when supplied, player price modifiers. */
+    public double priceOf(Player player, ItemStack stack) {
+        if (stack == null || stack.getType().isAir() || stack.getAmount() <= 0) return -1.0;
         for (ShopAdapter adapter : adapters) {
             if (!adapter.available()) continue;
-            double price = adapter.priceOf(stack);
+            // Virtual counts can exceed vanilla stack limits. Never pass those
+            // counts to providers or modify the caller's stored item.
+            ItemStack unit = stack.clone();
+            unit.setAmount(1);
+            double price = adapter.priceOf(player, unit);
             if (Double.isFinite(price) && price > 0.0) return price;
         }
         return -1.0;

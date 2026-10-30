@@ -16,15 +16,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Reads {@code hooks.yml} and reports which currency and shop plugin the admin asked for.
- *
- * <p>The sale path settles through Vault only, so this hook deliberately stops at
- * detection: a missing shop plugin is a normal deployment, not an error, and the
- * startup log must say exactly which plugin name was found so an admin can tell a
- * typo from an absent plugin. Detection goes through Bukkit's plugin manager —
- * no reflection, no class-name guessing, no soft dependency on a plugin that may
- * not be installed.
+/** Reads hooks.yml selection and reports plugin presence separately from API readiness.
+ * Functional unit quotes are supplied by the selected commerce ShopBridge adapter;
+ * settlement remains through Vault. Detection alone does not establish pricing.
  */
 public final class ShopHook {
 
@@ -36,13 +30,14 @@ public final class ShopHook {
             # currency: only "Vault" is implemented; any other value is logged and ignored.
             currency: "Vault"
             #
-            # shop: shop plugin to detect at startup.
+            # shop: selected sell-price source. None uses local prices.
             #   Supported: ShopGUI+, EconomyShopGUI, ZShop, ExcellentShop,
             #              DonutWorth, EssentialsX, Nascraft
             #   "None" disables the integration.
             #
-            # Shop integration is informational: sales settle through Vault, so a
-            # detected shop plugin never changes how items are priced or paid out.
+            # EssentialsX, ShopGUI+ and EconomyShopGUI have typed price adapters. Other
+            # shops remain unavailable until their API adapters are implemented.
+            # Payouts use Vault; API failures fall back to configured local prices.
             shop: "None"
             """;
 
@@ -146,10 +141,10 @@ public final class ShopHook {
 
         for (String candidate : hook.pluginNames()) {
             var present = Bukkit.getPluginManager().getPlugin(candidate);
-            if (present != null) {
+            if (present != null && present.isEnabled()) {
                 detectedPlugin = present.getName();
                 plugin.getLogger().info("Shop hook: '" + hook.display() + "' detected as plugin '"
-                        + detectedPlugin + "' — integration is informational, sales use Vault.");
+                        + detectedPlugin + "'; price capability is checked by the selected adapter, payouts use Vault.");
                 return;
             }
         }

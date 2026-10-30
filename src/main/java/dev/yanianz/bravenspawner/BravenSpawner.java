@@ -2,12 +2,8 @@ package dev.yanianz.bravenspawner;
 
 import dev.yanianz.bravenspawner.audit.AuditEvent;
 import dev.yanianz.bravenspawner.audit.AuditLog;
-import dev.yanianz.bravenspawner.audit.AuditMenu;
-import dev.yanianz.bravenspawner.stock.BuyStackService;
 import dev.yanianz.bravenspawner.boosters.Boosters;
 import dev.yanianz.bravenspawner.command.CommandHandler;
-import dev.yanianz.bravenspawner.commerce.PriceResolver;
-import dev.yanianz.bravenspawner.commerce.ShopBridge;
 import dev.yanianz.bravenspawner.config.Settings;
 import dev.yanianz.bravenspawner.corruption.CorruptionTask;
 import dev.yanianz.bravenspawner.econ.Economy;
@@ -15,17 +11,13 @@ import dev.yanianz.bravenspawner.gui.SpawnerGui;
 import dev.yanianz.bravenspawner.holo.Holograms;
 import dev.yanianz.bravenspawner.listener.BlockListener;
 import dev.yanianz.bravenspawner.listener.EntityListener;
-import dev.yanianz.bravenspawner.listener.GuiGuardListener;
 import dev.yanianz.bravenspawner.manager.SpawnerManager;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.platform.HologramConfig;
-import dev.yanianz.bravenspawner.platform.Placeholders;
 import dev.yanianz.bravenspawner.platform.PlatformDetector;
-import dev.yanianz.bravenspawner.platform.PlatformText;
+import dev.yanianz.bravenspawner.platform.Placeholders;
 import dev.yanianz.bravenspawner.product.ProductDefinition;
 import dev.yanianz.bravenspawner.product.ProductLoader;
 import dev.yanianz.bravenspawner.product.ProductRegistry;
-import dev.yanianz.bravenspawner.product.StockService;
 import dev.yanianz.bravenspawner.storage.CheckpointService;
 import dev.yanianz.bravenspawner.storage.SqlStorage;
 import dev.yanianz.bravenspawner.storage.Storage;
@@ -44,28 +36,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.List;
-import java.util.UUID;
 
-/**
- * BravenSpawner — virtual spawners for Paper and Folia.
- *
- * <p>Boot order is fixed and linear: config → storage → catalogue → platform →
- * commerce → manager → subsystems → listeners → command → async load. Nothing
- * schedules a tick before the first load completes, so a slow database can never
- * produce a duplicate cycle, and a failed load can never be followed by a
- * destructive flush.
- *
- * <p>This class is the only one allowed to know about every subsystem. Everything
- * else receives what it needs through its constructor, which keeps the dependency
- * graph acyclic and makes the integration surface auditable in one file.
- */
+/** Startup publishes a usable manager only after storage loading and registration succeed. */
 public final class BravenSpawner extends JavaPlugin {
-
     private static BravenSpawner instance;
-
-    /** False until the first load has been registered; the tick pass gates on it. */
     private volatile boolean ready;
-
     private Settings settings;
     private SpawnerManager manager;
     private Storage storage;
@@ -76,276 +51,215 @@ public final class BravenSpawner extends JavaPlugin {
     private CheckpointService checkpoints;
     private CorruptionTask corruption;
     private AuditLog audit;
-    private AuditMenu auditMenu;
-    private BuyStackService buyStack;
-    private SellWandService wands;
-
     private ProductRegistry products;
-    private StockService stock;
+    private SellWandService wands;
     private PlatformDetector platform;
     private Placeholders placeholders;
-    private PlatformText platformText;
-    private HologramConfig hologramConfig;
-    private ShopBridge shopBridge;
-    private PriceResolver priceResolver;
-
-    private NamespacedKey spawnerIdKey;
-    private NamespacedKey itemKindKey;
-    private NamespacedKey itemProductKey;
-    private NamespacedKey itemStackKey;
-
+    private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
+    private dev.yanianz.bravenspawner.protection.ProtectionService protection;
+    private dev.yanianz.bravenspawner.restrictions.RestrictedSpawners restrictions;
+    private dev.yanianz.bravenspawner.events.SpawnerEvents events;
+    private NamespacedKey spawnerIdKey, itemKindKey, itemProductKey, itemStackKey;
     private FileConfiguration databases;
 
-    public static BravenSpawner get() {
-        return instance;
-    }
-
-    // ------------------------------------------------------------- accessors
-
+    public static BravenSpawner get() { return instance; }
     public boolean ready() { return ready; }
-
-    /** Storage ceiling for a spawner: unlimited, or the capacity of its tier. */
-    public int maximumItems(Spawner spawner) {
-        if (settings.unlimitedStorage) return 0;
-        int tier = spawner == null ? 0 : Math.max(0, Math.min(spawner.tier(), settings.tiers.size() - 1));
-        return settings.tiers.get(tier).capacity;
-    }
-
-    /** XP a spawner may bank before production stops adding to the pool. */
-    public int maximumXp(Spawner spawner) {
-        ProductDefinition def = product(spawner);
-        return def == null || def.maxXpPerCycle() <= 0 ? 100_000 : def.maxXpPerCycle();
-    }
-
     public Settings settings() { return settings; }
     public SpawnerManager manager() { return manager; }
-    public Storage storage() { return storage; }
     public Economy economy() { return economy; }
     public Boosters boosters() { return boosters; }
     public Holograms holograms() { return holograms; }
     public SpawnerGui gui() { return gui; }
+    public Storage storage() { return storage; }
     public CorruptionTask corruption() { return corruption; }
     public AuditLog audit() { return audit; }
-    public AuditMenu auditMenu() { return auditMenu; }
-    public BuyStackService buyStack() { return buyStack; }
-    public SellWandService wands() { return wands; }
-
     public ProductRegistry products() { return products; }
-    public StockService stock() { return stock; }
+    public SellWandService wands() { return wands; }
     public PlatformDetector platform() { return platform; }
     public Placeholders placeholders() { return placeholders; }
-    public PlatformText platformText() { return platformText; }
-    public HologramConfig hologramConfig() { return hologramConfig; }
-    public ShopBridge shopBridge() { return shopBridge; }
-    public PriceResolver priceResolver() { return priceResolver; }
-
+    public dev.yanianz.bravenspawner.commerce.ShopBridge shops() { return shops; }
+    public dev.yanianz.bravenspawner.protection.ProtectionService protection() { return protection; }
+    public dev.yanianz.bravenspawner.restrictions.RestrictedSpawners restrictions() { return restrictions; }
+    public dev.yanianz.bravenspawner.events.SpawnerEvents events() { return events; }
     public NamespacedKey spawnerIdKey() { return spawnerIdKey; }
     public NamespacedKey itemKindKey() { return itemKindKey; }
     public NamespacedKey itemProductKey() { return itemProductKey; }
 
-    /** Resolves the catalogue entry for a spawner, or null when its product vanished. */
     public ProductDefinition product(Spawner spawner) {
         if (products == null || spawner == null) return null;
-        return spawner.kind() == Spawner.Kind.MOB
-                ? products.mob(spawner.product())
-                : products.item(spawner.product());
+        return spawner.kind() == Spawner.Kind.MOB ? products.mob(spawner.product()) : products.item(spawner.product());
     }
-
-    /** Effective stack cap: the product may lower the global limit but never raise it. */
     public int stackLimit(Spawner spawner) {
         ProductDefinition product = product(spawner);
-        int global = settings.stackLimit;
-        return product == null || product.maxStack() <= 0 ? global : Math.min(global, product.maxStack());
+        return product == null || product.maxStack() <= 0 ? settings.stackLimit
+                : Math.min(settings.stackLimit, product.maxStack());
+    }
+    public int maximumItems(Spawner spawner) {
+        ProductDefinition product = product(spawner);
+        return product == null || settings.unlimitedStorage ? 0 : scaledLimit(product.maxStoredItems(), spawner.stack());
+    }
+    public int maximumXp(Spawner spawner) {
+        ProductDefinition product = product(spawner);
+        return product == null || settings.unlimitedStorage ? 0 : scaledLimit(product.maxStoredXp(), spawner.stack());
+    }
+    private static int scaledLimit(int limit, int stack) {
+        return limit <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, (long) limit * Math.max(1, stack));
+    }
+    public void markDirty(Spawner spawner) {
+        if (checkpoints != null && spawner != null) storage.upsert(spawner);
+    }
+    public void markDeleted(java.util.UUID spawnerId) {
+        if (checkpoints != null && spawnerId != null) storage.delete(spawnerId);
+    }
+    public void record(Spawner spawner, AuditEvent.Action action, Player actor, long amount, String detail) {
+        if (audit != null) audit.record(AuditEvent.of(spawner, action,
+                actor == null ? null : actor.getUniqueId(), actor == null ? "Console" : actor.getName(), amount, detail));
     }
 
-    // ------------------------------------------------------------- lifecycle
-
-    @Override
-    public void onEnable() {
+    @Override public void onEnable() {
         instance = this;
+        new dev.yanianz.bravenspawner.platform.PlatformReport(this).log();
+        try {
+            boot();
+        } catch (Throwable failure) {
+            // Leaving a half-initialised plugin registered is worse than stopping it:
+            // commands stay bound, tasks may already run, and the operator only sees
+            // "plugin is disabled". Print the cause and the platform line together.
+            getLogger().severe("BravenSpawner could not start: " + failure);
+            getLogger().severe("Report the platform line above with this stack trace. "
+                    + "NoSuchMethodError/NoClassDefFoundError means the server API differs from "
+                    + "the compiled target (Paper 1.21); check 'api-version' support on this fork.");
+            failure.printStackTrace();
+            getServer().getPluginManager().disablePlugin(this);
+        }
+    }
+
+    private void boot() {
+        boolean existingConfig = new File(getDataFolder(), "config.yml").isFile();
         saveDefaultConfig();
         loadDatabases();
-
         spawnerIdKey = new NamespacedKey(this, "spawner");
         itemKindKey = new NamespacedKey(this, "kind");
         itemProductKey = new NamespacedKey(this, "product");
         itemStackKey = new NamespacedKey(this, "stack");
-
-        settings = Settings.load(getConfig(), databases, null);
-
+        products = new ProductRegistry(new ProductLoader(this, existingConfig));
+        settings = Settings.load(getConfig(), databases, null, products);
         storage = buildStorage();
-        try {
-            storage.init();
-        } catch (RuntimeException e) {
-            getLogger().severe("storage init failed: " + e.getMessage());
+        try { storage.init(); }
+        catch (RuntimeException error) {
+            getLogger().severe("storage init failed: " + error.getMessage());
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-
-        // Catalogue before the manager: migration must finish before the first tick.
-        products = new ProductRegistry(new ProductLoader(this));
-
-        platform = new PlatformDetector(this);
-        placeholders = new Placeholders();
-        platformText = new PlatformText(settings, placeholders);
-        hologramConfig = HologramConfig.load(this);
-
-        shopBridge = new ShopBridge(getLogger());
-        priceResolver = PriceResolver.fromSettings(shopBridge, this::settings);
-
         economy = new Economy();
         if (settings.economy.enabled) economy.hook();
-
         boosters = new Boosters(this);
         manager = new SpawnerManager(this, settings);
-        stock = new StockService(manager, products);
+        audit = new AuditLog(this);
+        platform = new PlatformDetector(this);
+        placeholders = new Placeholders();
+        shops = new dev.yanianz.bravenspawner.commerce.ShopBridge(this);
+        protection = new dev.yanianz.bravenspawner.protection.ProtectionService(this);
+        restrictions = new dev.yanianz.bravenspawner.restrictions.RestrictedSpawners(this);
+        events = new dev.yanianz.bravenspawner.events.SpawnerEvents(this);
         holograms = new Holograms(this);
         gui = new SpawnerGui(this);
-        audit = new AuditLog(this);
-        auditMenu = new AuditMenu(this);
-        buyStack = new BuyStackService(this).audit(audit);
-        wands = SellWandService.install(this);
-        corruption = new CorruptionTask(this);
-
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         getServer().getPluginManager().registerEvents(gui, this);
-        getServer().getPluginManager().registerEvents(new GuiGuardListener(this), this);
-        // SellWandService.install() registers its own listener; registering a
-        // second one would handle every wand click twice.
-
+        getServer().getPluginManager().registerEvents(new dev.yanianz.bravenspawner.listener.GuiGuardListener(this), this);
+        wands = SellWandService.install(this);
         new CommandHandler(this).register(this);
         boosters.start(settings);
-        corruption.start();
-
-        checkpoints = new CheckpointService(this, storage, () -> manager.all());
-
+        corruption = new CorruptionTask(this);
         Schedulers.async(this, () -> {
             List<Spawner> loaded;
-            try {
-                loaded = storage.loadAll();
-            } catch (RuntimeException e) {
-                getLogger().severe("load failed: " + e.getMessage());
-                loaded = List.of();
+            try { loaded = storage.loadAll(); }
+            catch (RuntimeException error) {
+                getLogger().severe("load failed: " + error.getMessage());
+                if (isEnabled()) Schedulers.later(this, 1L,
+                        () -> getServer().getPluginManager().disablePlugin(this));
+                return;
             }
-            List<Spawner> result = loaded;
+            if (!isEnabled()) return;
             Schedulers.later(this, 1L, () -> {
-                result.forEach(manager::register);
-                dev.yanianz.bravenspawner.mechanics.RestoreMissing.reconcile(this, new java.util.ArrayList<>(result));
+                if (!isEnabled()) return;
+                loaded.forEach(manager::register);
+                dev.yanianz.bravenspawner.mechanics.RestoreMissing.reconcile(this, new java.util.ArrayList<>(loaded));
+                ready = true;
+                checkpoints = new CheckpointService(this, storage, manager::all);
+                corruption.start();
+                events.start();
                 manager.startAll();
                 holograms.refreshAll();
-                ready = true;
-                getLogger().info("BravenSpawner ready — " + manager.size()
-                        + " spawner(s), storage=" + settings.storageType
-                        + (Schedulers.isFolia() ? ", folia" : ""));
+                getLogger().info("BravenSpawner ready — " + manager.size() + " spawner(s), storage=" + settings.storageType);
             });
         });
     }
 
-    @Override
-    public void onDisable() {
-        if (manager != null) manager.stopAll();
-        if (corruption != null) corruption.stop();
+    @Override public void onDisable() {
+        ready = false;
         if (wands != null) wands.shutdown();
+        if (boosters != null) boosters.shutdown();
+        if (events != null) events.close();
+        if (corruption != null) corruption.stop();
+        if (manager != null) manager.stopAll();
+        if (checkpoints != null) { checkpoints.close(); checkpoints = null; }
         if (holograms != null) holograms.removeAll();
-        if (checkpoints != null) {
-            checkpoints.close();
-            checkpoints = null;
-        }
         if (audit != null) audit.close();
-        if (storage != null && manager != null) {
-            try {
-                // Only a completed load may be written back: flushing before the
-                // first load would replace the durable state with an empty map.
-                if (ready) storage.flushAll(manager.all());
-            } catch (RuntimeException e) {
-                getLogger().severe("final flush failed: " + e.getMessage());
-            }
-            storage.close();
-        }
+        if (storage != null) storage.close();
         instance = null;
     }
-
-    // ---------------------------------------------------------------- storage
-
     private void loadDatabases() {
         File file = new File(getDataFolder(), "databases.yml");
         if (!file.exists()) saveResource("databases.yml", false);
         databases = YamlConfiguration.loadConfiguration(file);
     }
-
     private Storage buildStorage() {
         String type = settings.storageType;
+        if (type.equals("MONGODB") || type.equals("MONGO")) return new dev.yanianz.bravenspawner.storage.MongoStorage(this, databases);
         if (type.equals("SQLITE") || type.equals("MYSQL")) {
             var section = databases.getConfigurationSection("mysql") != null ? databases : getConfig();
-            var dialect = type.equals("MYSQL") ? SqlStorage.Dialect.MYSQL : SqlStorage.Dialect.SQLITE;
-            return new SqlStorage(this, section, dialect);
+            return new SqlStorage(this, section, type.equals("MYSQL") ? SqlStorage.Dialect.MYSQL : SqlStorage.Dialect.SQLITE);
         }
-        return new YamlStorage(this);
+        if (type.equals("YAML")) return new YamlStorage(this);
+        throw new IllegalArgumentException("Unsupported storage type: " + type);
     }
-
-    // ------------------------------------------------------------- durability
-
-    /** Marks a spawner for the next durable checkpoint. Cheap: it only dirties an id. */
-    public void markDirty(Spawner spawner) {
-        if (checkpoints != null && spawner != null) storage.upsert(spawner);
-    }
-
-    /** Marks a record for deletion on the next checkpoint. */
-    public void markDeleted(UUID spawnerId) {
-        if (checkpoints != null && spawnerId != null) storage.delete(spawnerId);
-    }
-
-    // ------------------------------------------------------------------ audit
-
-    public void record(Spawner spawner, AuditEvent.Action action, Player actor, long amount, String detail) {
-        if (audit == null) return;
-        audit.record(AuditEvent.of(spawner, action,
-                actor == null ? null : actor.getUniqueId(),
-                actor == null ? "Console" : actor.getName(),
-                amount, detail));
-    }
-
-    // ------------------------------------------------------------------ items
-
-    /** Builds the physical spawner item, carrying kind, product and stack count. */
     public ItemStack createSpawnerItem(Spawner.Kind kind, String product, int stack) {
         ItemStack item = new ItemStack(settings.spawnerMaterial);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
-
-        ProductDefinition def = kind == Spawner.Kind.MOB
-                ? (products == null ? null : products.mob(product))
-                : (products == null ? null : products.item(product));
-        String display = def == null ? product : def.displayName();
-        meta.displayName(Text.of(settings.spawnerName
-                .replace("%displayname%", display)
-                .replace("%color%", "")));
-        meta.lore(Text.of(settings.spawnerLore));
-        meta.getPersistentDataContainer().set(itemKindKey, PersistentDataType.STRING, kind.name());
-        meta.getPersistentDataContainer().set(itemProductKey, PersistentDataType.STRING, product);
-        meta.getPersistentDataContainer().set(itemStackKey, PersistentDataType.INTEGER, Math.max(1, stack));
+        ProductDefinition definition = kind == Spawner.Kind.MOB ? products.mob(product) : products.item(product);
+        String display = definition == null ? product : definition.displayName();
+        String name = definition != null && definition.spawnerItemName() != null ? definition.spawnerItemName() : settings.spawnerName;
+        meta.displayName(Text.of(name.replace("%displayname%", display).replace("%color%", "")));
+        meta.lore(Text.of(definition != null && definition.spawnerItemLore() != null ? definition.spawnerItemLore() : settings.spawnerLore));
+        var pdc = meta.getPersistentDataContainer();
+        pdc.set(itemKindKey, PersistentDataType.STRING, kind.name());
+        pdc.set(itemProductKey, PersistentDataType.STRING, product);
+        pdc.set(itemStackKey, PersistentDataType.INTEGER, Math.max(1, stack));
         item.setItemMeta(meta);
         return item;
     }
-
     public ItemStack createSpawnerItem(Spawner spawner) {
         return createSpawnerItem(spawner.kind(), spawner.product(), spawner.stack());
     }
-
-    // ----------------------------------------------------------------- reload
-
-    /** Persists, reloads config, and rebuilds every tick schedule. */
     public void reloadAll() {
-        if (manager != null) storage.flushAll(manager.all());
+        if (!ready) throw new IllegalStateException("Spawner storage is not ready");
+        if (checkpoints == null || !checkpoints.flushNow()) throw new IllegalStateException("Could not save spawner state before reload");
         reloadConfig();
         loadDatabases();
-        settings = Settings.load(getConfig(), databases, null);
+        products.reload();
+        settings = Settings.load(getConfig(), databases, null, products);
+        platform = new PlatformDetector(this);
+        placeholders = new Placeholders();
+        gui.reloadMenus();
+        wands.reload();
+        boosters.reload(settings);
+        restrictions.reload();
+        events.reload();
+        shops = new dev.yanianz.bravenspawner.commerce.ShopBridge(this);
         manager.settings(settings);
-        if (products != null) products.reload();
-        if (gui != null) gui.menus().reload();
-        if (buyStack != null) buyStack.reload();
-        if (auditMenu != null) auditMenu.reload();
-        getLogger().info("configuration reloaded");
+        holograms.reload();
     }
 }

@@ -16,8 +16,8 @@ import java.util.logging.Logger;
  * lookup is the only probe that is both cheap and safe on every host, and it
  * cannot accidentally trigger a shop's API initialisation or load a class that
  * is not installed. The price capability itself is supplied by
- * {@link #apiPresent()}, which is false in this build because no shop API is on
- * the compile classpath and reflection is forbidden. Reporting unavailable is
+ * {@link #apiPresent()}; typed integrations override it only when their runtime
+ * API and price registry are ready. Reflection is not used. Reporting unavailable is
  * the honest answer; inventing a price would let the plugin delete loot for
  * money that was never quoted.
  *
@@ -67,7 +67,13 @@ public abstract class AbstractPluginShopAdapter implements ShopAdapter {
     public final boolean available() {
         Plugin present = plugin();
         if (present == null) return false;
-        if (apiPresent()) return true;
+        if (!present.isEnabled()) return false;
+        try {
+            if (apiPresent()) return true;
+        } catch (RuntimeException | LinkageError error) {
+            reportFailure(error);
+            return false;
+        }
         if (warned.compareAndSet(false, true)) {
             logger.warning(unavailableReason());
         }
@@ -102,9 +108,14 @@ public abstract class AbstractPluginShopAdapter implements ShopAdapter {
             return displayName + " is not installed (looked for " + String.join(", ", pluginNames) + ").";
         }
         return displayName + " is installed as '" + present.getName()
-                + "', but its prices live behind " + requiredApi
-                + "; this build has no compile dependency on that API and reflection is forbidden,"
-                + " so the shop reports unavailable and the local sell-prices table is used instead.";
+                + "', but " + requiredApi + " is unavailable or not ready; local prices remain the fallback.";
+    }
+
+    protected final void reportFailure(Throwable error) {
+        if (warned.compareAndSet(false, true)) {
+            logger.warning(displayName + " pricing unavailable: " + error.getClass().getSimpleName()
+                    + ": " + error.getMessage() + "; using configured fallback prices.");
+        }
     }
 
     /**
@@ -114,7 +125,7 @@ public abstract class AbstractPluginShopAdapter implements ShopAdapter {
      * bridge is constructed there, so caching the absence keeps a price lookup
      * from walking the plugin manager for every item in a large sell quote.
      */
-    private Plugin plugin() {
+    protected final Plugin plugin() {
         Plugin cached = plugin;
         if (cached != null) return cached;
         if (probed) return null;

@@ -324,38 +324,19 @@ public final class SqlStorage implements Storage {
 
     // ----------------------------------------------------------------- write
 
-    @Override
-    public void upsert(Spawner spawner) {
+    /** Gameplay paths enqueue only; the checkpoint thread owns database I/O. */
+    @Override public void upsert(Spawner spawner) {
         if (spawner == null) return;
         tombstones.remove(spawner.id());
-        HikariDataSource pool = requireDataSource();
-        try (Connection c = pool.getConnection()) {
-            inTransaction(c, () -> writeRow(c, spawner));
-        } catch (Exception e) {
-            dirty.add(spawner.id());
-            plugin.getLogger().severe("upsert failed for spawner " + spawner.id() + ": " + e.getMessage());
-            throw new StorageException("upsert failed for spawner " + spawner.id(), e);
-        }
-        // Still marked dirty: the record is durable, but later in-memory changes
-        // are only captured by the next checkpoint pass.
+        pendingDeletes.remove(spawner.id());
         dirty.add(spawner.id());
     }
 
-    @Override
-    public void delete(UUID id) {
+    @Override public void delete(UUID id) {
         if (id == null) return;
         tombstones.add(id);
-        HikariDataSource pool = requireDataSource();
-        try (Connection c = pool.getConnection()) {
-            inTransaction(c, () -> deleteRow(c, id));
-        } catch (Exception e) {
-            pendingDeletes.add(id);
-            dirty.add(id);
-            plugin.getLogger().severe("delete failed for spawner " + id + ": " + e.getMessage());
-            throw new StorageException("delete failed for spawner " + id, e);
-        }
-        pendingDeletes.remove(id);
-        dirty.remove(id);
+        pendingDeletes.add(id);
+        dirty.add(id);
     }
 
     @Override
@@ -373,6 +354,7 @@ public final class SqlStorage implements Storage {
         Set<UUID> pending = new HashSet<>(dirty);
         dirty.removeAll(pending);
 
+        Set<UUID> deletes = new HashSet<>(pendingDeletes);
         Set<UUID> live = new HashSet<>();
         for (Spawner s : spawners) {
             if (!tombstones.contains(s.id())) live.add(s.id());
@@ -380,7 +362,7 @@ public final class SqlStorage implements Storage {
 
         try (Connection c = pool.getConnection()) {
             inTransaction(c, () -> {
-                for (UUID id : pendingDeletes) {
+                for (UUID id : deletes) {
                     if (!live.contains(id)) deleteRow(c, id);
                 }
                 for (Spawner s : spawners) {
@@ -398,7 +380,7 @@ public final class SqlStorage implements Storage {
         }
 
         // Committed: only now is it safe to forget the deletes this pass retried.
-        pendingDeletes.removeIf(id -> !live.contains(id));
+        pendingDeletes.removeAll(deletes);
     }
 
     /**
@@ -475,7 +457,9 @@ public final class SqlStorage implements Storage {
 
     @Override
     public int pendingWrites() {
-        return dirty.size() + pendingDeletes.size();
+        Set<UUID> pending = new HashSet<>(dirty);
+        pending.addAll(pendingDeletes);
+        return pending.size();
     }
 
     @Override

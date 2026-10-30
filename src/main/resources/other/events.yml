@@ -1,0 +1,192 @@
+# Global switch to enable or disable all events
+# Set to 'true' to enable the event system, 'false' to disable it completely
+# When disabled, no events will occur and all multipliers will default to 1.0
+spawner-events-enabled: true
+
+# Check interval for starting new events (in seconds)
+# This determines how often the system checks if a new event should start
+# Lower values make checks more frequent but may impact performance
+# Higher values reduce checks but may lead to longer periods without events
+check-interval: 300 # 5 minutes
+
+# Chance to trigger an event when no events are active (0.0 to 1.0)
+# This is checked at each interval defined by 'check-interval'
+# 0.0 means events will never start automatically
+# 1.0 means an event will always start if none are active
+# 0.5 gives a 50% chance of an event starting at each check
+trigger-chance: 0.5
+
+# If true, there will always be an active event
+# When one event ends, another will immediately start
+# This overrides the 'trigger-chance' setting
+# Use with caution as it may lead to event fatigue for players
+always-active: false
+
+# Maximum number of concurrent events
+# Set to 1 to disable event stacking
+# Higher values allow multiple events to run simultaneously
+max-concurrent-events: 1
+
+# Global message settings
+global-messages:
+  # Set to true to use global messages instead of event-specific ones
+  # This allows for consistent messaging across all events
+  use-global-messages: false
+
+  # Message displayed when any event starts
+  event-start:
+    - "&8&m------------------------------"
+    - "&e&l✦ Global Spawner Event Started ✦"
+    - " "
+    - "&fType: &6{event_name}"
+    - "&fDuration: &a{duration} seconds"
+    - "&fXP Boost: &bx{xp_multiplier}"
+    - "&fCash Boost: &bx{cash_multiplier}"
+    - " "
+    - "&7Good luck and have fun spawning!"
+    - "&8&m------------------------------"
+
+  # Message displayed when any event ends
+  event-end:
+    - "&8&m------------------------------"
+    - "&c&l✦ Global Spawner Event Ended ✦"
+    - " "
+    - "&fType: &6{event_name}"
+    - " "
+    - "&7Thanks for participating!"
+    - "&8&m------------------------------"
+
+# Spawner Event definitions
+# Each event has its own configuration for weights, multipliers, duration, and custom messages/commands
+spawner-events:
+  # Double XP event
+  double-xp:
+    # Relative chance of this event being selected (higher = more likely)
+    weight: 10
+
+    # Multiplier for XP gains from spawners during this event
+    xp-multiplier: 2.0
+
+    # Multiplier for cash gains from spawners during this event
+    cash-multiplier: 1.0
+
+    # Duration of the event in seconds
+    duration: 180 # 3 minutes
+
+    # Days of the week when this event can occur
+    days:
+      - SATURDAY
+      - SUNDAY
+
+    # Time range when this event can start
+    time-range:
+      start: "14:00"
+      end: "22:00"
+
+    # Months when this event is available (seasonal event)
+    season:
+      start-month: 6  # June
+      end-month: 8    # August
+
+    # Custom start message for this specific event
+    start-messages:
+      - "&8&m------------------------------"
+      - "&e&l✦ Double XP Spawner Event Started ✦"
+      - " "
+      - "&fDuration: &a{duration} seconds"
+      - "&fXP Boost: &bx{xp_multiplier}"
+      - " "
+      - "&7Time to grind those spawners!"
+      - "&8&m------------------------------"
+
+    # Custom end message for this specific event
+    end-messages:
+      - "&8&m------------------------------"
+      - "&c&l✦ Double XP Spawner Event Ended ✦"
+      - " "
+      - "&7Hope you gained lots of levels from your spawners!"
+      - "&8&m------------------------------"
+
+    # Commands executed when the event starts
+    start-commands:
+      - "broadcast Double XP spawner event has begun!"
+
+    # Commands executed when the event ends
+    end-commands:
+      - "broadcast Double XP spawner event has ended!"
+
+  # Cash Boost event
+  cash-boost:
+    weight: 5
+    xp-multiplier: 1.0
+    cash-multiplier: 1.5
+    duration: 300 # 5 minutes
+    days:
+      - MONDAY
+      - TUESDAY
+      - WEDNESDAY
+      - THURSDAY
+      - FRIDAY
+    time-range:
+      start: "18:00"
+      end: "23:59"
+    season:
+      start-month: 1  # January
+      end-month: 12   # December
+    start-messages:
+      - "&8&m------------------------------"
+      - "&e&l✦ Cash Boost Spawner Event Started ✦"
+      - " "
+      - "&fDuration: &a{duration} seconds"
+      - "&fCash Boost: &bx{cash_multiplier}"
+      - " "
+      - "&7Time to make money with your spawners!"
+      - "&8&m------------------------------"
+    end-messages:
+      - "&8&m------------------------------"
+      - "&c&l✦ Cash Boost Spawner Event Ended ✦"
+      - " "
+      - "&7Hope your spawners filled your pockets!"
+      - "&8&m------------------------------"
+    start-commands:
+      - "broadcast Cash boost spawner event has begun!"
+    end-commands:
+      - "broadcast Cash boost spawner event has ended!"
+
+  # Super Boost event
+  super-boost:
+    weight: 1
+    xp-multiplier: 2.0
+    cash-multiplier: 2.0
+    duration: 120 # 2 minutes
+    days:
+      - FRIDAY
+      - SATURDAY
+    time-range:
+      start: "20:00"
+      end: "23:59"
+    season:
+      start-month: 12  # December
+      end-month: 2     # February (Winter season)
+    start-messages:
+      - "&8&m------------------------------"
+      - "&e&l✦ Super Boost Spawner Event Started ✦"
+      - " "
+      - "&fDuration: &a{duration} seconds"
+      - "&fXP Boost: &bx{xp_multiplier}"
+      - "&fCash Boost: &bx{cash_multiplier}"
+      - " "
+      - "&7Your spawners are supercharged!"
+      - "&8&m------------------------------"
+    end-messages:
+      - "&8&m------------------------------"
+      - "&c&l✦ Super Boost Spawner Event Ended ✦"
+      - " "
+      - "&7What an amazing spawner boost that was!"
+      - "&8&m------------------------------"
+    start-commands:
+      - "effect give @a speed 120 1"
+    end-commands:
+      - "effect clear @a speed"
+
+# You can add more events here following the same structure

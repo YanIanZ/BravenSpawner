@@ -1,0 +1,51 @@
+speedboost:
+  type: INCREASE_SPEED
+  multiplier: 2
+  display-name: "&b&lSpeed Boost"
+  expiration-time: 1d
+  item:
+    material: PAPER
+    name: "&c&lSpeed Boost"
+    lore:
+      - "&7This will increase spawner speed by x2"
+      - ""
+      - "&7Expires in: &f%expiration_time%"
+
+xpbooster:
+  type: INCREASE_XP
+  multiplier: 2
+  display-name: "&a&lXP Booster"
+  expiration-time: 1d
+  item:
+    material: experience_bottle
+    name: "&a&lXP Booster"
+    lore:
+      - "&7This will increase spawner XP by x2"
+      - ""
+      - "&7Expires in: &f%expiration_time%"
+
+lootbooster:
+  type: INCREASE_LOOT
+  multiplier: 2
+  display-name: "&c&lLoot Booster"
+  expiration-time: 1d
+  item:
+    material: DIAMOND
+    name: "&c&lLoot Booster"
+    lore:
+      - "&7This will increase spawner loot by x2"
+      - ""
+      - "&7Expires in: &f%expiration_time%"
+
+autosell:
+  type: AUTO_SELL
+  multiplier: 0
+  display-name: "&6&lAutosell Booster"
+  expiration-time: 1d
+  item:
+    material: GOLD_INGOT
+    name: "&6&lAutosell Booster"
+    lore:
+      - "&7This will autosell all the items in your spawner constantly"
+      - ""
+      - "&7Expires in: &f%expiration_time%"

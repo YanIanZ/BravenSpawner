@@ -13,6 +13,10 @@ import static org.mockito.Mockito.*;
 class FullCollectionTest {
     @Test void fullOnlyProductCannotCollectXpBelowItsStackScaledCapacity() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.events().xpMultiplier()).thenReturn(1.0);
+        when(plugin.boosters().personalMultiplier(eq(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP), any())).thenReturn(1.0);
+        when(plugin.restrictions()).thenReturn(null);
+        when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class);
         when(plugin.product(spawner).mustBeFullToCollect()).thenReturn(true);
@@ -24,6 +28,10 @@ class FullCollectionTest {
 
     @Test void fullOnlyProductCannotSellBelowItsStackScaledItemCapacity() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.events().xpMultiplier()).thenReturn(1.0);
+        when(plugin.boosters().personalMultiplier(eq(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP), any())).thenReturn(1.0);
+        when(plugin.restrictions()).thenReturn(null);
+        when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class);
         when(plugin.product(spawner).mustBeFullToCollect()).thenReturn(true);
@@ -31,6 +39,28 @@ class FullCollectionTest {
         when(spawner.storedCount()).thenReturn(1999);
         invoke(plugin, "sellAll", player, spawner);
         verify(spawner, never()).drainAll();
+    }
+
+    @Test void zeroEventXpDoesNotConsumeTheBank() throws Exception {
+        BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.events().xpMultiplier()).thenReturn(0.0);
+        when(plugin.boosters().personalMultiplier(any(), any())).thenReturn(1.0);
+        Spawner model = mock(Spawner.class);
+        when(model.storedXp()).thenReturn(17);
+        when(model.takeXp()).thenReturn(17);
+        invoke(plugin, "collectXp", mock(Player.class), model);
+        verify(model, never()).takeXp();
+    }
+    @Test void eventAndPersonalXpRoundAtTheirSeparateReferenceStages() throws Exception {
+        BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.events().xpMultiplier()).thenReturn(1.5);
+        when(plugin.boosters().personalMultiplier(any(), any())).thenReturn(1.5);
+        Spawner model = mock(Spawner.class);
+        when(model.storedXp()).thenReturn(1);
+        when(model.takeXp()).thenReturn(1);
+        Player player = mock(Player.class);
+        invoke(plugin, "collectXp", player, model);
+        verify(player).giveExp(3);
     }
 
     private void invoke(BravenSpawner plugin, String method, Player player, Spawner spawner) throws Exception {

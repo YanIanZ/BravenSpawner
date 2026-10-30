@@ -1,12 +1,20 @@
 name: BravenSpawner
 version: '${version}'
 main: dev.yanianz.bravenspawner.BravenSpawner
-api-version: '1.20'
+api-version: '1.21'
 author: yanianz
 description: Virtual spawners with stacking, chest GUI, upgrades, boosters, corruption and Folia support.
 load: POSTWORLD
 folia-supported: true
 softdepend:
+  - sourbyapi
+  - SourbyCraft
+  - Essentials
+  - EssentialsX
+  - ShopGUIPlus
+  - EconomyShopGUI
+  - EconomyShopGUI-Premium
+  - WorldEdit
   - Vault
   - WorldGuard
   - Lands
@@ -34,3 +42,6 @@ permissions:
     default: true
   bravenspawner.item.extract:
     default: true
+
+  bravenspawner.restrictions.bypass:
+    default: op

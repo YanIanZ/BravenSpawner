@@ -5,6 +5,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-30
+
+### Added
+- Startup platform report: server brand, Minecraft version, Java, region-threaded
+  detection, Folia API presence and whether sourbyapi/SourbyCraft/AuroraBridge are
+  installed. One line, at INFO, before any subsystem starts.
+
+### Changed
+- `api-version` raised from 1.20 to 1.21 to match the compiled target.
+- `sourbyapi` and `SourbyCraft` added to `softdepend`.
+
+### Fixed
+- A failure during enable now logs the full stack trace and a remediation line
+  instead of leaving a half-initialised plugin that only reports "plugin is
+  disabled" when a command runs.
+
 ## [1.1.1] - 2026-10-30
 
 ### Fixed
@@ -82,7 +98,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.2
 [1.1.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.1
 [1.0.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.2
 [1.0.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.1

@@ -89,7 +89,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage(Text.of("&e/bspawner give|list|reload|booster|sellwand|modifier|menu|corrupt|repair"));
+            sender.sendMessage(Text.of("&e/bspawner give|list|reload|booster|boosteritem|sellwand|modifier|menu|corrupt|repair"));
             return true;
         }
         switch (args[0].toLowerCase(Locale.ROOT)) {
@@ -100,6 +100,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Text.of("&aReloaded."));
             }
             case "booster" -> booster(sender, args);
+            case "boosteritem" -> boosterItem(sender, args);
             case "sellwand" -> grantWand(sender, args);
             case "modifier" -> grantModifier(sender, args);
             case "menu" -> {
@@ -152,9 +153,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             }
         }
         ItemStack item = plugin.createSpawnerItem(kind, product, stack);
-        var leftover = target.getInventory().addItem(item);
-        leftover.values().forEach(l -> target.getWorld().dropItemNaturally(target.getLocation(), l));
-        target.sendMessage(Text.of("&aReceived &f" + product + " &ax" + stack));
+        int units = stack;
+        dev.yanianz.bravenspawner.util.Schedulers.onEntity(plugin, target, () -> {
+            var leftover = target.getInventory().addItem(item);
+            leftover.values().forEach(l -> target.getWorld().dropItemNaturally(target.getLocation(), l));
+            target.sendMessage(Text.of("&aReceived &f" + product + " &ax" + units));
+        }, () -> { });
     }
 
     private void list(CommandSender sender) {
@@ -201,6 +205,31 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         plugin.boosters().grantPlayer(target.getUniqueId(), multiplier, seconds);
         sender.sendMessage(Text.of("&aBooster " + multiplier + "x for " + target.getName()
                 + " &7(" + seconds + "s)"));
+    }
+
+    private void boosterItem(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage(Text.of("&e/bspawner boosteritem <player> <normal|personal> <id> [amount]"));
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            sender.sendMessage(Text.of("&cPlayer not found."));
+            return;
+        }
+        dev.yanianz.bravenspawner.boosters.Boosters.Scope scope;
+        try { scope = dev.yanianz.bravenspawner.boosters.Boosters.Scope.valueOf(args[2].toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException exception) {
+            sender.sendMessage(Text.of("&cScope must be normal or personal."));
+            return;
+        }
+        int amount = grantAmount(sender, args, 4);
+        if (amount == 0) return;
+        if (!plugin.boosters().giveItem(target, scope, args[3], amount)) {
+            sender.sendMessage(Text.of("&cUnknown booster id or boosters are disabled."));
+            return;
+        }
+        sender.sendMessage(Text.of("&aScheduled booster item delivery to " + target.getName() + "."));
     }
 
     private void grantWand(CommandSender sender, String[] args) {
@@ -296,6 +325,8 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         Spawner spawner = nearest(player);
         if (spawner == null) return;
         spawner.corrupt();
+        plugin.markDirty(spawner);
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.CORRUPT, player, 0, "command");
         player.sendMessage(Text.of("&cSpawner corrupted."));
     }
 
@@ -304,6 +335,8 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         Spawner spawner = nearest(player);
         if (spawner == null) return;
         spawner.repair();
+        plugin.markDirty(spawner);
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.REPAIR, player, 0, "command");
         player.sendMessage(Text.of("&aSpawner repaired."));
     }
 
@@ -338,6 +371,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             spawner.trusted().add(id);
             player.sendMessage(Text.of("&aTrusted: " + target.getName()));
         }
+        plugin.markDirty(spawner);
         return true;
     }
 
@@ -354,6 +388,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         boolean state = !own.get(0).hologram();
         own.forEach(s -> {
             s.hologram(state);
+            plugin.markDirty(s);
             plugin.holograms().update(s);
         });
         player.sendMessage(Text.of("&eHolograms: " + (state ? "on" : "off")));
@@ -367,15 +402,22 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "bspawner" -> {
                 if (!sender.hasPermission("bravenspawner.admin")) return List.of();
                 if (args.length == 1) {
-                    out.addAll(List.of("give", "list", "reload", "booster", "sellwand", "modifier", "menu", "corrupt", "repair"));
+                    out.addAll(List.of("give", "list", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair"));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
                     out.addAll(plugin.settings().mobs().keySet());
                     plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
                     Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
+                } else if (args.length == 3 && args[0].equalsIgnoreCase("boosteritem")) {
+                    out.addAll(List.of("normal", "personal"));
+                } else if (args.length == 4 && args[0].equalsIgnoreCase("boosteritem")) {
+                    try {
+                        var scope = dev.yanianz.bravenspawner.boosters.Boosters.Scope.valueOf(args[2].toUpperCase(Locale.ROOT));
+                        out.addAll(plugin.boosters().itemIds(scope));
+                    } catch (IllegalArgumentException ignored) { }
                 } else if (args.length == 3 && args[0].equalsIgnoreCase("modifier") && plugin.wands() != null) {
                     plugin.wands().modifierTypes().forEach(type -> out.add(type.id()));
-                } else if (args.length == 2 && List.of("booster", "sellwand", "modifier").contains(args[0].toLowerCase(Locale.ROOT))) {
+                } else if (args.length == 2 && List.of("booster", "boosteritem", "sellwand", "modifier").contains(args[0].toLowerCase(Locale.ROOT))) {
                     Bukkit.getOnlinePlayers().forEach(p -> out.add(p.getName()));
                 }
             }

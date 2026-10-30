@@ -18,7 +18,7 @@ import java.util.List;
  * false. {@link #priceOf(ItemStack)} returning {@code -1} is the "no opinion"
  * answer and is never silently interpreted as a free item; the bridge skips it
  * and the local {@code sell-prices} table decides instead. This build carries no
- * compile dependency on any shop plugin and forbids reflection, so an adapter
+ * runtime requirement on shop plugins and forbids reflection, so an adapter
  * may only become available through a channel that is genuinely on the
  * classpath — never through a guessed class name.
  */
@@ -43,6 +43,12 @@ public interface ShopAdapter {
      *         item (unsupported item, unavailable shop, or not a sellable good)
      */
     double priceOf(ItemStack stack);
+
+    /** Player-aware unit quote; adapters without personal prices use the base quote. */
+    default double priceOf(Player player, ItemStack stack) {
+        return priceOf(stack);
+    }
+
 
     /**
      * Sells the stacks through the shop and returns the total actually credited.

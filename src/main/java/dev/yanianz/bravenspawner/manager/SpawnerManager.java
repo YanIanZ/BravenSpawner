@@ -206,6 +206,9 @@ public final class SpawnerManager {
         if (definition != null && spawner.tier() == 0) {
             period = ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
         }
+        double speed = plugin.boosters() == null ? 1.0
+                : plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.SPEED, spawner.owner(), spawner.id());
+        if (Double.isFinite(speed) && speed > 0.0) period = Math.max(20L, Math.round(period / speed));
         try {
             Schedulers.Cancelable handle = Schedulers.repeating(plugin, location, period, () -> tick(spawner));
             tasks.put(spawner.id(), new TaskLease(handle));
@@ -259,8 +262,7 @@ public final class SpawnerManager {
 
             plugin.holograms().update(spawner);
             var definition = plugin.product(spawner);
-            if (spawner.tier() == 0 && definition != null
-                    && definition.maxIntervalTicks() > definition.intervalTicks()) reschedule(spawner);
+            if (definition != null) reschedule(spawner);
         } catch (RuntimeException e) {
             // A thrown exception would cancel the repeating task on Folia, which
             // would silently stop the spawner for the rest of the session.
@@ -285,7 +287,8 @@ public final class SpawnerManager {
     private void produceVirtual(Spawner spawner, Settings s) {
         var product = plugin.product(spawner);
         if (product == null) return;
-        double multiplier = plugin.boosters().multiplier(spawner.owner(), spawner.id());
+        double multiplier = plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.LOOT,
+                spawner.owner(), spawner.id());
         int credits = (int) Math.min(Integer.MAX_VALUE,
                 Math.max(1.0, Math.floor(Math.max(1, spawner.stack()) * multiplier)));
         Random random = ThreadLocalRandom.current();
@@ -304,7 +307,10 @@ public final class SpawnerManager {
             spawner.storeVirtual(output, plugin.maximumItems(spawner));
         }
         int xp = dev.yanianz.bravenspawner.product.ProductRoller.range(
-                product.xp(), product.maxXpPerCycle(), credits, random);
+                product.xp(), product.maxXpPerCycle(), Math.max(1, spawner.stack()), random);
+        double xpMultiplier = plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP,
+                spawner.owner(), spawner.id());
+        xp = (int) Math.min(Integer.MAX_VALUE, Math.round(xp * xpMultiplier));
         spawner.addXp(xp, plugin.maximumXp(spawner));
         spawner.produced(credits);
         plugin.markDirty(spawner);

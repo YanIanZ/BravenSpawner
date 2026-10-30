@@ -1,0 +1,7 @@
+# Limit menu access or temporarily restrict listed products to selling only.
+messages:
+  restricted: "&cAccess to the %spawner_type% spawner is currently restricted."
+settings:
+  lockmode: false
+  allow-take-items: false
+restricted: []

@@ -143,6 +143,7 @@ public final class SpawnerGui implements Listener {
 
     public void openMenu(Player player, Spawner spawner) {
         Settings s = plugin.settings();
+        if (!authorized(player, spawner)) return;
         if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) {
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
@@ -162,7 +163,7 @@ public final class SpawnerGui implements Listener {
                 List.of("&7Stored: &f" + spawner.storedCount(),
                         "&7Slots: &f" + spawner.distinctSlots(),
                         "&7XP: &f" + spawner.storedXp())));
-        inv.setItem(11, sellButton(spawner));
+        inv.setItem(11, sellButton(player, spawner));
         inv.setItem(12, button(Material.EXPERIENCE_BOTTLE, "&eCollect XP",
                 List.of("&7Move stored XP to you.")));
         inv.setItem(13, button(Material.HOPPER, "&bCollect items",
@@ -222,19 +223,23 @@ public final class SpawnerGui implements Listener {
     }
 
     private boolean authorized(Player player, Spawner spawner) {
+        if (player != null && spawner != null) {
+            if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return false;
+            if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation())) return false;
+        }
         if (spawner.canUse(player.getUniqueId()) || player.hasPermission("bravenspawner.admin")) return true;
         player.sendMessage(Text.of("&cThat spawner is not yours."));
         return false;
     }
 
-    private Map<String, String> placeholders(Spawner spawner, int page, int pages) {
+    private Map<String, String> placeholders(Player player, Spawner spawner, int page, int pages) {
         Map<String, String> values = new LinkedHashMap<>();
         values.put("entity", spawner.product());
         values.put("tier", String.valueOf(spawner.tier()));
         values.put("stack", String.valueOf(spawner.stack()));
         values.put("stored", String.valueOf(spawner.storedCount()));
         values.put("xp", String.valueOf(spawner.storedXp()));
-        values.put("value", sellService.format(sellService.value(spawner)));
+        values.put("value", sellService.format(sellService.value(player, spawner)));
         values.put("page", String.valueOf(page + 1));
         values.put("pages", String.valueOf(pages));
         values.put("head_texture", "");
@@ -279,7 +284,7 @@ public final class SpawnerGui implements Listener {
         String layout = name.equals("spawner") && plugin.platform() != null
                 && plugin.platform().configured() && plugin.platform().isBedrock(player)
                 ? "bedrock_mode" : definition.defaultLayout();
-        MenuHolder opened = menus.open(player, name, layout, placeholders(spawner, page, pages), actions);
+        MenuHolder opened = menus.open(player, name, layout, placeholders(player, spawner, page, pages), actions);
         if (opened == null) return true;
         GuiHolder session = new GuiHolder(spawner.id(), generations.incrementAndGet(),
                 name.equals("storage") ? View.STORAGE : name.equals("corruption") ? View.PUZZLE
@@ -358,7 +363,7 @@ public final class SpawnerGui implements Listener {
                             "&7" + event.world() + " " + event.x() + ", " + event.y() + ", " + event.z(),
                             "&f" + event.detail())));
         }
-        Map<String, String> values = new LinkedHashMap<>(placeholders(spawner, page, pages));
+        Map<String, String> values = new LinkedHashMap<>(placeholders(player, spawner, page, pages));
         values.put("player", query.mine ? player.getName() : "All");
         values.put("logtype", query.type < 0 ? "All" : AuditEvent.Action.values()[query.type].name());
         values.put("limit", String.valueOf(query.limit));
@@ -399,8 +404,8 @@ public final class SpawnerGui implements Listener {
         if (current == null || current.view != View.PUZZLE) return;
         current.definition = definition;
         current.puzzle = new OrderedPuzzle(definition.puzzleSlots());
-        current.correct = menuItem(player, definition.item("correct"), placeholders(spawner, 0, 1));
-        current.incorrect = menuItem(player, definition.item("incorrect"), placeholders(spawner, 0, 1));
+        current.correct = menuItem(player, definition.item("correct"), placeholders(player, spawner, 0, 1));
+        current.incorrect = menuItem(player, definition.item("incorrect"), placeholders(player, spawner, 0, 1));
         resetPuzzle(current);
     }
 
@@ -603,6 +608,7 @@ public final class SpawnerGui implements Listener {
             player.sendMessage(Text.of("&cYou cannot withdraw from spawners."));
             return;
         }
+        if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
         int index = current.page() * current.contentSlots.size() + cell;
         if (index >= current.displayed.size()) return;
         ItemStack expected = current.displayed.get(index);
@@ -666,17 +672,24 @@ public final class SpawnerGui implements Listener {
     }
 
     private void collectXp(Player player, Spawner spawner) {
+        synchronized (spawner) {
         var product = plugin.product(spawner);
-        if (product != null && product.mustBeFullToCollect()
-                && spawner.storedXp() < plugin.maximumXp(spawner)) {
+        double eventMultiplier = plugin.events() == null ? 1.0 : plugin.events().xpMultiplier();
+        double personalMultiplier = plugin.boosters() == null ? 1.0
+                : plugin.boosters().personalMultiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP, player.getUniqueId());
+        long payout = Math.min(Integer.MAX_VALUE, Math.round(Math.round(spawner.storedXp() * eventMultiplier) * personalMultiplier));
+        long full = Math.min(Integer.MAX_VALUE, Math.round(plugin.maximumXp(spawner) * eventMultiplier));
+        if (product != null && product.mustBeFullToCollect() && payout < full) {
             player.sendMessage(Text.of("&cXP storage must be full before collecting."));
             return;
         }
-        int xp = spawner.takeXp();
-        if (xp <= 0) {
+        if (payout <= 0) {
             player.sendMessage(Text.of("&7No XP stored."));
             return;
         }
+        int banked = spawner.takeXp();
+        int xp = (int) Math.min(Integer.MAX_VALUE,
+                Math.round(Math.round(banked * eventMultiplier) * personalMultiplier));
         if (plugin.settings().dropXpAsOrbs) {
             var loc = spawner.location();
             if (loc != null) {
@@ -689,9 +702,11 @@ public final class SpawnerGui implements Listener {
         plugin.markDirty(spawner);
         plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, xp, "XP");
         player.sendMessage(Text.of("&aCollected &f" + xp + " &aXP."));
+        }
     }
 
     private void collectAll(Player player, Spawner spawner) {
+        if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
         if (!player.hasPermission("bravenspawner.item.extract")) {
             player.sendMessage(Text.of("&cYou cannot withdraw from spawners."));
             return;
@@ -732,14 +747,14 @@ public final class SpawnerGui implements Listener {
         openMenu(player, spawner);
     }
 
-    private ItemStack sellButton(Spawner spawner) {
+    private ItemStack sellButton(Player player, Spawner spawner) {
         if (!sellService.enabled()) {
             return button(Material.GOLD_INGOT, "&6Sell all",
                     List.of("&cSelling is disabled on this server."));
         }
         return button(Material.GOLD_INGOT, "&6Sell all", List.of(
-                "&7Value: &f" + sellService.format(sellService.value(spawner)),
-                "&7Items: &f" + sellService.sellableItems(spawner),
+                "&7Value: &f" + sellService.format(sellService.value(player, spawner)),
+                "&7Items: &f" + sellService.sellableItems(player, spawner),
                 "&7Sells every priced stack in storage.",
                 "&7Click to sell."));
     }

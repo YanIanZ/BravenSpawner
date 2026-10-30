@@ -36,6 +36,8 @@ class SpawnerGuiAuthorizationTest {
 
     @Test void revokedAccessCannotChargeThroughAnAlreadyOpenPurchaseMenu() throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
+        when(plugin.restrictions()).thenReturn(null);
+        when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
         UUID spawnerId = UUID.randomUUID();
         UUID viewer = UUID.randomUUID();

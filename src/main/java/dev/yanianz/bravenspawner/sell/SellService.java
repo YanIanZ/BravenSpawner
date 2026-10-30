@@ -66,7 +66,9 @@ public final class SellService {
 
     private record Priced(List<Reservation> reserved, int items, double value) {}
 
-    private record PriceTable(Map<String, Double> unitPrices, double multiplier) {}
+    private record PriceTable(Map<String, Double> unitPrices, double multiplier, Player viewer) {
+        private PriceTable(Map<String, Double> unitPrices, double multiplier) { this(unitPrices, multiplier, null); }
+    }
 
     private record DrainStep(int index, Reservation reservation, int amount) {}
 
@@ -181,6 +183,13 @@ public final class SellService {
         return price(spawner.contents(), prices(spawner)).value();
     }
 
+    public double value(Player viewer, Spawner spawner) {
+        return spawner == null ? 0.0 : price(spawner.contents(), prices(spawner, viewer)).value();
+    }
+    public int sellableItems(Player viewer, Spawner spawner) {
+        return spawner == null ? 0 : price(spawner.contents(), prices(spawner, viewer)).items();
+    }
+
     /** Number of stored items that would be paid for right now. */
     public int sellableItems(Spawner spawner) {
         if (spawner == null) return 0;
@@ -208,16 +217,20 @@ public final class SellService {
         if (player == null || spawner == null) {
             return Sale.refused(Status.NOTHING_TO_SELL, "no spawner selected");
         }
+        if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner))
+            return Sale.refused(Status.DISABLED, "spawner access is restricted");
+        if (plugin.protection() != null && !plugin.protection().canUse(player, spawner.blockLocation()))
+            return Sale.refused(Status.DISABLED, "claim protection denied this sale");
         if (!enabled()) return Sale.refused(Status.DISABLED, "selling is disabled by config");
         if (!economyReady()) return Sale.refused(Status.NO_ECONOMY, "no Vault economy provider is registered");
 
         synchronized (saleLock) {
             Sale outstanding = settleOutstanding(spawner);
             if (outstanding != null) return outstanding;
-            PriceTable base = prices(spawner);
+            PriceTable base = prices(spawner, player);
             double combined = base.multiplier() * multiplier;
             if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
-            return attemptSale(spawner, player, new PriceTable(base.unitPrices(), combined), player);
+            return attemptSale(spawner, player, new PriceTable(base.unitPrices(), combined, player), player);
         }
     }
 
@@ -262,7 +275,8 @@ public final class SellService {
             plugin.getLogger().info("Sell feature disabled by config; autosell was not scheduled.");
             return;
         }
-        if (!plugin.getConfig().getBoolean("economy.autosell", false)) return;
+        if (!plugin.getConfig().getBoolean("economy.autosell", false)
+                && !plugin.getConfig().getBoolean("enable-boosters", true)) return;
 
         long seconds = Math.max(5L, plugin.getConfig().getLong("sell.autosell-interval-seconds", 60L));
         long ticks = Math.max(MIN_AUTOSELL_TICKS, seconds * 20L);
@@ -293,6 +307,9 @@ public final class SellService {
     }
 
     private void autosellSpawner(Spawner spawner) {
+        if (!plugin.getConfig().getBoolean("economy.autosell", false)
+                && (plugin.boosters() == null || !plugin.boosters().autosell(spawner.owner(), spawner.id()))) return;
+        if (plugin.restrictions() != null && !plugin.restrictions().rules().canOpen(spawner.product(), false)) return;
         Sale sale;
         synchronized (saleLock) {
             Sale outstanding = settleOutstanding(spawner);
@@ -330,7 +347,9 @@ public final class SellService {
      * Reads the live config on every call: {@code reloadConfig()} swaps the object,
      * so a cached table would silently keep paying last boot's prices.
      */
-    private PriceTable prices(Spawner spawner) {
+    private PriceTable prices(Spawner spawner) { return prices(spawner, null); }
+
+    private PriceTable prices(Spawner spawner, Player viewer) {
         Map<String, Double> units = new HashMap<>();
         ConfigurationSection section = plugin.getConfig().getConfigurationSection("sell-prices");
         if (section != null) {
@@ -355,7 +374,10 @@ public final class SellService {
         double multiplier = plugin.getConfig().getDouble("economy.sell-multiplier", 1.0);
         if (!Double.isFinite(multiplier)) multiplier = 1.0;
         multiplier = Math.max(0.0, multiplier);
-        return new PriceTable(Map.copyOf(units), multiplier);
+        if (plugin.events() != null) multiplier *= plugin.events().cashMultiplier();
+        if (viewer != null && plugin.boosters() != null) multiplier *= plugin.boosters().personalMultiplier(
+                dev.yanianz.bravenspawner.boosters.Boosters.Type.CASH, viewer.getUniqueId());
+        return new PriceTable(Map.copyOf(units), multiplier, viewer);
     }
 
     /**
@@ -373,6 +395,10 @@ public final class SellService {
         for (ItemStack stack : contents) {
             if (stack == null || stack.getType().isAir()) continue;
             Double unit = table.unitPrices().get(stack.getType().name());
+            if (plugin.shops() != null) {
+                double quote = plugin.shops().priceOf(table.viewer(), stack);
+                if (Double.isFinite(quote) && quote >= 0.0) unit = quote;
+            }
             if (unit == null || unit <= 0.0) continue;
             int amount = stack.getAmount();
             if (amount <= 0) continue;
