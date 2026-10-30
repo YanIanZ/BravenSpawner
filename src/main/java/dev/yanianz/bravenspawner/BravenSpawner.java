@@ -53,6 +53,7 @@ public final class BravenSpawner extends JavaPlugin {
     private AuditLog audit;
     private ProductRegistry products;
     private SellWandService wands;
+    private dev.yanianz.bravenspawner.particles.SpawnerParticles particles;
     private PlatformDetector platform;
     private Placeholders placeholders;
     private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
@@ -77,6 +78,7 @@ public final class BravenSpawner extends JavaPlugin {
     public AuditLog audit() { return audit; }
     public ProductRegistry products() { return products; }
     public SellWandService wands() { return wands; }
+    public dev.yanianz.bravenspawner.particles.SpawnerParticles particles() { return particles; }
     public PlatformDetector platform() { return platform; }
     public Placeholders placeholders() { return placeholders; }
     public dev.yanianz.bravenspawner.commerce.ShopBridge shops() { return shops; }
@@ -185,6 +187,7 @@ public final class BravenSpawner extends JavaPlugin {
         restrictions = new dev.yanianz.bravenspawner.restrictions.RestrictedSpawners(this);
         events = new dev.yanianz.bravenspawner.events.SpawnerEvents(this);
         holograms = new Holograms(this);
+        particles = new dev.yanianz.bravenspawner.particles.SpawnerParticles(this);
         gui = new SpawnerGui(this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
@@ -319,6 +322,12 @@ public final class BravenSpawner extends JavaPlugin {
         pdc.set(itemKindKey, PersistentDataType.STRING, kind.name());
         pdc.set(itemProductKey, PersistentDataType.STRING, product);
         pdc.set(itemStackKey, PersistentDataType.INTEGER, Math.max(1, stack));
+        // Only a head-shaped spawner item can carry a skin; the item material itself
+        // stays spawner-item.material because placement recognises it by type.
+        if (definition != null && meta instanceof org.bukkit.inventory.meta.SkullMeta skull
+                && (definition.headMaterial() == null || definition.headMaterial() == org.bukkit.Material.PLAYER_HEAD)) {
+            dev.yanianz.bravenspawner.util.HeadTextures.apply(skull, definition.headTexture());
+        }
         item.setItemMeta(meta);
         return item;
     }
@@ -331,11 +340,13 @@ public final class BravenSpawner extends JavaPlugin {
         reloadConfig();
         loadDatabases();
         products.reload();
+        dev.yanianz.bravenspawner.util.HeadTextures.clearCache();
         settings = Settings.load(getConfig(), databases, null, products);
         platform = new PlatformDetector(this);
         placeholders = new Placeholders();
         gui.reloadMenus();
         wands.reload();
+        if (particles != null) particles.reload();
         boosters.reload(settings);
         restrictions.reload();
         events.reload();

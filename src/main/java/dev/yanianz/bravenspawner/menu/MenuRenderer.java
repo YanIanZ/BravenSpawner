@@ -1,21 +1,18 @@
 package dev.yanianz.bravenspawner.menu;
 
-import com.destroystokyo.paper.profile.PlayerProfile;
-import com.destroystokyo.paper.profile.ProfileProperty;
+import dev.yanianz.bravenspawner.util.HeadTextures;
 import dev.yanianz.bravenspawner.util.Text;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 /**
@@ -35,6 +32,10 @@ public final class MenuRenderer {
 
     private static final int COLUMNS = 9;
     private static final int MAX_ROWS = 6;
+    /** Placeholder holding the product's head texture; {@code spawnerhead} resolves to it. */
+    public static final String HEAD_TEXTURE = "head_texture";
+    /** Placeholder holding the material of the product's head icon. */
+    public static final String HEAD_MATERIAL = "head_material";
 
     /**
      * Builds an inventory with a throwaway holder.
@@ -104,7 +105,8 @@ public final class MenuRenderer {
     public static ItemStack buildItem(MenuDefinition.ItemDefinition item, Map<String, String> placeholders,
                                      UnaryOperator<String> resolver) {
         if (item == null) return null;
-        ItemStack stack = new ItemStack(item.material());
+        boolean spawnerHead = HeadTextures.isSpawnerToken(item.headTexture());
+        ItemStack stack = new ItemStack(spawnerHead ? spawnerHeadMaterial(item.material(), placeholders) : item.material());
         ItemMeta meta = stack.getItemMeta();
         if (meta == null) return stack;
 
@@ -122,47 +124,21 @@ public final class MenuRenderer {
             meta.setEnchantmentGlintOverride(Boolean.TRUE);
         }
         if (meta instanceof SkullMeta skull) {
-            applyTexture(skull, resolver.apply(substitute(item.headTexture(), placeholders)));
+            String texture = spawnerHead ? "%" + HEAD_TEXTURE + "%" : item.headTexture();
+            HeadTextures.apply(skull, resolver.apply(substitute(texture, placeholders)));
         }
         stack.setItemMeta(meta);
         return stack;
     }
 
     /**
-     * Applies a head texture through the Paper profile API.
-     *
-     * <p>A skull only needs the {@code textures} profile property; no NMS and no
-     * reflection are involved. The profile UUID is derived from the payload so the
-     * same texture always produces the same profile, which lets the server reuse
-     * its skin cache instead of creating a fresh identity per render.
+     * A {@code spawnerhead} item shows the product's own head: its configured
+     * material when one is supplied, otherwise the template material.
      */
-    private static void applyTexture(SkullMeta meta, String raw) {
-        String value = raw == null ? "" : raw.trim();
-        if (value.isEmpty() || value.indexOf('%') >= 0 || value.equalsIgnoreCase("spawnerhead")) {
-            return;
-        }
-        // A quote or backslash would break the JSON payload below; such a value is
-        // a configuration mistake, not a texture, so the head stays untextured.
-        if (value.indexOf('"') >= 0 || value.indexOf('\\') >= 0) return;
-
-        String payload;
-        if (value.startsWith("http://") || value.startsWith("https://")) {
-            payload = encodeTextureUrl(value);
-        } else if (value.startsWith("eyJ")) {
-            payload = value;
-        } else {
-            payload = encodeTextureUrl("http://textures.minecraft.net/texture/" + value);
-        }
-
-        UUID profileId = UUID.nameUUIDFromBytes(payload.getBytes(StandardCharsets.UTF_8));
-        PlayerProfile profile = Bukkit.createProfile(profileId, null);
-        profile.setProperty(new ProfileProperty("textures", payload));
-        meta.setPlayerProfile(profile);
-    }
-
-    private static String encodeTextureUrl(String url) {
-        String json = "{\"textures\":{\"SKIN\":{\"url\":\"" + url + "\"}}}";
-        return Base64.getEncoder().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+    private static Material spawnerHeadMaterial(Material template, Map<String, String> placeholders) {
+        String name = placeholders == null ? null : placeholders.get(HEAD_MATERIAL);
+        Material material = name == null || name.isBlank() ? null : Material.matchMaterial(name.trim());
+        return material == null || material.isAir() || !material.isItem() ? template : material;
     }
 
     /**

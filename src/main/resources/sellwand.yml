@@ -39,6 +39,35 @@ collect:
   # The wand's Range modifier is added to this value. Clamped to 0..64.
   radius: 5.0
 
+# Particle effect after a successful sale: a ring expands around every sold
+# spawner (at most 16 per sale) and an optional trail runs from you to each one.
+particles:
+  # If false, no particles are shown regardless of the settings below.
+  enabled: true
+  # Bukkit particle name. Old names (REDSTONE, SPELL_MOB, ...) are accepted.
+  # An unknown name disables the effect with one console warning.
+  type: DUST
+  # Only used by colourable particles (DUST, DUST_COLOR_TRANSITION, ENTITY_EFFECT).
+  # A colour name (RED, YELLOW, BLUE, GOLD, ...) or a hex code such as "#FFFF00".
+  color: RED
+  # Dust size, 0.1..4.
+  size: 1.0
+  # Gradual animation: the ring starts small and grows to max-radius.
+  gradual:
+    enabled: true
+    # Initial radius in blocks.
+    start-radius: 0.1
+    # Radius added per update, in blocks.
+    growth-rate: 0.1
+  # Final ring radius in blocks (the only radius when gradual is off). 0.1..8.
+  max-radius: 1.0
+  # Particles per block of ring circumference (and per block of trail). 0.25..16.
+  density: 2
+  # Ticks between two ring updates (20 ticks = 1 second). 1..20.
+  update-frequency: 1
+  # Draw a line from the seller to each sold spawner (shown to the seller only).
+  trail: true
+
 # Base look of the wand. The modifier section below is appended when modifiers
 # are applied.
 wand-types:

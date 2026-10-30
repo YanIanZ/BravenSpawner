@@ -329,6 +329,8 @@ public final class ProductLoader {
         builder.spawnerItemName(firstString(yaml, "spawner-item-name", "spawner-item.name"));
         builder.spawnerItemLore(spawnerLore(yaml));
         builder.spawnerPrice(Math.max(0.0, yaml.getDouble("spawner-price", 0.0)));
+        builder.head(material(yaml.getString("head.material")),
+                firstString(yaml, "head.head-texture", "head.texture", "head-texture"));
 
         return builder.build();
     }

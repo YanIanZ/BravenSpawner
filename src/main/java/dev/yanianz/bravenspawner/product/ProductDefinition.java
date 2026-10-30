@@ -49,6 +49,8 @@ public final class ProductDefinition {
     private final String spawnerItemName;
     private final List<String> spawnerItemLore;
     private final double spawnerPrice;
+    private final Material headMaterial;
+    private final String headTexture;
 
     private ProductDefinition(Builder builder) {
         this.kind = builder.kind;
@@ -73,6 +75,8 @@ public final class ProductDefinition {
                 ? null
                 : List.copyOf(builder.spawnerItemLore);
         this.spawnerPrice = builder.spawnerPrice;
+        this.headMaterial = builder.headMaterial;
+        this.headTexture = builder.headTexture;
     }
 
     public static Builder builder(Kind kind, String id) {
@@ -121,6 +125,12 @@ public final class ProductDefinition {
     public List<String> spawnerItemLore() { return spawnerItemLore; }
 
     public double spawnerPrice() { return spawnerPrice; }
+
+    /** {@code head.material}: the icon used for this product; {@code null} when not configured. */
+    public Material headMaterial() { return headMaterial; }
+
+    /** {@code head.head-texture} as written (URL, hash or base64); {@code null} when none. */
+    public String headTexture() { return headTexture; }
 
     /**
      * Turns a file stem into a readable default: {@code iron_golem} becomes
@@ -202,6 +212,8 @@ public final class ProductDefinition {
         private String spawnerItemName;
         private List<String> spawnerItemLore;
         private double spawnerPrice;
+        private Material headMaterial;
+        private String headTexture;
 
         private Builder(Kind kind, String id) {
             this.kind = Objects.requireNonNull(kind, "kind");
@@ -277,6 +289,12 @@ public final class ProductDefinition {
 
         public Builder spawnerPrice(double value) {
             this.spawnerPrice = value;
+            return this;
+        }
+
+        public Builder head(Material material, String texture) {
+            this.headMaterial = material;
+            this.headTexture = texture == null || texture.isBlank() ? null : texture.trim();
             return this;
         }
 

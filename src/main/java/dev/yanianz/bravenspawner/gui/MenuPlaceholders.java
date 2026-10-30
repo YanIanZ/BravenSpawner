@@ -21,7 +21,7 @@ public final class MenuPlaceholders {
     /** Every token a bundled menu may use. */
     public static final Set<String> KNOWN = Set.of(
             "entity", "displayname", "color", "tier", "stack", "max_stack", "stored", "xp", "value",
-            "page", "pages", "head_texture", "price", "total_price", "spawner_price",
+            "page", "pages", "head_texture", "head_material", "price", "total_price", "spawner_price",
             "speed", "drop_info", "xp_info", "storage_value", "storage_price", "xp_value",
             "player", "logtype", "limit", "time",
             "booster_name", "booster_multiplier", "remaining_time");
@@ -36,12 +36,14 @@ public final class MenuPlaceholders {
      * @param sellValue   formatted sale value of the current storage
      * @param unitPrice   formatted price of one spawner
      * @param batchPrice  formatted price of the next batch of up to 64 spawners
+     * @param headTexture the product's {@code head.head-texture} (URL, hash or base64); blank when none
+     * @param headMaterial material name of the product's head icon; blank keeps the menu's material
      */
     public record Snapshot(String product, String displayName, String color, int tier, int stack, int maxStack,
                            int stored, int maxItems, int xp, int maxXp, String sellValue,
                            String unitPrice, String batchPrice,
                            long minTicks, long maxTicks, int dropMin, int dropMax, int xpMin, int xpMax,
-                           int page, int pages) { }
+                           int page, int pages, String headTexture, String headMaterial) { }
 
     private MenuPlaceholders() {}
 
@@ -58,7 +60,8 @@ public final class MenuPlaceholders {
         values.put("value", s.sellValue());
         values.put("page", String.valueOf(s.page() + 1));
         values.put("pages", String.valueOf(s.pages()));
-        values.put("head_texture", "");
+        values.put("head_texture", s.headTexture() == null ? "" : s.headTexture().trim());
+        values.put("head_material", s.headMaterial() == null ? "" : s.headMaterial());
         values.put("price", s.unitPrice());
         values.put("spawner_price", s.unitPrice());
         values.put("total_price", s.batchPrice());

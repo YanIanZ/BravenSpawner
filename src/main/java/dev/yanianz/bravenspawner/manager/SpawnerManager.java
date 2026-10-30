@@ -294,6 +294,7 @@ public final class SpawnerManager {
             if (byId.get(spawner.id()) != spawner || spawner.corrupted()) return;
             if (spawner.kind() == Spawner.Kind.ITEM && !s.useItemSpawners) return;
             produceVirtual(spawner, s);
+            if (plugin.particles() != null) plugin.particles().cycle(location);
 
             plugin.holograms().update(spawner);
             var definition = plugin.product(spawner);
