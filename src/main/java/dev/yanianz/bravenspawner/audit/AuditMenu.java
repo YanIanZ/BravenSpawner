@@ -300,15 +300,15 @@ public final class AuditMenu {
         Map<String, String> values = new HashMap<>(12);
         values.put("time", timeFormatter.format(
                 Instant.ofEpochMilli(event.timestamp()).atZone(ZoneId.systemDefault())));
-        values.put("actor", event.actorName().isEmpty() ? event.actor().toString() : event.actorName());
+        values.put("actor", event.actorName().isEmpty() ? event.actor().toString() : Text.escape(event.actorName()));
         values.put("action", event.action().name());
         values.put("amount", Long.toString(event.amount()));
         values.put("spawner", event.spawnerId().toString());
-        values.put("world", event.world().isEmpty() ? "-" : event.world());
+        values.put("world", event.world().isEmpty() ? "-" : Text.escape(event.world()));
         values.put("x", Integer.toString(event.x()));
         values.put("y", Integer.toString(event.y()));
         values.put("z", Integer.toString(event.z()));
-        values.put("detail", event.detail());
+        values.put("detail", Text.escape(event.detail()));
 
         StringBuilder out = new StringBuilder(fill(template.eventName(), values));
         for (String line : template.eventLore()) {

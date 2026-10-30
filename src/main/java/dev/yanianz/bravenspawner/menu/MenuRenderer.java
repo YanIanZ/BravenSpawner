@@ -108,12 +108,12 @@ public final class MenuRenderer {
         ItemMeta meta = stack.getItemMeta();
         if (meta == null) return stack;
 
-        meta.displayName(Text.of(resolver.apply(substitute(item.name(), placeholders))));
+        meta.displayName(Text.item(resolver.apply(substitute(item.name(), placeholders))));
         List<String> lore = item.lore();
         if (!lore.isEmpty()) {
             List<String> lines = new ArrayList<>(lore.size());
             for (String line : lore) lines.add(resolver.apply(substitute(line, placeholders)));
-            meta.lore(Text.of(lines));
+            meta.lore(Text.items(lines));
         }
         if (item.customModel() >= 0) {
             meta.setCustomModelData(item.customModel());

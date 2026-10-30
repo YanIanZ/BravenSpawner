@@ -359,12 +359,12 @@ public final class SpawnerGui implements Listener {
             AuditEvent event = events.get(index);
             current.getInventory().setItem(slots.get(cell), button(Material.PAPER,
                     "&e" + event.action(), List.of("&7" + java.time.Instant.ofEpochMilli(event.timestamp()),
-                            "&7Player: &f" + event.actorName(), "&7Amount: &f" + event.amount(),
+                            "&7Player: &f" + Text.escape(event.actorName()), "&7Amount: &f" + event.amount(),
                             "&7" + event.world() + " " + event.x() + ", " + event.y() + ", " + event.z(),
-                            "&f" + event.detail())));
+                            "&f" + Text.escape(event.detail()))));
         }
         Map<String, String> values = new LinkedHashMap<>(placeholders(player, spawner, page, pages));
-        values.put("player", query.mine ? player.getName() : "All");
+        values.put("player", query.mine ? Text.escape(player.getName()) : "All");
         values.put("logtype", query.type < 0 ? "All" : AuditEvent.Action.values()[query.type].name());
         values.put("limit", String.valueOf(query.limit));
         values.put("time", query.since == 0 ? "All time" : query.since == 3_600_000 ? "1 hour" : "24 hours");
@@ -812,8 +812,8 @@ public final class SpawnerGui implements Listener {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Text.of(name));
-            meta.lore(Text.of(new ArrayList<>(lore)));
+            meta.displayName(Text.item(name));
+            meta.lore(Text.items(new ArrayList<>(lore)));
             item.setItemMeta(meta);
         }
         return item;
