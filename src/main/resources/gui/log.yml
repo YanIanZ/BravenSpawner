@@ -1,101 +1,93 @@
 # ================================
-#   VirtualSpawner: Admin Log Menu
+#   BravenSpawner: History Menu
 # ================================
-#
-# Thank you for using Virtual Spawner!
-# To get yourself a license key join our discord server and create a ticket
-# ➥ discord.gg/dn8YE2Ctbv
-#
-# Notes:
-# - Use %placeholders% for dynamic content (e.g., %page%, %player%, %logtype%, %limit%, %time%)
-# - Texture strings are full URLs to Minecraft textures
+# Shows recent actions on one spawner to its owner and to admins.
+# Every filler ('-') slot above the bottom row shows one event; the event's
+# name, lore and time format are in messages.yml under "log".
+# Placeholders: %displayname% %page% %pages% %player% %logtype% %limit% %time%
+# Click a filter to cycle it.
 # ================================
 
 menu:
-  # The title displayed at the top of the admin log menu
-  title: "&c> &8Admin Query Log &c<"
-
-  # Layout configuration
-  # Define the arrangement of items in the menu
-  # Each character represents an item (defined in the items section below)
-  layout: "p--qtsl-n"  # p: previous, q: log type, t: target, s: time, l: limit, n: next
-
-# ================================
-#   Menu Items Configuration
-# ================================
-# Each item defines how it appears and functions in the menu
-# material: Material type of the item
-# name: Display name of the item (supports color codes)
-# lore: Description lines shown when hovering over the item
-# custom-model: Custom model data for the item (-1 to disable)
-# head-texture: Custom texture URL for player heads (optional)
-# head-owner: Player name for skulls (optional)
-# symbol: Character used to represent this item in the layout
-# nbt: NBT data required to interact with this item
+  title: "&#F7B733✦ &8%displayname% &7» &8History"
+  rows: 6
+  layout:
+    - "---------"
+    - "---------"
+    - "---------"
+    - "---------"
+    - "---------"
+    - "p-gqtsl-n"  # p/n: pages, g: back, q: type, t: player, s: time, l: limit
 
 items:
-  # Filler item used for empty slots
   filler:
-    material: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: "&e"
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
     lore: []
     custom-model: -1
     symbol: '-'
 
-  # Next page button
   next:
     material: PLAYER_HEAD
-    name: "&7&lNEXT PAGE &7(Current: %page%)"
+    name: "&#F7B733&lNext Page &7(%page%/%pages%)"
     lore:
-      - "&7Click to navigate to the next page"
+      - "&#F7B733» &7Click: &fnext page"
     custom-model: -1
     head-texture: "https://textures.minecraft.net/texture/51e94e1130201af1a3062f62d42ecbb55d59e4cabb3435a0e0062bc008cb0985"
     symbol: 'n'
     nbt: "next"
 
-  # Previous page button
   previous:
     material: PLAYER_HEAD
-    name: "&7&lPREVIOUS PAGE &7(Current: %page%)"
+    name: "&#F7B733&lPrevious Page &7(%page%/%pages%)"
     lore:
-      - "&7Click to navigate to the previous page"
+      - "&#F7B733» &7Click: &fprevious page"
     custom-model: -1
     head-texture: "https://textures.minecraft.net/texture/98b1b4819fda0f0babbcd36c8404f34862b529409ea55775712c0b67945977ea"
     symbol: 'p'
     nbt: "previous"
 
-  # Targeted player display
+  go_back:
+    material: SPECTRAL_ARROW
+    name: "&#C9D1D9&lBack"
+    lore:
+      - "&#F7B733» &7Click: &freturn to the spawner"
+    custom-model: -1
+    symbol: 'g'
+    nbt: "goback"
+
   target:
     material: PLAYER_HEAD
-    name: "&e&lTARGETED PLAYER: &6%player%"
-    lore: []
+    name: "&#C9D1D9&lPlayer: &f%player%"
+    lore:
+      - "&#F7B733» &7Click: &fonly mine / everyone"
     custom-model: -1
     symbol: 't'
     nbt: "target"
 
-  # Log type display
   logtype:
     material: REDSTONE
-    name: "&e&lLISTED LOGS: &6%logtype%"
-    lore: []
+    name: "&#C9D1D9&lType: &f%logtype%"
+    lore:
+      - "&#F7B733» &7Click: &fnext type"
     custom-model: -1
     symbol: 'q'
     nbt: "logtype"
 
-  # Query limit display
   limit:
     material: REPEATER
-    name: "&e&lQUERY LIMIT: &6%limit%"
-    lore: []
+    name: "&#C9D1D9&lShow: &f%limit% &7events"
+    lore:
+      - "&#F7B733» &7Click: &f16 / 32 / 64"
     custom-model: -1
     symbol: 'l'
     nbt: "limit"
 
-  # Time setting display
   time:
     material: CLOCK
-    name: "&e&lTIME SETTING: &6%time%"
-    lore: []
+    name: "&#C9D1D9&lPeriod: &f%time%"
+    lore:
+      - "&#F7B733» &7Click: &fall time / hour / day"
     custom-model: -1
     symbol: 's'
     nbt: "time"

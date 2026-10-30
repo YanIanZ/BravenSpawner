@@ -1,136 +1,122 @@
 # ================================
-#   VirtualSpawner: Spawner Menu
+#   BravenSpawner: Spawner Menu
 # ================================
 # Notes:
-# - Use %placeholders% for dynamic content (e.g., %entity%, %speed%)
-# - Texture strings are full URLs to Minecraft textures
+# - Colours: &a codes, hex (&#RRGGBB) and MiniMessage tags all work.
+# - Placeholders: %entity% %displayname% %color% %stack% %max_stack% %tier% %speed%
+#   %drop_info% %xp_info% %storage_value% %storage_price% %xp_value% %spawner_price%
+# - nbt is the button's action: storage, xp, collect_all, sellall/bedrock, boosters,
+#   information, buystack, log, upgrade, trusted, close.
+# - Selling buttons ask for a second click within 3 seconds.
 # ================================
 
 menu:
-  # The title displayed at the top of the menu
-  # %entity% will be replaced with the spawner's entity type
-  title: "&b✹ &7%entity% Spawner Menu"
-
-  # Number of rows in the menu (1 row = 9 slots)
+  title: "&#F7B733✦ &8%displayname% Spawner"
   rows: 3
 
-  # Layout configuration
-  # Define the arrangement of items in the menu
-  # Each character represents an item (defined in the items section below)
   layout:
-    # Default layout for regular players
+    # Java players
     default:
-      - "---------"  # - represents filler items
-      - "--i-s-x--"  # i: info, s: storage, x: XP
-      - "----u----"  # u: boosters, k: buy stacks
+      - "---------"
+      - "--i-s-x--"
+      - "--k-u-l--"  # k: buy stacks, u: boosters, l: history
 
-    # Special layout for players with "bedrock" nbt
+    # Bedrock players (Floodgate), who cannot right-click to sell
     bedrock_mode:
-      - "----u----"  # u: boosters
-      - "--i-s-x--"  # i: info, s: storage, x: XP
-      - "----b----"  # b: sell all (bedrock mode)
+      - "----u----"
+      - "--i-s-x--"
+      - "--k-b-l--"  # b: sell all
 
-  # Special configurations
   special:
-    # Format for displaying individual boosters
-    # %booster_name%: booster name, %booster_multiplier%: boost amount, %remaining_time%: remaining time
-    booster_display: "&7- %booster_name% &7(%booster_multiplier%) (%remaining_time%)"
+    # One lore line per active booster, appended to the boosters button.
+    # %booster_name%: booster type, %booster_multiplier%: boost, %remaining_time%: time left
+    booster_display: "&#F7B733• &f%booster_name% &7%booster_multiplier% &8(%remaining_time%)"
 
-    # Whether players can sell items directly from storage
+    # Right-clicking the storage button sells everything (after confirming).
     allow_sell_with_storage: true
 
-# ================================
-#   Menu Items Configuration
-# ================================
-# Each item defines how it appears and functions in the menu
-# material: Material type of the item
-# name: Display name of the item (supports color codes)
-# lore: Description lines shown when hovering over the item
-# custom-model: Custom model data for the item (-1 to disable)
-# head-texture: Custom texture URL for player heads (optional)
-# symbol: Character used to represent this item in the layout
-# nbt: NBT data required to interact with this item
-
 items:
-  # Filler item used for empty slots
   filler:
-    material: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: "&e"
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
     lore: []
     custom-model: -1
     symbol: '-'
     nbt: ""
 
-  # "Sell All" button (only visible in bedrock mode)
   sell_all:
     material: GOLD_INGOT
-    name: "&e&lSell All"
+    name: "&#F7B733&lSell All"
     lore:
-      - "&e¤ &fClick to sell all."
+      - "&7Worth: &f%storage_price%$"
+      - ""
+      - "&#F7B733» &7Click twice: &fsell everything"
     custom-model: -1
     symbol: 'b'
     nbt: "bedrock"
 
-  # Boosters management button
   boosters:
     material: FIREWORK_ROCKET
-    name: "&b&lBoosters"
+    name: "&#4D96FF&lBoosters"
     lore:
-      - "&e¤ &fClick to withdraw booster."
-      - "§c"
+      - "&7Use a booster item on the"
+      - "&7spawner to activate it."
+      - ""
+      - "&7Active:"
     custom-model: -1
     symbol: 'u'
     nbt: "boosters"
 
-  # Spawner information display
   spawner_info:
     material: PLAYER_HEAD
-    name: "%color%&l%displayname% SPAWNER"
+    name: "%color%&l%displayname% Spawner"
     lore:
-      - "&b¤ &fSpawner Information:"
-      - "&bProduction Speed: &f%speed% seconds"
-      - "&bItem Production: &f%drop_info% per spawn"
-      - "&bXP Production: &f%xp_info% per spawn"
-      - "&bStack Size: &f%stack%"
+      - "&7Speed: &fevery %speed%s"
+      - "&7Items: &f%drop_info% &7per spawn"
+      - "&7XP: &f%xp_info% &7per spawn"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
+      - ""
+      - "&#F7B733» &7Click: &fbuy more stacks"
     custom-model: -1
     head-texture: "spawnerhead"
     symbol: 'i'
     nbt: "information"
 
-  # Storage management button
   storage:
     material: PLAYER_HEAD
-    name: "&a&lSTORAGE"
+    name: "&#7EE787&lStorage"
     lore:
-      - "&a¤ &fLeft Click: Open storage"
-      - "&a¤ &fRight Click: Sell items"
-      - "&aStored Items: &f%storage_value%"
-      - "&aSell Value: &f%storage_price%&a$"
+      - "&7Items: &f%storage_value%"
+      - "&7Worth: &f%storage_price%$"
+      - ""
+      - "&#F7B733» &7Left-click: &fopen storage"
+      - "&#F7B733» &7Right-click: &fsell everything &8(click twice)"
     custom-model: -1
     head-texture: "http://textures.minecraft.net/texture/68bdc7a1d6cff76a9255652d3165532285acc3a9d1c0f12f39ca007769a7ea14"
     symbol: 's'
     nbt: "storage"
 
-  # XP collection button
   xp_collect:
     material: PLAYER_HEAD
-    name: "&e&lCOLLECT XP"
+    name: "&#FFD93D&lCollect XP"
     lore:
-      - "&e¤ &fClick to collect XP"
-      - "&eStored XP: &f%xp_value%"
+      - "&7Stored: &f%xp_value%"
+      - ""
+      - "&#F7B733» &7Click: &fcollect XP"
     custom-model: -1
     head-texture: "http://textures.minecraft.net/texture/399ad7a0431692994b6c412c7eafb9e0fc49975240b73a27d24ed797035fb894"
     symbol: 'x'
     nbt: "xp"
 
-  # Collect all button
+  # Not placed by default: add 'c' to a layout to use it.
   collect_all:
     material: PLAYER_HEAD
-    name: "&a&lCOLLECT ALL"
+    name: "&#7EE787&lCollect All"
     lore:
-      - "&a¤ &fClick to collect all resources"
-      - "&aCollect Money: &f%storage_price%&a$"
-      - "&aCollect XP: &f%xp_value%"
+      - "&7Money: &f%storage_price%$"
+      - "&7XP: &f%xp_value%"
+      - ""
+      - "&#F7B733» &7Click twice: &fsell items and collect XP"
     custom-model: -1
     head-texture: "http://textures.minecraft.net/texture/67f8d8c39f9921a64d7b755de322e441fded4b775a7657e0b3196b6fda863646"
     symbol: 'c'
@@ -138,11 +124,24 @@ items:
 
   buy_stack:
     material: EMERALD
-    name: "&a&lBUY STACKS"
+    name: "&#7EE787&lBuy Stacks"
     lore:
-      - "&a¤ &fClick to buy more stacks"
-      - "&aPrice per stack: &f%spawner_price%$"
-      - "&aStack Size: &f%stack%&a/&f%max_stack%"
+      - "&7Price each: &f%spawner_price%$"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
+      - ""
+      - "&#F7B733» &7Click: &fopen the shop"
     custom-model: -1
     symbol: 'k'
     nbt: "buystack"
+
+  log:
+    material: WRITABLE_BOOK
+    name: "&#C9D1D9&lHistory"
+    lore:
+      - "&7Who used this spawner, and when."
+      - "&8Owner and admins only."
+      - ""
+      - "&#F7B733» &7Click: &fview history"
+    custom-model: -1
+    symbol: 'l'
+    nbt: "log"

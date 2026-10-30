@@ -1,5 +1,12 @@
+# ================================
+#   BravenSpawner: Buy Stacks Menu
+# ================================
+# Placeholders: %displayname% %price% %total_price% %stack% %max_stack%
+# nbt actions: buy_1, buy_64, buy_max (asks for a second click), goback.
+# ================================
+
 menu:
-  title: "&b✹ &7%entity% &b> &fBuy Stacks"
+  title: "&#F7B733✦ &8%displayname% &7» &8Buy Stacks"
   rows: 3
   layout:
     - "---------"
@@ -8,8 +15,8 @@ menu:
 
 items:
   filler:
-    material: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: "&e"
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
     lore: []
     custom-model: -1
     symbol: '-'
@@ -17,45 +24,45 @@ items:
 
   buy_1:
     material: LIME_STAINED_GLASS_PANE
-    name: "&a&lBuy 1"
+    name: "&#7EE787&lBuy 1"
     lore:
-      - "&7Price: &a%price%$"
-      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - "&7Price: &f%price%$"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
       - ""
-      - "&aClick to purchase 1"
+      - "&#F7B733» &7Click: &fbuy 1"
     custom-model: -1
     symbol: '1'
     nbt: "buy_1"
 
   buy_64:
     material: EMERALD
-    name: "&a&lBuy 64"
+    name: "&#7EE787&lBuy 64"
     lore:
-      - "&7Price: &a%total_price%$"
-      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - "&7Price: &f%total_price%$"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
       - ""
-      - "&aClick to purchase 64"
+      - "&#F7B733» &7Click: &fbuy up to 64"
     custom-model: -1
     symbol: '5'
     nbt: "buy_64"
 
   buy_max:
     material: EMERALD_BLOCK
-    name: "&a&lBuy Max Stacks"
+    name: "&#7EE787&lBuy Max"
     lore:
-      - "&7Current Stack: &f%stack%&7/&f%max_stack%"
-      - "&7Price per stack: &a%price%$"
+      - "&7Price each: &f%price%$"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
       - ""
-      - "&aClick to buy as many as you can afford"
+      - "&#F7B733» &7Click twice: &fbuy as many as you can afford"
     custom-model: -1
     symbol: 'a'
     nbt: "buy_max"
 
   go_back:
     material: SPECTRAL_ARROW
-    name: "&a&lGO BACK"
+    name: "&#C9D1D9&lBack"
     lore:
-      - "&7Click to go back"
+      - "&#F7B733» &7Click: &freturn to the spawner"
     custom-model: -1
     symbol: 'g'
     nbt: "goback"

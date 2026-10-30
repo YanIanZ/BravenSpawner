@@ -1,22 +1,23 @@
 menu:
-  title: "&5&lUncorrupt Spawner"
+  title: "&#B455FF✦ &8Repair Corrupted Spawner"
   size: 54
   puzzle_slots: [0, 9, 18, 27, 36, 45, 46, 47, 38, 29, 20, 11, 2, 3, 4, 13, 22, 31, 40, 49, 50, 51, 42, 33, 24, 15, 6, 7, 8]
 
 items:
   correct:
     material: GREEN_STAINED_GLASS_PANE
-    name: "&aCorrect!"
+    name: "&#7EE787&lCorrect!"
     lore:
-      - "&7You've clicked the correct pane!"
+      - "&7Keep going."
   incorrect:
     material: RED_STAINED_GLASS_PANE
-    name: "&cClick me!"
+    name: "&#FF7B72&lClick me"
     lore:
-      - "&7Click the panes in the correct order"
+      - "&7Click the panes in the right order."
+      - "&7A wrong pane resets the puzzle."
   filler:
     material: BLACK_STAINED_GLASS_PANE
-    name: "&8"
+    name: " "
 
 sounds:
   correct: UI_BUTTON_CLICK
@@ -24,5 +25,5 @@ sounds:
   completion: ENTITY_PLAYER_LEVELUP
 
 messages:
-  completion: "&aYou successfully uncorrupted the spawner!"
-  reset: "&cIncorrect! The puzzle has been reset."
+  completion: "&#7EE787The spawner is repaired!"
+  reset: "&#FF7B72Wrong pane, so the puzzle was reset."

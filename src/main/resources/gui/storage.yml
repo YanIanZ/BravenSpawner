@@ -1,167 +1,161 @@
 # ================================
-#   VirtualSpawner: Storage Menu
+#   BravenSpawner: Storage Menu
 # ================================
 # Notes:
-# - Use %placeholders% for dynamic content (e.g., %entity%, %page%)
-# - Texture strings are full URLs to Minecraft textures
+# - The first five rows show stored items: every filler ('-') slot above the
+#   bottom row is a storage cell. The bottom row holds the controls.
+# - Placeholders: %entity% %displayname% %page% %pages% %storage_value% %storage_price%
+# - nbt actions: previous, next, takeall, sellall, goback, takeone, takestack,
+#   dropall, xp, information.
 # ================================
 
 menu:
-  # The title displayed at the top of the storage menu
-  # %entity% will be replaced with the spawner's entity type
-  title: "&b✹ &8%entity% Spawner Menu &b> &7Storage"
+  title: "&#F7B733✦ &8%displayname% &7» &8Storage &7(%page%/%pages%)"
+  rows: 6
 
-  # Layout configuration
-  # Define the arrangement of items in the menu
-  # Each character represents an item (defined in the items section below)
   layout:
-    # Default layout for regular players
-    default: "p--agw--n"  # p: previous, a: take all, g: go back, w: sell all, n: next
-    # Special layout for players with "bedrock" permissions
-    bedrock_mode: "p-osgaw-n"  # o: take one, s: take stack
+    default:
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "p--agw--n"  # p: previous, a: take all, g: go back, w: sell all, n: next
+    # Bedrock players: pick "take one" or "take a stack", then tap items
+    bedrock_mode:
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "---------"
+      - "p-osgaw-n"  # o: take one, s: take stack
 
-  # Text appended to selected options
-  selected_text: "&7 (&aSELECTED&7)"
+  # Appended to the name of the selected take mode (bedrock).
+  selected_text: "&7 (&#7EE787selected&7)"
 
-  # Whether to show informative lore on items
+  # Adds the hint lines below to every stored item.
   enable_informative_lore: true
 
-  # Maximum number of pages in the storage menu
+  # Pages shown at most; items beyond them can still be taken with Take All.
   max_page_amount: 10
 
-  # Additional lore added to items when informative_lore is enabled
   informative_lore:
-    - "&c"
-    - "&a&lRight click&f to take 64x"
-    - "&e&lLeft click&f to take 1x"
-
-# ================================
-#   Menu Items Configuration
-# ================================
-# Each item defines how it appears and functions in the menu
-# material: Material type of the item
-# name: Display name of the item (supports color codes)
-# lore: Description lines shown when hovering over the item
-# custom-model: Custom model data for the item (-1 to disable)
-# head-texture: Custom texture URL for player heads (optional)
-# head-owner: Player name for skulls (optional)
-# symbol: Character used to represent this item in the layout
-# nbt: NBT data required to interact with this item
+    - ""
+    - "&#F7B733» &7Left-click: &ftake 1"
+    - "&#F7B733» &7Right-click: &ftake 64"
+    - "&#F7B733» &7Shift-click: &ftake a stack"
 
 items:
-  # Filler item used for empty slots
+  # Empty storage cells and bottom-row padding.
   filler:
-    material: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: "&e"
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
     lore: []
     custom-model: -1
     symbol: '-'
 
-  # "Take All" button to collect all items from storage
   take_all:
     material: CHEST_MINECART
-    name: "&a&lTAKE ALL"
+    name: "&#4D96FF&lTake All"
     lore:
-      - "&7Click to take as much as you can"
+      - "&7Moves everything that fits"
+      - "&7into your inventory."
+      - ""
+      - "&#F7B733» &7Click: &ftake all"
     custom-model: -1
     symbol: 'a'
     nbt: "takeall"
 
-  # "Sell All" button to sell all items in storage
   sell_all:
     material: GOLD_BLOCK
-    name: "&e&lSELL ALL"
+    name: "&#F7B733&lSell All"
     lore:
-      - "&7Click to sell all."
+      - "&7Worth: &f%storage_price%$"
+      - ""
+      - "&#F7B733» &7Click twice: &fsell everything"
     custom-model: -1
     symbol: 'w'
     nbt: "sellall"
 
-  # Next page button
   next:
     material: PLAYER_HEAD
-    name: "&7&lNEXT PAGE &7(Current: %page%)"
+    name: "&#F7B733&lNext Page &7(%page%/%pages%)"
     lore:
-      - "&7Click to navigate to the next page"
+      - "&#F7B733» &7Click: &fnext page"
     custom-model: -1
     head-texture: "https://textures.minecraft.net/texture/51e94e1130201af1a3062f62d42ecbb55d59e4cabb3435a0e0062bc008cb0985"
     symbol: 'n'
     nbt: "next"
 
-  # Previous page button
   previous:
     material: PLAYER_HEAD
-    name: "&7&lPREVIOUS PAGE &7(Current: %page%)"
+    name: "&#F7B733&lPrevious Page &7(%page%/%pages%)"
     lore:
-      - "&7Click to navigate to the previous page"
+      - "&#F7B733» &7Click: &fprevious page"
     custom-model: -1
     head-texture: "https://textures.minecraft.net/texture/98b1b4819fda0f0babbcd36c8404f34862b529409ea55775712c0b67945977ea"
     symbol: 'p'
     nbt: "previous"
 
-  # Go back button to return to the main menu
   go_back:
     material: SPECTRAL_ARROW
-    name: "&a&lGO BACK"
+    name: "&#C9D1D9&lBack"
     lore:
-      - "&7Click to go back"
+      - "&#F7B733» &7Click: &freturn to the spawner"
     custom-model: -1
     symbol: 'g'
     nbt: "goback"
 
-  # Take one item at a time button (bedrock mode)
   take_one:
     material: GOLD_INGOT
-    name: "&6&lTAKE &8(&7x1&8)"
+    name: "&#FFD93D&lTake &8(&7x1&8)"
     lore:
-      - "&7Click to enable taking one-by-one."
+      - "&7Tapping an item takes one."
     custom-model: -1
     head-texture: ""
     symbol: 'o'
     nbt: "takeone"
 
-  # Take a stack of items button (bedrock mode)
   take_stack:
     material: DIAMOND
-    name: "&b&lTAKE &8(&7x64&8)"
+    name: "&#4D96FF&lTake &8(&7x64&8)"
     lore:
-      - "&7Click to enable taking stack-by-stack."
+      - "&7Tapping an item takes 64."
     custom-model: -1
     symbol: 's'
     nbt: "takestack"
 
-  # Drop all items from the current page
+  # Not placed by default: add 'd' to the bottom row to use it.
   drop_all:
     material: DISPENSER
-    name: "&a&lDrop Loot"
+    name: "&#FF9F45&lDrop Page"
     lore:
-      - "&7Click to drop all items"
+      - "&7Drops one stack of every item"
+      - "&7on this page at your feet."
     custom-model: -1
     symbol: "d"
     nbt: "dropall"
 
-  # Spawner information display
   spawner_info:
     material: PLAYER_HEAD
-    name: "%color%&l%displayname% SPAWNER"
+    name: "%color%&l%displayname% Spawner"
     lore:
-      - "&b¤ &fSpawner Information:"
-      - "&bProduction Speed: &f%speed% seconds"
-      - "&bItem Production: &f%drop_info% per spawn"
-      - "&bXP Production: &f%xp_info% per spawn"
-      - "&bStack Size: &f%stack%"
+      - "&7Speed: &fevery %speed%s"
+      - "&7Items: &f%drop_info% &7per spawn"
+      - "&7XP: &f%xp_info% &7per spawn"
+      - "&7Stack: &f%stack%&7/&f%max_stack%"
     custom-model: -1
     head-texture: "spawnerhead"
     symbol: 'i'
     nbt: "information"
 
-  # XP collection button
   xp_collect:
     material: PLAYER_HEAD
-    name: "&e&lCOLLECT XP"
+    name: "&#FFD93D&lCollect XP"
     lore:
-      - "&e¤ &fClick to collect XP"
-      - "&eStored XP: &f%xp_value%"
+      - "&7Stored: &f%xp_value%"
+      - ""
+      - "&#F7B733» &7Click: &fcollect XP"
     custom-model: -1
     head-texture: "http://textures.minecraft.net/texture/399ad7a0431692994b6c412c7eafb9e0fc49975240b73a27d24ed797035fb894"
     symbol: 'x'
