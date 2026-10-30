@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: FROG
 display-name: Frog
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/78f2dfd4dd7bac07d81cc682879493a7a472a836ccce86f886acc2f20fcd7b70
 spawn-delays:
   min: 5
   max: 15

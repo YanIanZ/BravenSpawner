@@ -4,6 +4,7 @@ display-name: "&6Piglin"
 
 head:
   material: PIGLIN_HEAD
+  head-texture: ""
   lore:
     - "&aA spawner for piglins."
 

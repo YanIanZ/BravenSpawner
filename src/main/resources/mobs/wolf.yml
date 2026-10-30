@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: WOLF
 display-name: Wolf
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/76a376fc167f5d3bd3c8fd8b015d5bdef8f36835813dec61eba7d2f4380948d6
 spawn-delays:
   min: 5
   max: 15

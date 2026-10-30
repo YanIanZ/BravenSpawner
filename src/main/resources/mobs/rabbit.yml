@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: RABBIT
 display-name: Rabbit
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/cfd4f86cf7473fbae93b1e090489b64c0be126c7bb16ffc88c002447d5c72795
 spawn-delays:
   min: 5
   max: 15

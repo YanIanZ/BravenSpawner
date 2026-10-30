@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: COD
 display-name: Cod
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/f246e19b32cf784549447e07b96072e1f656d78e93ccca5637485e6749734652
 spawn-delays:
   min: 5
   max: 15

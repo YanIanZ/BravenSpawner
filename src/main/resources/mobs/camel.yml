@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: CAMEL
 display-name: Camel
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/58c3833a24d37f143292561a5eb5d5670978b7269916c4db7c8a9b91b2ea1e01
 spawn-delays:
   min: 5
   max: 15

@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: ALLAY
 display-name: Allay
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/cb225bb461d61102ca38e8f772639ca08a359652379cce4ae8edcc50ce53b9e7
 spawn-delays:
   min: 5
   max: 15

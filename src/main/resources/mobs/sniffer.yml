@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: SNIFFER
 display-name: Sniffer
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/297c5c686cc4ac4be04f21b23631804a5cac30ff537f5b532440c8e4e25481b3
 spawn-delays:
   min: 5
   max: 15

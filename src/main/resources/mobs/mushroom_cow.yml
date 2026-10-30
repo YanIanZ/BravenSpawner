@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: MOOSHROOM
 display-name: Mushroom Cow
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/da80606e82c642f141587733e3180ae57f646442c9fffd4e5997457e34311a29
 spawn-delays:
   min: 5
   max: 15

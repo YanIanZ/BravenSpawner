@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: PHANTOM
 display-name: Phantom
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/746830da5f83a3aaed838a99156ad781a789cfcf13e25beef7f54a86e4fa4
 spawn-delays:
   min: 5
   max: 15

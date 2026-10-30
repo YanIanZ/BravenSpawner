@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: CAVE_SPIDER
 display-name: Cave Spider
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/af843bb7a984e734ab76a88c9a1a0f5a40bf79524809a8511bf32d057526f7f3
 spawn-delays:
   min: 5
   max: 15

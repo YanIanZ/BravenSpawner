@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: SQUID
 display-name: Squid
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/8351b7d9a4f36cfe31fd59d8c900e419a135144105e7a981caa5a168dcff325b
 spawn-delays:
   min: 5
   max: 15
