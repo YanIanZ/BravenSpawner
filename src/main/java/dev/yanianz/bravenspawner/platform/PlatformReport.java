@@ -30,7 +30,8 @@ public final class PlatformReport {
         facts.add("server=" + Bukkit.getName() + " " + Bukkit.getVersion());
         facts.add("minecraft=" + Bukkit.getMinecraftVersion());
         facts.add("java=" + System.getProperty("java.version"));
-        facts.add("region-threaded=" + regionThreaded());
+        facts.add("region-scheduler-api=" + regionThreaded());
+        facts.add("region-threaded=" + (dev.yanianz.bravenspawner.util.Schedulers.isFolia() ? "yes" : "no"));
         facts.add("folia-api=" + present("io.papermc.paper.threadedregions.RegionizedServer"));
         facts.add("sourbyapi=" + pluginPresent("sourbyapi"));
         facts.add("sourbycraft=" + pluginPresent("SourbyCraft"));

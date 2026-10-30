@@ -5,6 +5,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-30
+
+### Fixed
+- Startup crash `UnsatisfiedLinkError: ...libs.sqlite.core.NativeDB._open_utf8`: the
+  broken jars committed under `artifacts/` (sqlite relocated) were removed;
+  `ShadedSqliteTest` opens SQLite through the shipped jar on every build.
+- Storage init failure now fails closed (safe mode) instead of silently switching to
+  YAML; `/bspawner doctor` works in that mode and shows the cause.
+  `databases.yml: fallback-to-yaml` restores the old behaviour with a fresh file.
+- Exploits: no vanilla XP on spawner break, `cooldowns.break/stack` enforced,
+  plain-material boosters removed (tagged items only, stronger booster kept),
+  tier upgrades never slow a spawner, take-all splits by max stack size,
+  vanilla conversion respects blacklist/chunk cap, payouts rounded HALF_UP.
+- Holograms honour `enabled` and `commands.shtoggle.enabled`; bars use real capacity.
+- Every placeholder and `nbt:` action in the bundled menus is wired (incl. Bedrock
+  sell/take, right-click take 64 / sell); bundled storage and log menus have content rows.
+
+### Added
+- Colours: `&#RRGGBB`, `{#RRGGBB}`, `<#RRGGBB>`, `&x&R&R&G&G&B&B`, MiniMessage tags
+  (gradient, rainbow, …); unicode escapes `\uXXXX` / `\U0001F525`; item text non-italic.
+- `messages.yml` with a configurable prefix and colour roles; confirmations for
+  Sell all / Collect all / Buy max; GUI sounds; owner-visible history.
+- SQL schema v2 (`corrupted_at`); dirty-only batched checkpoints.
+- `debug` and `ownership.enabled` config keys are now honoured.
+
+### Changed
+- Build: Gradle version catalog; sqlite-jdbc 3.54.1.0, HikariCP 7.1.0,
+  mysql-connector-j 26.10.0, MongoDB 5.14.0, JUnit 6.1.3, Mockito 5.24.0;
+  protobuf relocated; service files merged; signatures stripped.
+- Chunk limit counts spawner blocks by default (`spawner-limit-in-chunk-mode: stacks`
+  for the old behaviour).
+
+### Removed
+- Unused config keys (`item_spawner_optimization`, `use_new_ticking_system`,
+  `multiple-drop`, `full-stack`, `disable-item-stock`, `hologram.*`) and orphan classes.
+
 ## [1.2.0] - 2026-10-30
 
 ### Changed
