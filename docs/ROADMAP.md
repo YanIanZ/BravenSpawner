@@ -1,74 +1,58 @@
-# BravenSpawner Upgrade Roadmap
+# BravenSpawner Roadmap
 
-**Status:** Proposed · **Prepared:** 2026-10-30 · **Baseline:** v1.0.1 / `main` at `90b39fce`.
+**Status:** Active · **Updated:** 2026-10-30 · **Shipped:** 1.2.1 (see [CHANGELOG](../CHANGELOG.md)) · **Source of the plan:** [GAP_AUDIT §4.4](GAP_AUDIT.md).
 
-These are **release gates, not delivery promises**. No feature below should be marked implemented unless merged, covered and owner-verified. Each milestone should have independent PRs with changelog and migration notes.
+These are release gates, not delivery promises. Nothing is "done" until it is merged, covered by tests and owner-verified in [TESTER_OWNER.md](TESTER_OWNER.md).
 
-## Release plan
+## Shipped
 
-| Release | Theme | Dependency | Ship gate |
-| --- | --- | --- | --- |
-| **v1.0.2** | Integrity & security hotfix | Existing Java 21/Paper 1.21.1 line | P0 item, storage, payment and schedule paths closed; regression evidence |
-| **v1.1.0** | Compatibility and lifecycle | v1.0.2 stable | Documented tested server/JDK matrix, correct Folia ownership, upgrade-safe migration |
-| **v1.2.0** | Adaptive performance engine | v1.1.0 | Correct virtual aggregation, workload budgets and benchmark report |
-| **v2.0.0** | Advanced gameplay/platform | v1.2.0 | GUI, upgrades, analytics, extension APIs and hooks pass functional/rollback tests |
-| **v2.x optional** | Multi-server ownership | Explicit fencing design | Single-writer consistency + failover and split-brain tests |
+| Release | Theme |
+| --- | --- |
+| 1.0.2 | Folia-safe booster sweep, shading fix |
+| 1.1.0–1.1.4 | YAML menu engine, sell wand, per-product files, shop price adapters, audit log, platform report, `/bspawner doctor`, SQLite fixes |
+| 1.2.0 | Menus and holograms compatible with VirtualSpawner 7.2.0 |
+| 1.2.1 | Shipped config works: fail-closed storage, exploit fixes EX-01..09, SQL schema v2 + dirty-only checkpoints, every menu token/action wired, `messages.yml`, confirmations, sounds, hex/MiniMessage text |
 
-## v1.0.2 — P0 hotfix work packages
+The v1.0.1 P0/P1 findings in [AUDIT.md](AUDIT.md) are addressed in code by these releases. Live qualification is still open: only a Paper 1.21.1 smoke test has been run. Player interaction, Folia, live MySQL/Mongo and third-party providers have not been exercised.
 
-| Work package | Implementation scope | Verification |
+## Plan
+
+| Release | Theme | Gate |
 | --- | --- | --- |
-| HOTFIX-01 | Strict loading state, no destructive flush after load failure; add auto checkpoint and failure metrics | Restart, kill -9, DB unavailable, corrupt payload |
-| HOTFIX-02 | Single schedule per spawner; safe register/disable/reschedule | Start/reload/unregister counters & yield conservation |
-| HOTFIX-03 | Authorize place/stack/booster, validate PDC kind/product/count, apply per-chunk limits | Owner, trusted, non-owner, malformed item |
-| HOTFIX-04 | Atomic storage reservation/withdrawal, safe GUI holder/session close, inventory drag guard | Rapid click/close/navigation with concurrent producers |
-| HOTFIX-05 | Vault result handling and transaction state for manual/autosell | Deposit rejected, partial, exception, uncertain completion |
-| HOTFIX-06 | Commands, config switches and documented behavior synchronized | Permission/command smoke suite |
+| **1.2.x** | Remaining P2s, no schema change | GAP_AUDIT P2 rows closed or explicitly deferred; tests per fix |
+| **1.3.0** | Virtual Vault MVP — [STOR-01](features/VIRTUAL_STORAGE.md) | VSS-01/03/04/08/09; one-way migration with backup |
+| **1.4.0** | Stacking ledger + UX/API base — [STAC-01](features/VIRTUAL_STACKING.md), [UX-01](features/GUI_UX.md), [API-01](features/API_SPEC.md) | Ledger in all four backends; replay test; API compile test |
+| Later | Upgrades, then parked modules ([proposals](features/proposals/)) | After 1.4.0 and live Paper + Folia qualification |
 
-**Exit gate:** All P0 findings in [AUDIT.md](AUDIT.md) have code fixes, regression tests, release notes and explicit owner pass. Do not accept a successful compile as the exit gate.
+### 1.2.x patch
 
-## v1.1.0 — Platform and architecture
+- Threading/perf: TH-02 (hopper/Ninja O(N) passes), TH-03 (open inventories on next tick), TH-04 (`runDelayed` chain instead of reschedule).
+- Policy and correctness: EX-05 (`pay-owner` option or documented trusted-sell policy), EX-10 (`canonicalCount` clamp/doc), `RestoreMissing` audit + unregister path, booster sounds.
+- Any other open P2 row in [GAP_AUDIT](GAP_AUDIT.md) not listed here; re-check each against `main` before starting, since many were closed in 1.2.1.
+- Plan the replacement for the deprecated `BukkitObjectOutputStream` item codec; the format change itself ships with 1.3.0.
 
-- Split upgrades: Java/toolchain, Paper API, Gradle, Shadow and JDBC libraries must be validated independently. Dependabot PR #5 is not mergeable unchanged on Java 21.
-- Produce support matrix for every targeted build (minimum version versus latest tested), including `1.21.x` baseline and selected `26.x` builds as appropriate. If Java 25 is required, document minimum Java **per artifact** and choose whether to maintain a legacy line.
-- Replace `BukkitScheduler` use; migrate all world/entity calls into owning region/entity context. Add static checks and runtime warnings.
-- Implement chunk-indexed lifecycle registry and immutable settings/config validation.
-- SQL additive migrations with backup, async dirty flush and observable retry behavior.
-- Update installation and `plugin.yml` version requirements after actual build tests.
+### 1.3.0 Virtual Vault
 
-**Exit gate:** Reproducible CI + owner runtime pass on each claimed Paper/Folia version, successful database upgrade and rollback.
+- `VirtualVault` (`ItemKey → long`, checked arithmetic, `max_total`/`max_distinct`) behind the `Spawner` storage API.
+- Codec v2 with one-way migration from `List<ItemStack>` and a backup.
+- Key-based reservations shared by `SellService`, `HopperLink`, sell wand and GUI; bounded withdrawals per action; explicit overflow policy (no silent discard).
 
-## v1.2.0 — Performance
+### 1.4.0 Stacking ledger and UX/API base
 
-- Aggregated stochastic yield calculation with bounded precision/error.
-- Region time budget, cap real entities, avoid per-stack entity-nearby scan.
-- Spatial/chunk indexes; no full-world scans on every small interval.
-- Overflow/catch-up policy and workload backpressure.
-- Benchmark against v1.1.0 at 100 / 1,000 / 10,000 **virtual units**, report p50/p95/p99 MSPT, tick work, heap and GC without claiming unmeasured gains.
-
-**Exit gate:** Item/XP probability checks and sustained workload benchmark; no regression in restart/rollback tests.
-
-## v2.0.0 — Product upgrade
-
-- Overview and storage UX (filters, paging, withdraw, status), advanced upgrade tree and automation policies.
-- Real shop integration via feature-gated adapters; permissioned claims and MythicMobs adapters.
-- Player and admin analytics (per-world counts, loot rates, cost, queue state).
-- Public read-only API and cancellable controlled mutation requests.
-- Optional offline production with quotas; disabled until accounting and anti-abuse tests pass.
-
-**Exit gate:** API compatibility tests, full player flows, admin smoke, UX accessibility checks and manual owner acceptance.
+- Issued-bundle ledger (one table/collection per backend), idempotent op-ids for give/place/merge/break/split, migration policy for legacy PDC items.
+- Per-action permission nodes (PM-01), owner-visible log polish, remaining `sounds.yml` cues.
+- Read-only `SpawnerSnapshot` service, cancellable sell/stack events, `%bravenspawner_*%` PlaceholderAPI expansion.
 
 ## PR checklist (all releases)
 
-- [ ] Linked audit/PRD IDs and clearly scoped objective
-- [ ] Unit + integration regression, including failure injections
+- [ ] Linked audit/spec IDs and a scoped objective
+- [ ] Unit + integration tests, including failure injection
 - [ ] Folia thread context verified where relevant
 - [ ] Schema/config compatibility and backup procedure
-- [ ] Security (authorization, input validation, item/economy conservation)
-- [ ] Metrics & rollback notes
-- [ ] Changelog, README and docs changed where applicable
-- [ ] Owner test record and sign-off
+- [ ] Authorization, input validation, item/economy conservation
+- [ ] Changelog and docs updated
+- [ ] Owner test record
 
 ## Explicit deferrals
 
-Multi-server write sharing, Redis federation, online/offline economy reconciliation with unknown provider outcomes and aggressive entity virtualization must remain opt-in/design-only until consistency is proved.
+Multi-server write sharing, Redis federation, offline production and physical-mob mode stay design-only until consistency and budgets are proven.
