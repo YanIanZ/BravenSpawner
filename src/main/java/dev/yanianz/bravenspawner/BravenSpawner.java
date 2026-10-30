@@ -110,6 +110,29 @@ public final class BravenSpawner extends JavaPlugin {
     private static int scaledLimit(int limit, int stack) {
         return limit <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, (long) limit * Math.max(1, stack));
     }
+    /** Owner, trusted, admin, or anyone when {@code ownership.enabled: false}. */
+    public boolean mayUse(Player player, Spawner spawner) {
+        if (player == null || spawner == null) return false;
+        return player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
+                || spawner.canUse(player.getUniqueId());
+    }
+
+    /** Owner or admin, or anyone when {@code ownership.enabled: false}. */
+    public boolean mayBreak(Player player, Spawner spawner) {
+        if (player == null || spawner == null) return false;
+        return player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
+                || spawner.isOwner(player.getUniqueId());
+    }
+
+    private boolean ownershipEnforced() {
+        return settings == null || settings.ownershipEnabled;
+    }
+
+    /** Logs at INFO with a [debug] prefix when {@code debug: true}. */
+    public void debug(String message) {
+        if (settings != null && settings.debug) getLogger().info("[debug] " + message);
+    }
+
     public void markDirty(Spawner spawner) {
         if (checkpoints != null && spawner != null) storage.upsert(spawner);
     }
@@ -238,6 +261,7 @@ public final class BravenSpawner extends JavaPlugin {
         try {
             configured = buildStorage();
             configured.init();
+            debug("storage opened: " + settings.storageType);
             return configured;
         } catch (Throwable error) {
             storageFailure = settings.storageType + ": " + error;

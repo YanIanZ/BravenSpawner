@@ -203,7 +203,7 @@ public final class BlockListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (!admin && !spawner.isOwner(player.getUniqueId())) {
+        if (!plugin.mayBreak(player, spawner)) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
@@ -289,7 +289,7 @@ public final class BlockListener implements Listener {
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) return;
+        if (!plugin.mayUse(player, spawner)) return;
         if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return;
         if (plugin.protection() != null && !plugin.protection().canUse(player, block.getLocation())) return;
         event.setCancelled(true);
@@ -306,7 +306,7 @@ public final class BlockListener implements Listener {
             return;
         }
 
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) {
+        if (!plugin.mayUse(player, spawner)) {
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
         }

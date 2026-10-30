@@ -9,9 +9,7 @@
 #   Item names and lore are not italic unless you add &o or <italic>.
 # ---------------------------------------------------------------------------
 use_item_spawners: true
-item_spawner_optimization: false
 instant_page_navigation: true
-use_new_ticking_system: true
 skip-menu: false
 bedrock: false
 enable-logger: false
@@ -45,7 +43,6 @@ unlimited-storage: false
 spawner-limit-in-chunk: 100
 spawner-limit-in-chunk-mode: blocks
 convert-spawners: true
-full-stack: false
 allow-hoppers: false
 enable-mending: false
 drop-xp-as-orbs: false
@@ -53,14 +50,14 @@ placeholders-in-gui: false
 remove-durability-on-break: false
 silk-touch-only: false
 disable-explosion-damage-spawner: true
-multiple-drop: false
 stack-limit: 200000
 
 enable-boosters: true
 disable-autosell-notifications: false
-disable-item-stock: false
 disable-sell-feature: false
 
+# false: spawners are not private; anyone may open, stack onto or break them
+# (protection plugins and bravenspawner.admin still apply).
 ownership:
   enabled: true
 
@@ -145,10 +142,6 @@ boosters:
   # type; an equal one only extends the deadline.
   duration-seconds: 600
 
-hologram:
-  enabled: true
-  line: "&e%product% &7| &f%stored% &7stored"
-
 sell-prices:
   ROTTEN_FLESH: 0.5
   BONE: 0.5
@@ -197,4 +190,5 @@ items:
     drops:
       - "DIAMOND:1:0.25"
 
+# Extra diagnostics in the console, prefixed with [debug].
 debug: false

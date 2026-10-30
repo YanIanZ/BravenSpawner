@@ -124,6 +124,7 @@ class BoosterActivationTest {
             when(manager.at(location)).thenReturn(spawner);
             when(spawner.blockLocation()).thenReturn(location);
             when(spawner.canUse(any())).thenReturn(true);
+            when(plugin.mayUse(any(), any())).thenReturn(true);
             when(spawner.id()).thenReturn(UUID.randomUUID());
             when(player.getInventory()).thenReturn(inventory);
             when(inventory.getItemInMainHand()).thenReturn(hand);

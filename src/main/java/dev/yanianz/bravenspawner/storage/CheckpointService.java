@@ -110,7 +110,9 @@ public final class CheckpointService implements AutoCloseable {
         if (!storage.isDirty()) return;
         List<Spawner> snapshot = snapshot();
         if (!flush(snapshot, false)) return;
-        plugin.getLogger().fine("checkpoint wrote " + snapshot.size() + " spawner record(s)");
+        String done = "checkpoint flushed (" + snapshot.size() + " live spawner record(s))";
+        if (plugin instanceof dev.yanianz.bravenspawner.BravenSpawner host) host.debug(done);
+        else plugin.getLogger().fine(done);
     }
 
     /**

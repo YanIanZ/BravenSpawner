@@ -31,8 +31,6 @@ public final class StackService {
     /** PDC key that carries the virtual count; mirrors the key built by the plugin. */
     private static final String STACK_KEY = "stack";
 
-    private static final String ADMIN_PERMISSION = "bravenspawner.admin";
-
     /** Outcome of a merge attempt. {@link Status#OK} is the only mutating case. */
     public enum Status {
         OK,
@@ -89,8 +87,8 @@ public final class StackService {
 
         // 1. Authorization: owner, trusted or admin. Checked before the item is
         //    inspected so an outsider cannot use error text to probe a spawner.
-        boolean admin = actor.hasPermission(ADMIN_PERMISSION);
-        if (!admin && !target.canUse(actor.getUniqueId())) {
+        // ownership.enabled: false opens stacking to everyone (BravenSpawner#mayUse).
+        if (!plugin.mayUse(actor, target)) {
             return new Result(Status.NOT_AUTHORIZED, 0, target.stack(), 0);
         }
 

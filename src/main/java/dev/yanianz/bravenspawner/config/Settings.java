@@ -19,12 +19,12 @@ import java.util.Map;
 public final class Settings {
 
     public final boolean useItemSpawners;
-    public final boolean itemSpawnerOptimization;
     public final boolean instantPageNavigation;
-    public final boolean newTickingSystem;
     public final boolean skipMenu;
     public final boolean bedrock;
     public final boolean enableLogger;
+    /** {@code debug: true} prints extra diagnostics through {@code BravenSpawner#debug}. */
+    public final boolean debug;
     public final boolean restoreMissingSpawners;
 
     public final long cooldownBreakMs;
@@ -44,7 +44,6 @@ public final class Settings {
     /** True when {@code spawner-limit-in-chunk-mode: stacks}; the default counts spawner blocks. */
     public final boolean chunkLimitCountsStacks;
     public final boolean convertSpawners;
-    public final boolean fullStack;
     public final boolean allowHoppers;
     public final boolean enableMending;
     public final boolean dropXpAsOrbs;
@@ -52,15 +51,18 @@ public final class Settings {
     public final boolean removeDurabilityOnBreak;
     public final boolean silkTouchOnly;
     public final boolean disableExplosionDamage;
-    public final boolean multipleDrop;
     public final int stackLimit;
 
     public final boolean enableBoosters;
     public final long boosterSeconds;
     public final boolean disableAutosellNotifications;
-    public final boolean disableItemStock;
     public final boolean disableSellFeature;
 
+    /**
+     * When false, spawners are not private: anyone may open, stack onto or break
+     * them (protection plugins still apply). Read through
+     * {@code BravenSpawner#mayUse} / {@code #mayBreak}.
+     */
     public final boolean ownershipEnabled;
     public final boolean corruptionEnabled;
     public final boolean corruptionAllowBreaking;
@@ -91,12 +93,11 @@ public final class Settings {
 
     private Settings(Builder b) {
         this.useItemSpawners = b.useItemSpawners;
-        this.itemSpawnerOptimization = b.itemSpawnerOptimization;
         this.instantPageNavigation = b.instantPageNavigation;
-        this.newTickingSystem = b.newTickingSystem;
         this.skipMenu = b.skipMenu;
         this.bedrock = b.bedrock;
         this.enableLogger = b.enableLogger;
+        this.debug = b.debug;
         this.restoreMissingSpawners = b.restoreMissingSpawners;
         this.cooldownBreakMs = b.cooldownBreakMs;
         this.cooldownStackMs = b.cooldownStackMs;
@@ -112,7 +113,6 @@ public final class Settings {
         this.spawnerLimitInChunk = b.spawnerLimitInChunk;
         this.chunkLimitCountsStacks = b.chunkLimitCountsStacks;
         this.convertSpawners = b.convertSpawners;
-        this.fullStack = b.fullStack;
         this.allowHoppers = b.allowHoppers;
         this.enableMending = b.enableMending;
         this.dropXpAsOrbs = b.dropXpAsOrbs;
@@ -120,12 +120,10 @@ public final class Settings {
         this.removeDurabilityOnBreak = b.removeDurabilityOnBreak;
         this.silkTouchOnly = b.silkTouchOnly;
         this.disableExplosionDamage = b.disableExplosionDamage;
-        this.multipleDrop = b.multipleDrop;
         this.stackLimit = b.stackLimit;
         this.enableBoosters = b.enableBoosters;
         this.boosterSeconds = b.boosterSeconds;
         this.disableAutosellNotifications = b.disableAutosellNotifications;
-        this.disableItemStock = b.disableItemStock;
         this.disableSellFeature = b.disableSellFeature;
         this.ownershipEnabled = b.ownershipEnabled;
         this.corruptionEnabled = b.corruptionEnabled;
@@ -161,12 +159,11 @@ public final class Settings {
                                 dev.yanianz.bravenspawner.product.ProductRegistry catalogue) {
         Builder b = new Builder();
         b.useItemSpawners = root.getBoolean("use_item_spawners", false);
-        b.itemSpawnerOptimization = root.getBoolean("item_spawner_optimization", false);
         b.instantPageNavigation = root.getBoolean("instant_page_navigation", true);
-        b.newTickingSystem = root.getBoolean("use_new_ticking_system", true);
         b.skipMenu = root.getBoolean("skip-menu", false);
         b.bedrock = root.getBoolean("bedrock", false);
         b.enableLogger = root.getBoolean("enable-logger", false);
+        b.debug = root.getBoolean("debug", false);
         b.restoreMissingSpawners = root.getBoolean("restore-missing-spawners", false);
 
         ConfigurationSection cd = root.getConfigurationSection("cooldowns");
@@ -188,7 +185,6 @@ public final class Settings {
         b.spawnerLimitInChunk = root.getInt("spawner-limit-in-chunk", 100);
         b.chunkLimitCountsStacks = "stacks".equalsIgnoreCase(root.getString("spawner-limit-in-chunk-mode", "blocks"));
         b.convertSpawners = root.getBoolean("convert-spawners", false);
-        b.fullStack = root.getBoolean("full-stack", false);
         b.allowHoppers = root.getBoolean("allow-hoppers", false);
         b.enableMending = root.getBoolean("enable-mending", false);
         b.dropXpAsOrbs = root.getBoolean("drop-xp-as-orbs", false);
@@ -196,7 +192,6 @@ public final class Settings {
         b.removeDurabilityOnBreak = root.getBoolean("remove-durability-on-break", false);
         b.silkTouchOnly = root.getBoolean("silk-touch-only", true);
         b.disableExplosionDamage = root.getBoolean("disable-explosion-damage-spawner", true);
-        b.multipleDrop = root.getBoolean("multiple-drop", false);
         b.stackLimit = Math.max(1, root.getInt("stack-limit", 200000));
 
         b.enableBoosters = root.getBoolean("enable-boosters", true);
@@ -206,10 +201,9 @@ public final class Settings {
         long boosterSeconds = root.getLong("boosters.duration-seconds", 600L);
         b.boosterSeconds = Math.max(5L, Math.min(86_400L, boosterSeconds));
         b.disableAutosellNotifications = root.getBoolean("disable-autosell-notifications", false);
-        b.disableItemStock = root.getBoolean("disable-item-stock", false);
         b.disableSellFeature = root.getBoolean("disable-sell-feature", false);
 
-        b.ownershipEnabled = root.getBoolean("ownership.enabled", false);
+        b.ownershipEnabled = root.getBoolean("ownership.enabled", true);
         b.corruptionEnabled = root.getBoolean("corruption.enabled", false);
         b.corruptionAllowBreaking = root.getBoolean("corruption.allow-breaking", false);
         b.corruptionSolveRadius = root.getInt("corruption.solve-radius", 5);
@@ -476,8 +470,8 @@ public final class Settings {
     }
 
     private static final class Builder {
-        boolean useItemSpawners, itemSpawnerOptimization, instantPageNavigation, newTickingSystem,
-                skipMenu, bedrock, enableLogger, restoreMissingSpawners;
+        boolean useItemSpawners, instantPageNavigation,
+                skipMenu, bedrock, enableLogger, debug, restoreMissingSpawners;
         long cooldownBreakMs, cooldownStackMs, cooldownGuiMs, guiReconnectCooldownMs, guiLockTimeoutMs;
         double guiMaxTeleportDistance;
         List<String> blacklistedWorlds;
@@ -485,10 +479,10 @@ public final class Settings {
         int activationRadius;
         long boosterSeconds;
         boolean chunkLimitCountsStacks;
-        boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, fullStack, allowHoppers,
+        boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, allowHoppers,
                 enableMending, dropXpAsOrbs, placeholdersInGui, removeDurabilityOnBreak, silkTouchOnly,
-                disableExplosionDamage, multipleDrop, enableBoosters, disableAutosellNotifications,
-                disableItemStock, disableSellFeature, ownershipEnabled, corruptionEnabled,
+                disableExplosionDamage, enableBoosters, disableAutosellNotifications,
+                disableSellFeature, ownershipEnabled, corruptionEnabled,
                 corruptionAllowBreaking, ninjaEnabled, moneyEnabled, moneyApplyOnAmount;
         int spawnerLimitInChunk, stackLimit, corruptionSolveRadius, corruptionDelayMin, corruptionDelayMax,
                 ninjaStartDistance, ninjaVisibilityDistance, storageThreadPool, storageBatchSize;

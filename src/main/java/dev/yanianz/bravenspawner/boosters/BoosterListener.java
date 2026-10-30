@@ -46,7 +46,7 @@ final class BoosterListener implements Listener {
             player.sendMessage(Text.of("&eRight-click one of your spawners to activate this booster."));
             return;
         }
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) {
+        if (!plugin.mayUse(player, spawner)) {
             player.sendMessage(Text.of("&cYou cannot activate a booster on this spawner."));
             return;
         }
