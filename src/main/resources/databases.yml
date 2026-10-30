@@ -1,6 +1,16 @@
 # YAML | SQLITE | MYSQL | MONGODB
 type: "sqlite"
 
+# What happens when the database above cannot be opened at startup.
+#   false (default): BravenSpawner stays loaded in "storage unavailable" mode and
+#                    blocks every spawner action until the database is fixed and the
+#                    server restarts. Nothing is read from or written to any file.
+#   true:            this run uses a NEW, EMPTY spawners-fallback.yml (an older one is
+#                    archived). spawners.yml is never read. Spawners already stored in
+#                    the database are not available, and spawners placed during the
+#                    fallback are not copied back to the database later.
+fallback-to-yaml: false
+
 thread_pool_size: 5
 batch_size: 300
 

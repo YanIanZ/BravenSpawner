@@ -76,6 +76,25 @@ class BoosterActivationTest {
         verify(fixture.hand, never()).setAmount(anyInt());
     }
 
+    @Test void refusedGrantKeepsTheBoosterItem() {
+        Fixture fixture = new Fixture();
+        when(fixture.restrictions.canOpen(fixture.player, fixture.spawner)).thenReturn(true);
+        when(fixture.protection.canUse(fixture.player, fixture.location)).thenReturn(true);
+        when(fixture.boosters.grantSpawner(any(), any(), anyDouble(), anyLong())).thenReturn(false);
+        fixture.listener.onInteract(fixture.event);
+        verify(fixture.boosters).grantSpawner(any(), any(), anyDouble(), anyLong());
+        verify(fixture.hand, never()).setAmount(anyInt());
+    }
+
+    @Test void acceptedGrantConsumesOneItem() {
+        Fixture fixture = new Fixture();
+        when(fixture.restrictions.canOpen(fixture.player, fixture.spawner)).thenReturn(true);
+        when(fixture.protection.canUse(fixture.player, fixture.location)).thenReturn(true);
+        when(fixture.boosters.grantSpawner(any(), any(), anyDouble(), anyLong())).thenReturn(true);
+        fixture.listener.onInteract(fixture.event);
+        verify(fixture.hand).setAmount(0);
+    }
+
     static class Fixture {
         final BravenSpawner plugin = mock(BravenSpawner.class);
         final Boosters boosters = mock(Boosters.class);
@@ -105,6 +124,7 @@ class BoosterActivationTest {
             when(manager.at(location)).thenReturn(spawner);
             when(spawner.blockLocation()).thenReturn(location);
             when(spawner.canUse(any())).thenReturn(true);
+            when(plugin.mayUse(any(), any())).thenReturn(true);
             when(spawner.id()).thenReturn(UUID.randomUUID());
             when(player.getInventory()).thenReturn(inventory);
             when(inventory.getItemInMainHand()).thenReturn(hand);

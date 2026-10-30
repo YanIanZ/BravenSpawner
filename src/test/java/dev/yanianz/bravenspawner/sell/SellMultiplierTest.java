@@ -24,13 +24,14 @@ class SellMultiplierTest {
     Player player;
     Spawner spawner;
     SellService service;
+    YamlConfiguration config;
 
     @BeforeEach void setup() {
         plugin = mock(BravenSpawner.class);
         economy = mock(Economy.class);
         player = mock(Player.class);
         spawner = mock(Spawner.class);
-        YamlConfiguration config = new YamlConfiguration();
+        config = new YamlConfiguration();
         config.set("sell-prices.STONE", 2.0);
         config.set("economy.sell-multiplier", 2.0);
         when(plugin.getConfig()).thenReturn(config);
@@ -60,6 +61,22 @@ class SellMultiplierTest {
         verify(economy, times(1)).deposit(player, 24.0);
         verify(economy, times(1)).deposit(eq(player), anyDouble());
         verify(spawner).drainSlot(0, 4);
+    }
+
+    @Test void payoutIsRoundedHalfUpToConfiguredDecimals() {
+        config.set("economy.sell-multiplier", 1.0);
+        config.set("sell-prices.STONE", 0.33375);
+        when(economy.deposit(player, 1.34)).thenReturn(true);
+        SellService.Sale sale = service.sell(player, spawner);
+        assertEquals(SellService.Status.SOLD, sale.status());
+        assertEquals(1.34, sale.value());
+        config.set("economy.round-to", 0);
+        assertEquals(1.0, service.value(spawner));
+    }
+
+    @Test void moneyTextUsesTheFormatsSection() {
+        config.set("money-decimals.formats.1", "%number%k$");
+        assertEquals("1.50k$", service.format(1500));
     }
 
     @Test void rejectedMultipliedPaymentLeavesStorageUntouched() {

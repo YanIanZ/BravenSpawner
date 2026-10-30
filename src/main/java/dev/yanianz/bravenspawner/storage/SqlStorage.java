@@ -24,9 +24,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * SQLite / MySQL backend behind one dialect switch.
  *
- * <p>Hikari owns the pool. Every write is an incremental UPSERT; the table is never
- * cleared before a flush, so a failure halfway through a batch rolls back only that
- * batch and leaves every previously committed row intact.
+ * <p>Hikari owns the pool. A periodic checkpoint writes only the records that changed
+ * since their last committed write: ids queued through {@link #upsert(Spawner)} plus any
+ * live record whose {@link Spawner#revision()} moved past the revision last committed
+ * for it. Those rows are UPSERTed with {@code addBatch}/{@code executeBatch} inside one
+ * transaction; deletes are batched the same way. Only {@link #flushAll(Collection, boolean)}
+ * with {@code full=true} (the manual {@code flushNow} path) rewrites every live row.
+ * The table is never cleared, so a failure rolls back that transaction only and leaves
+ * every previously committed row intact.
  *
  * <p>A {@code braven_schema_version} row records the applied schema version and
  * {@link #applyMigration(Connection, int)} is the hook future column additions plug
@@ -42,21 +47,22 @@ public final class SqlStorage implements Storage {
     public enum Dialect { SQLITE, MYSQL }
 
     /** Bump together with a new {@code applyMigration} branch. */
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
     private static final String TABLE = "braven_spawners";
     private static final String VERSION_TABLE = "braven_schema_version";
 
     private static final String COLUMNS =
-            "id,owner,world,x,y,z,kind,product,stack,tier,hologram,corrupted,xp,produced,trusted,items,revision,updated_at";
-    private static final String PLACEHOLDERS = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?";
+            "id,owner,world,x,y,z,kind,product,stack,tier,hologram,corrupted,corrupted_at,xp,produced,trusted,items,revision,updated_at";
+    private static final String PLACEHOLDERS = "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?";
 
     private static final String SQLITE_UPSERT =
             "INSERT INTO " + TABLE + " (" + COLUMNS + ") VALUES (" + PLACEHOLDERS + ")"
                     + " ON CONFLICT(id) DO UPDATE SET"
                     + " owner=excluded.owner, world=excluded.world, x=excluded.x, y=excluded.y, z=excluded.z,"
                     + " kind=excluded.kind, product=excluded.product, stack=excluded.stack, tier=excluded.tier,"
-                    + " hologram=excluded.hologram, corrupted=excluded.corrupted, xp=excluded.xp,"
+                    + " hologram=excluded.hologram, corrupted=excluded.corrupted,"
+                    + " corrupted_at=excluded.corrupted_at, xp=excluded.xp,"
                     + " produced=excluded.produced, trusted=excluded.trusted, items=excluded.items,"
                     + " revision=" + TABLE + ".revision + 1, updated_at=excluded.updated_at";
 
@@ -65,7 +71,8 @@ public final class SqlStorage implements Storage {
                     + " ON DUPLICATE KEY UPDATE"
                     + " owner=VALUES(owner), world=VALUES(world), x=VALUES(x), y=VALUES(y), z=VALUES(z),"
                     + " kind=VALUES(kind), product=VALUES(product), stack=VALUES(stack), tier=VALUES(tier),"
-                    + " hologram=VALUES(hologram), corrupted=VALUES(corrupted), xp=VALUES(xp),"
+                    + " hologram=VALUES(hologram), corrupted=VALUES(corrupted),"
+                    + " corrupted_at=VALUES(corrupted_at), xp=VALUES(xp),"
                     + " produced=VALUES(produced), trusted=VALUES(trusted), items=VALUES(items),"
                     + " revision=revision + 1, updated_at=VALUES(updated_at)";
 
@@ -76,6 +83,8 @@ public final class SqlStorage implements Storage {
     private final Set<UUID> dirty = ConcurrentHashMap.newKeySet();
     private final Set<UUID> tombstones = ConcurrentHashMap.newKeySet();
     private final Set<UUID> pendingDeletes = ConcurrentHashMap.newKeySet();
+    /** Revision of each record as of its last committed write (or its load). */
+    private final java.util.Map<UUID, Long> committed = new ConcurrentHashMap<>();
 
     private volatile boolean healthy = true;
     private volatile HikariDataSource dataSource;
@@ -90,7 +99,7 @@ public final class SqlStorage implements Storage {
     public void init() {
         registerDrivers();
         HikariConfig cfg = new HikariConfig();
-        cfg.setMaximumPoolSize(Math.max(2, section.getInt("pool-size", 5)));
+        cfg.setMaximumPoolSize(poolSize(section));
         cfg.setPoolName("BravenSpawner");
 
         if (dialect == Dialect.SQLITE) {
@@ -124,6 +133,19 @@ public final class SqlStorage implements Storage {
             throw new IllegalStateException("schema creation failed: " + e.getMessage(), e);
         }
         healthy = true;
+    }
+
+    /**
+     * Pool size from {@code mysql.max-pool} (the documented key), {@code mysql.pool-size}
+     * or a top-level {@code pool-size}, in that order; at least 2.
+     */
+    static int poolSize(ConfigurationSection section) {
+        ConfigurationSection mysql = section.getConfigurationSection("mysql");
+        int size = 5;
+        if (mysql != null && mysql.isInt("max-pool")) size = mysql.getInt("max-pool");
+        else if (mysql != null && mysql.isInt("pool-size")) size = mysql.getInt("pool-size");
+        else if (section.isInt("pool-size")) size = section.getInt("pool-size");
+        return Math.max(2, size);
     }
 
     /**
@@ -183,6 +205,8 @@ public final class SqlStorage implements Storage {
                 ensureColumn(c, TABLE, "revision", "BIGINT NOT NULL DEFAULT 0");
                 ensureColumn(c, TABLE, "updated_at", "BIGINT NOT NULL DEFAULT 0");
             }
+            // v2: corruption timestamp, so a reload keeps the original corruption time.
+            case 2 -> ensureColumn(c, TABLE, "corrupted_at", "BIGINT NOT NULL DEFAULT 0");
             default -> throw new SQLException("no migration registered for schema version " + version);
         }
     }
@@ -201,6 +225,7 @@ public final class SqlStorage implements Storage {
                       tier INT NOT NULL DEFAULT 0,
                       hologram BOOLEAN NOT NULL,
                       corrupted BOOLEAN NOT NULL DEFAULT 0,
+                      corrupted_at BIGINT NOT NULL DEFAULT 0,
                       xp INT NOT NULL DEFAULT 0,
                       produced BIGINT NOT NULL DEFAULT 0,
                       trusted TEXT,
@@ -314,7 +339,8 @@ public final class SqlStorage implements Storage {
             spawner.replaceContents(items);
             spawner.addXp(rs.getInt("xp"));
             spawner.produced(rs.getLong("produced"));
-            if (rs.getBoolean("corrupted")) spawner.corrupt();
+            Storage.Codec.restoreCorruption(spawner, rs.getBoolean("corrupted"), rs.getLong("corrupted_at"));
+            committed.put(id, spawner.revision());
             return spawner;
         } catch (RuntimeException e) {
             plugin.getLogger().warning("quarantined malformed spawner row " + rawId + ": " + e.getMessage());
@@ -339,8 +365,14 @@ public final class SqlStorage implements Storage {
         dirty.add(id);
     }
 
+    /** Checkpoint flush: only changed records. */
     @Override
     public void flushAll(Collection<Spawner> spawners) {
+        flushAll(spawners, false);
+    }
+
+    @Override
+    public void flushAll(Collection<Spawner> spawners, boolean full) {
         if (spawners == null) {
             throw new StorageException("flush called without a spawner collection");
         }
@@ -356,21 +388,22 @@ public final class SqlStorage implements Storage {
 
         Set<UUID> deletes = new HashSet<>(pendingDeletes);
         Set<UUID> live = new HashSet<>();
+        List<Spawner> writes = new ArrayList<>();
         for (Spawner s : spawners) {
-            if (!tombstones.contains(s.id())) live.add(s.id());
+            // A checkpoint may hold a snapshot taken before a delete; never let that
+            // snapshot resurrect a row removed on purpose.
+            if (s == null || tombstones.contains(s.id())) continue;
+            live.add(s.id());
+            if (full || pending.contains(s.id()) || changedSinceCommit(s)) writes.add(s);
         }
+        List<UUID> rowDeletes = new ArrayList<>();
+        for (UUID id : deletes) if (!live.contains(id)) rowDeletes.add(id);
 
+        java.util.Map<UUID, Long> revisions = new java.util.HashMap<>();
         try (Connection c = pool.getConnection()) {
             inTransaction(c, () -> {
-                for (UUID id : deletes) {
-                    if (!live.contains(id)) deleteRow(c, id);
-                }
-                for (Spawner s : spawners) {
-                    // A checkpoint may hold a snapshot taken before a delete; never
-                    // let that snapshot resurrect a row removed on purpose.
-                    if (tombstones.contains(s.id())) continue;
-                    writeRow(c, s);
-                }
+                deleteRows(c, rowDeletes);
+                writeRows(c, writes, revisions);
             });
         } catch (Exception e) {
             dirty.addAll(pending);
@@ -381,6 +414,18 @@ public final class SqlStorage implements Storage {
 
         // Committed: only now is it safe to forget the deletes this pass retried.
         pendingDeletes.removeAll(deletes);
+        committed.putAll(revisions);
+        rowDeletes.forEach(committed::remove);
+    }
+
+    private boolean changedSinceCommit(Spawner s) {
+        Long last = committed.get(s.id());
+        return last == null || last != s.revision();
+    }
+
+    /** Rows written by the last flush call; exposed for tests. */
+    int committedRevisions() {
+        return committed.size();
     }
 
     /**
@@ -406,34 +451,72 @@ public final class SqlStorage implements Storage {
         }
     }
 
-    private void writeRow(Connection c, Spawner s) throws SQLException {
+    private int batchSize() {
+        return Math.max(1, section.getInt("batch_size", 300));
+    }
+
+    /**
+     * UPSERTs {@code rows} through one prepared statement and JDBC batches of
+     * {@code batch_size}. Each row's revision is read before it is encoded, so a
+     * mutation that lands during the encode still differs and is written next time.
+     */
+    private void writeRows(Connection c, List<Spawner> rows, java.util.Map<UUID, Long> revisions)
+            throws SQLException {
+        if (rows.isEmpty()) return;
         String sql = dialect == Dialect.MYSQL ? MYSQL_UPSERT : SQLITE_UPSERT;
+        int limit = batchSize();
         try (PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, s.id().toString());
-            ps.setString(2, s.owner().toString());
-            ps.setString(3, s.world());
-            ps.setInt(4, s.x());
-            ps.setInt(5, s.y());
-            ps.setInt(6, s.z());
-            ps.setString(7, s.kind().name());
-            ps.setString(8, s.product());
-            ps.setInt(9, s.stack());
-            ps.setInt(10, s.tier());
-            ps.setBoolean(11, s.hologram());
-            ps.setBoolean(12, s.corrupted());
-            ps.setInt(13, s.storedXp());
-            ps.setLong(14, s.produced());
-            ps.setString(15, Storage.Codec.encodeTrusted(s.trusted()));
-            ps.setString(16, Storage.Codec.encodeItems(s.contents()));
-            ps.setLong(17, System.currentTimeMillis());
-            ps.executeUpdate();
+            int queued = 0;
+            long now = System.currentTimeMillis();
+            for (Spawner s : rows) {
+                long revision = s.revision();
+                bindRow(ps, s, now);
+                ps.addBatch();
+                revisions.put(s.id(), revision);
+                if (++queued >= limit) {
+                    ps.executeBatch();
+                    queued = 0;
+                }
+            }
+            if (queued > 0) ps.executeBatch();
         }
     }
 
-    private void deleteRow(Connection c, UUID id) throws SQLException {
+    private void bindRow(PreparedStatement ps, Spawner s, long now) throws SQLException {
+        ps.setString(1, s.id().toString());
+        ps.setString(2, s.owner().toString());
+        ps.setString(3, s.world());
+        ps.setInt(4, s.x());
+        ps.setInt(5, s.y());
+        ps.setInt(6, s.z());
+        ps.setString(7, s.kind().name());
+        ps.setString(8, s.product());
+        ps.setInt(9, s.stack());
+        ps.setInt(10, s.tier());
+        ps.setBoolean(11, s.hologram());
+        ps.setBoolean(12, s.corrupted());
+        ps.setLong(13, s.corruptedAt());
+        ps.setInt(14, s.storedXp());
+        ps.setLong(15, s.produced());
+        ps.setString(16, Storage.Codec.encodeTrusted(s.trusted()));
+        ps.setString(17, Storage.Codec.encodeItems(s.contents()));
+        ps.setLong(18, now);
+    }
+
+    private void deleteRows(Connection c, List<UUID> ids) throws SQLException {
+        if (ids.isEmpty()) return;
+        int limit = batchSize();
         try (PreparedStatement ps = c.prepareStatement("DELETE FROM " + TABLE + " WHERE id=?")) {
-            ps.setString(1, id.toString());
-            ps.executeUpdate();
+            int queued = 0;
+            for (UUID id : ids) {
+                ps.setString(1, id.toString());
+                ps.addBatch();
+                if (++queued >= limit) {
+                    ps.executeBatch();
+                    queued = 0;
+                }
+            }
+            if (queued > 0) ps.executeBatch();
         }
     }
 

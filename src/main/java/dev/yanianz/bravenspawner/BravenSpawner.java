@@ -61,6 +61,8 @@ public final class BravenSpawner extends JavaPlugin {
     private dev.yanianz.bravenspawner.events.SpawnerEvents events;
     private NamespacedKey spawnerIdKey, itemKindKey, itemProductKey, itemStackKey;
     private FileConfiguration databases;
+    private volatile String storageFailure;
+    private volatile boolean storageFallback;
 
     public static BravenSpawner get() { return instance; }
     public boolean ready() { return ready; }
@@ -96,7 +98,10 @@ public final class BravenSpawner extends JavaPlugin {
     }
     public int maximumItems(Spawner spawner) {
         ProductDefinition product = product(spawner);
-        return product == null || settings.unlimitedStorage ? 0 : scaledLimit(product.maxStoredItems(), spawner.stack());
+        if (product == null || settings.unlimitedStorage) return 0;
+        int scaled = scaledLimit(product.maxStoredItems(), spawner.stack());
+        double tierScale = settings.capacityScale(spawner.tier());
+        return scaled <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.floor(scaled * tierScale));
     }
     public int maximumXp(Spawner spawner) {
         ProductDefinition product = product(spawner);
@@ -105,6 +110,29 @@ public final class BravenSpawner extends JavaPlugin {
     private static int scaledLimit(int limit, int stack) {
         return limit <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, (long) limit * Math.max(1, stack));
     }
+    /** Owner, trusted, admin, or anyone when {@code ownership.enabled: false}. */
+    public boolean mayUse(Player player, Spawner spawner) {
+        if (player == null || spawner == null) return false;
+        return player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
+                || spawner.canUse(player.getUniqueId());
+    }
+
+    /** Owner or admin, or anyone when {@code ownership.enabled: false}. */
+    public boolean mayBreak(Player player, Spawner spawner) {
+        if (player == null || spawner == null) return false;
+        return player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
+                || spawner.isOwner(player.getUniqueId());
+    }
+
+    private boolean ownershipEnforced() {
+        return settings == null || settings.ownershipEnabled;
+    }
+
+    /** Logs at INFO with a [debug] prefix when {@code debug: true}. */
+    public void debug(String message) {
+        if (settings != null && settings.debug) getLogger().info("[debug] " + message);
+    }
+
     public void markDirty(Spawner spawner) {
         if (checkpoints != null && spawner != null) storage.upsert(spawner);
     }
@@ -144,19 +172,7 @@ public final class BravenSpawner extends JavaPlugin {
         itemStackKey = new NamespacedKey(this, "stack");
         products = new ProductRegistry(new ProductLoader(this, existingConfig));
         settings = Settings.load(getConfig(), databases, null, products);
-        storage = buildStorage();
-        try {
-            storage.init();
-        } catch (Throwable error) {
-            // A broken database must not take the whole plugin down: the feature the
-            // operator asked for still works with flat-file storage, and the reason is
-            // logged once so it can be fixed before the next restart.
-            getLogger().severe("storage init failed (" + settings.storageType + "): " + error);
-            getLogger().severe("falling back to YAML storage for this run; fix databases.yml to use "
-                    + settings.storageType + " again");
-            storage = new YamlStorage(this);
-            storage.init();
-        }
+        storage = openStorage();
         economy = new Economy();
         if (settings.economy.enabled) economy.hook();
         boosters = new Boosters(this);
@@ -178,6 +194,12 @@ public final class BravenSpawner extends JavaPlugin {
         new CommandHandler(this).register(this);
         boosters.start(settings);
         corruption = new CorruptionTask(this);
+        if (storage == null) {
+            getLogger().severe("BravenSpawner is in STORAGE UNAVAILABLE mode: spawner placing, breaking, "
+                    + "opening, selling and withdrawing are blocked until databases.yml is fixed and the "
+                    + "server restarts. Cause: " + storageFailure);
+            return;
+        }
         Schedulers.async(this, () -> {
             List<Spawner> loaded;
             try { loaded = storage.loadAll(); }
@@ -221,6 +243,59 @@ public final class BravenSpawner extends JavaPlugin {
         if (!file.exists()) saveResource("databases.yml", false);
         databases = YamlConfiguration.loadConfiguration(file);
     }
+    /**
+     * Opens the configured backend and fails closed.
+     *
+     * <p>A database that cannot be opened must never be replaced by {@code spawners.yml}
+     * silently: that file predates the database, so loading it would hand out stale
+     * loot and XP a second time, and spawners placed during the run would be orphaned
+     * once the database is back. The default is therefore "storage unavailable" mode
+     * (returns null, the plugin stays enabled but never becomes ready). Only an explicit
+     * {@code databases.yml: fallback-to-yaml: true} opts into a fresh, empty
+     * {@code spawners-fallback.yml}.
+     */
+    private Storage openStorage() {
+        storageFailure = null;
+        storageFallback = false;
+        Storage configured = null;
+        try {
+            configured = buildStorage();
+            configured.init();
+            debug("storage opened: " + settings.storageType);
+            return configured;
+        } catch (Throwable error) {
+            storageFailure = settings.storageType + ": " + error;
+            getLogger().severe("storage init failed (" + settings.storageType + "): " + error);
+            if (configured != null) {
+                try { configured.close(); } catch (Throwable ignored) { /* release whatever init opened */ }
+            }
+        }
+        if (databases != null && databases.getBoolean("fallback-to-yaml", false)) {
+            try {
+                Storage fallback = YamlStorage.freshFallback(this);
+                fallback.init();
+                storageFallback = true;
+                getLogger().severe("fallback-to-yaml is enabled: this run uses an EMPTY "
+                        + YamlStorage.FALLBACK_FILE + "; spawners stored in " + settings.storageType
+                        + " are not loaded and spawners placed now will not be in the database later");
+                return fallback;
+            } catch (Throwable error) {
+                storageFailure = storageFailure + "; YAML fallback failed: " + error;
+                getLogger().severe("YAML fallback failed: " + error);
+            }
+        }
+        return null;
+    }
+
+    /** False when no backend could be opened; every spawner interaction is refused in that mode. */
+    public boolean isStorageAvailable() { return storage != null; }
+
+    /** Why the configured backend failed to open this run, or null when it opened normally. */
+    public String storageFailure() { return storageFailure; }
+
+    /** True when this run explicitly fell back to an empty {@code spawners-fallback.yml}. */
+    public boolean isStorageFallback() { return storageFallback; }
+
     private Storage buildStorage() {
         String type = settings.storageType;
         if (type.equals("MONGODB") || type.equals("MONGO")) return new dev.yanianz.bravenspawner.storage.MongoStorage(this, databases);

@@ -42,6 +42,13 @@ public final class Spawner {
     private final Set<UUID> trusted = Collections.synchronizedSet(new LinkedHashSet<>());
     private final AtomicLong produced = new AtomicLong();
     private final AtomicInteger pending = new AtomicInteger();
+    /**
+     * Bumped by every model mutator. Backends compare it with the revision they last
+     * wrote, so a change that was never reported through {@code markDirty} is still
+     * persisted at the next checkpoint. Direct edits of {@link #trusted()} are not
+     * counted; callers must mark those dirty.
+     */
+    private final AtomicLong revision = new AtomicLong();
 
     private volatile Kind kind;
     private volatile String product;
@@ -75,19 +82,19 @@ public final class Spawner {
     public int z() { return z; }
 
     public Kind kind() { return kind; }
-    public void kind(Kind value) { this.kind = value; }
+    public void kind(Kind value) { this.kind = value; touch(); }
 
     public String product() { return product; }
-    public void product(String value) { this.product = value; }
+    public void product(String value) { this.product = value; touch(); }
 
     public int stack() { return stack; }
 
     public void stack(int value) {
-        synchronized (lock) { stack = Math.max(0, value); }
+        synchronized (lock) { stack = Math.max(0, value); touch(); }
     }
 
     public void addStack(int delta) {
-        synchronized (lock) { stack = Math.max(0, stack + delta); }
+        synchronized (lock) { stack = Math.max(0, stack + delta); touch(); }
     }
 
     /**
@@ -105,6 +112,7 @@ public final class Spawner {
             long target = (long) stack + delta;
             if (target > limit) return false;
             stack = (int) target;
+            touch();
             return true;
         }
     }
@@ -115,10 +123,10 @@ public final class Spawner {
     }
 
     public int tier() { return tier; }
-    public void tier(int value) { this.tier = Math.max(0, value); }
+    public void tier(int value) { this.tier = Math.max(0, value); touch(); }
 
     public boolean hologram() { return hologram; }
-    public void hologram(boolean value) { this.hologram = value; }
+    public void hologram(boolean value) { this.hologram = value; touch(); }
 
     public boolean corrupted() { return corrupted; }
     public long corruptedAt() { return corruptedAt; }
@@ -126,16 +134,19 @@ public final class Spawner {
     public void corrupt() {
         this.corrupted = true;
         this.corruptedAt = System.currentTimeMillis();
+        touch();
     }
 
     public void restoreCorruption(boolean corrupted, long timestamp) {
         this.corrupted = corrupted;
         this.corruptedAt = corrupted ? Math.max(0L, timestamp) : 0L;
+        touch();
     }
 
     public void repair() {
         this.corrupted = false;
         this.corruptedAt = 0;
+        touch();
     }
 
     public int storedXp() { return storedXp; }
@@ -143,6 +154,7 @@ public final class Spawner {
         synchronized (lock) {
             int xp = storedXp;
             storedXp = 0;
+            if (xp != 0) touch();
             return xp;
         }
     }
@@ -152,6 +164,7 @@ public final class Spawner {
         synchronized (lock) {
             long limit = maximum <= 0 ? Integer.MAX_VALUE : maximum;
             storedXp = (int) Math.max(storedXp, Math.min(limit, (long) storedXp + Math.max(0, amount)));
+            touch();
         }
     }
 
@@ -162,7 +175,7 @@ public final class Spawner {
     public boolean canUse(UUID uuid) { return isOwner(uuid) || (uuid != null && trusted.contains(uuid)); }
 
     public long produced() { return produced.get(); }
-    public void produced(long delta) { produced.addAndGet(delta); }
+    public void produced(long delta) { produced.addAndGet(delta); touch(); }
 
     /**
      * Virtual production credits a mob spawner could not spend yet.
@@ -173,7 +186,7 @@ public final class Spawner {
      */
     public int pending() { return pending.get(); }
 
-    public void pending(int value) { pending.set(Math.max(0, value)); }
+    public void pending(int value) { pending.set(Math.max(0, value)); touch(); }
 
     public void addPending(int delta) {
         if (delta <= 0) return;
@@ -181,6 +194,7 @@ public final class Spawner {
             long next = (long) current + delta;
             return next > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) next;
         });
+        touch();
     }
 
     /**
@@ -232,6 +246,7 @@ public final class Spawner {
     public ItemStack store(ItemStack incoming, int capacity, int maximumItems) {
         if (incoming == null || incoming.getType().isAir()) return null;
         synchronized (lock) {
+            touch();
             ItemStack left = incoming.clone();
             int rejected = 0;
             if (maximumItems > 0) {
@@ -270,6 +285,7 @@ public final class Spawner {
     public ItemStack storeVirtual(ItemStack incoming, int maximumItems) {
         if (incoming == null || incoming.getType().isAir() || incoming.getAmount() <= 0) return null;
         synchronized (lock) {
+            touch();
             long total = 0;
             for (ItemStack item : storage) total += item.getAmount();
             long ceiling = maximumItems <= 0 ? Integer.MAX_VALUE : maximumItems;
@@ -299,6 +315,7 @@ public final class Spawner {
         synchronized (lock) {
             List<ItemStack> copy = new ArrayList<>(storage);
             storage.clear();
+            touch();
             return copy;
         }
     }
@@ -313,6 +330,7 @@ public final class Spawner {
             out.setAmount(take);
             slot.setAmount(slot.getAmount() - take);
             if (slot.getAmount() <= 0) storage.remove(index);
+            touch();
             return out;
         }
     }
@@ -328,10 +346,16 @@ public final class Spawner {
 
     public void replaceContents(List<ItemStack> items) {
         synchronized (lock) {
+            touch();
             storage.clear();
             if (items != null) {
                 for (ItemStack item : items) if (item != null && !item.getType().isAir()) storage.add(item);
             }
         }
     }
+
+    /** Monotonic mutation counter; see the field comment. */
+    public long revision() { return revision.get(); }
+
+    private void touch() { revision.incrementAndGet(); }
 }

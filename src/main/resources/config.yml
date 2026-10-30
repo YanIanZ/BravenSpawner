@@ -9,9 +9,7 @@
 #   Item names and lore are not italic unless you add &o or <italic>.
 # ---------------------------------------------------------------------------
 use_item_spawners: true
-item_spawner_optimization: false
 instant_page_navigation: true
-use_new_ticking_system: true
 skip-menu: false
 bedrock: false
 enable-logger: false
@@ -24,6 +22,8 @@ chest_gui:
     spawner_lock_timeout: 5000
     max_teleport_distance: 100.0
 
+# Per-player cooldowns in milliseconds. 0 disables one.
+#   break: between two spawner breaks   stack: between two shift-right-click merges
 cooldowns:
   break: 300
   stack: 150
@@ -36,9 +36,13 @@ activation-radius: 10
 
 block-collection-in-inventory: true
 unlimited-storage: false
+# Maximum spawners per chunk (0 = no limit). By default this counts spawner BLOCKS,
+# so stacking onto an existing spawner is never refused by it. Set
+# spawner-limit-in-chunk-mode: stacks to count stack units instead (then a chunk
+# holds at most this many units in total, across all its spawners).
 spawner-limit-in-chunk: 100
+spawner-limit-in-chunk-mode: blocks
 convert-spawners: true
-full-stack: false
 allow-hoppers: false
 enable-mending: false
 drop-xp-as-orbs: false
@@ -46,14 +50,14 @@ placeholders-in-gui: false
 remove-durability-on-break: false
 silk-touch-only: false
 disable-explosion-damage-spawner: true
-multiple-drop: false
 stack-limit: 200000
 
 enable-boosters: true
 disable-autosell-notifications: false
-disable-item-stock: false
 disable-sell-feature: false
 
+# false: spawners are not private; anyone may open, stack onto or break them
+# (protection plugins and bravenspawner.admin still apply).
 ownership:
   enabled: true
 
@@ -94,12 +98,22 @@ economy:
   purchase-price: 2500.0
   sell-multiplier: 1.0
   autosell: false
+  # Decimal places sale payouts are rounded to (HALF_UP). 0..6, default 2.
+  round-to: 2
 
 sell:
   # Seconds between autosell passes; only used when economy.autosell is true.
   # Values below 5 are raised to 5 so a misconfiguration cannot spin the pass.
   autosell-interval-seconds: 60
 
+# Upgrade tiers, cheapest first. The first tier is the base every spawner starts at.
+#   cost            money for this tier (negative values are treated as 0)
+#   interval-ticks  production delay cap: an upgraded spawner uses the FASTER of the
+#                   product's spawn delay and this value, so upgrading never slows it
+#                   (minimum 20)
+#   capacity        storage size relative to the first tier: maximum-items is
+#                   multiplied by capacity / first-tier capacity (never below 1x;
+#                   minimum 1)
 upgrades:
   tiers:
     - name: base
@@ -120,17 +134,13 @@ upgrades:
       capacity: 180
 
 boosters:
-  # Duration granted by /bspawner booster and by consumable booster items, in
-  # seconds. Values outside 5..86400 are clamped when the config is loaded.
+  # Duration granted by /bspawner booster, in seconds. Values outside 5..86400 are
+  # clamped when the config is loaded.
+  # Booster items are defined in boosters/*.yml and handed out with
+  # /bspawner boosteritem; only those tagged items work (plain materials such as
+  # SUGAR do nothing). A booster never replaces a stronger active one of the same
+  # type; an equal one only extends the deadline.
   duration-seconds: 600
-  items:
-    SUGAR: 1.5
-    BLAZE_POWDER: 2.0
-    NETHER_STAR: 4.0
-
-hologram:
-  enabled: true
-  line: "&e%product% &7| &f%stored% &7stored"
 
 sell-prices:
   ROTTEN_FLESH: 0.5
@@ -180,4 +190,5 @@ items:
     drops:
       - "DIAMOND:1:0.25"
 
+# Extra diagnostics in the console, prefixed with [debug].
 debug: false

@@ -51,6 +51,8 @@ public final class BlockListener implements Listener {
     private final Ninja ninja;
     private final HopperLink hopperLink;
     private final StackService stackService;
+    private final ActionCooldowns breakCooldowns = new ActionCooldowns();
+    private final ActionCooldowns stackCooldowns = new ActionCooldowns();
 
     public BlockListener(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -70,6 +72,11 @@ public final class BlockListener implements Listener {
         Spawner.Kind kind = StackService.kindOf(plugin, item);
         String product = StackService.productOf(plugin, item);
 
+        if (!plugin.ready() && (kind != null || isSpawnerBlock(event.getBlockPlaced()))) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of(unavailableMessage()));
+            return;
+        }
         if (kind == null || product == null) {
             if (s.convertSpawners && event.getBlockPlaced().getType() == Material.SPAWNER) {
                 convertVanilla(event, player);
@@ -81,11 +88,6 @@ public final class BlockListener implements Listener {
         if (definition == null || kind == Spawner.Kind.ITEM && !s.useItemSpawners) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cThat spawner product is unavailable."));
-            return;
-        }
-        if (!plugin.ready()) {
-            event.setCancelled(true);
-            player.sendMessage(Text.of("&cSpawner storage is still loading."));
             return;
         }
         Block block = event.getBlockPlaced();
@@ -109,15 +111,10 @@ public final class BlockListener implements Listener {
             return;
         }
 
-        int chunkX = block.getX() >> 4;
-        int chunkZ = block.getZ() >> 4;
-        if (s.spawnerLimitInChunk > 0) {
-            long total = plugin.manager().stackedInChunk(block.getWorld(), chunkX, chunkZ);
-            if (total + stack > s.spawnerLimitInChunk) {
-                player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
-                event.setCancelled(true);
-                return;
-            }
+        if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, stack)) {
+            player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
+            event.setCancelled(true);
+            return;
         }
 
         Spawner existing = plugin.manager().at(block.getLocation());
@@ -148,27 +145,55 @@ public final class BlockListener implements Listener {
                 + (spawner.stack() > 1 ? " &7x" + spawner.stack() : "")));
     }
 
+    /**
+     * Turns a placed vanilla spawner into a managed one. Blacklisted worlds and mob
+     * types without a product stay vanilla (never silently become ZOMBIE), and the
+     * chunk cap applies exactly as for a spawner item.
+     */
     private void convertVanilla(BlockPlaceEvent event, Player player) {
         if (!plugin.ready()) { event.setCancelled(true); return; }
         Block block = event.getBlockPlaced();
-        String mob = "ZOMBIE";
-        if (block.getState() instanceof CreatureSpawner cs && cs.getSpawnedType() != null) {
-            mob = cs.getSpawnedType().name();
+        if (plugin.settings().isBlacklisted(block.getWorld().getName())) return;
+        String mob = vanillaProduct(block);
+        if (mob == null) return;
+        if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, 1)) {
+            player.sendMessage(Text.of("&cChunk spawner limit reached (" + plugin.settings().spawnerLimitInChunk + ")."));
+            event.setCancelled(true);
+            return;
         }
-        if (plugin.settings().mobs().get(mob) == null) mob = "ZOMBIE";
         Spawner spawner = new Spawner(UUID.randomUUID(), player.getUniqueId(),
                 block.getWorld().getName(), block.getX(), block.getY(), block.getZ(),
                 Spawner.Kind.MOB, mob, 1, 0, true);
-        plugin.manager().register(spawner);
+        if (!plugin.manager().register(spawner)) return;
         plugin.holograms().update(spawner);
         player.sendMessage(Text.of("&aConverted vanilla spawner: &f" + mob));
     }
 
+    /** Product id for the vanilla spawner's mob, or null when it has none or no product exists. */
+    private String vanillaProduct(Block block) {
+        if (!(block.getState() instanceof CreatureSpawner cs) || cs.getSpawnedType() == null) return null;
+        String mob = cs.getSpawnedType().name();
+        if (plugin.products().mob(mob) != null) return mob;
+        return plugin.settings().mob(mob) != null ? mob : null;
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
+        if (!plugin.ready()) {
+            // Until the stored records are loaded (or when storage could not be
+            // opened at all) a managed spawner looks like a vanilla block; breaking
+            // it would destroy the record's stack, loot and XP.
+            if (isSpawnerBlock(event.getBlock())) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+            }
+            return;
+        }
         Spawner spawner = plugin.manager().at(event.getBlock().getLocation());
         if (spawner == null) return;
-        if (!plugin.ready()) { event.setCancelled(true); return; }
+        // Banked XP is paid out explicitly below; the vanilla spawner orb drop
+        // (15-43 XP) would otherwise be farmable by placing and breaking.
+        event.setExpToDrop(0);
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
@@ -178,7 +203,7 @@ public final class BlockListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (!admin && !spawner.isOwner(player.getUniqueId())) {
+        if (!plugin.mayBreak(player, spawner)) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
@@ -202,6 +227,12 @@ public final class BlockListener implements Listener {
         if (!plugin.ready() || spawner.storedCount() > 0) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cCollect the stored items before breaking this spawner."));
+            return;
+        }
+        long wait = breakCooldowns.acquire(player.getUniqueId(), s.cooldownBreakMs, System.currentTimeMillis());
+        if (wait > 0) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore breaking another spawner."));
             return;
         }
 
@@ -246,36 +277,36 @@ public final class BlockListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
+        if (!plugin.ready()) {
+            if (isSpawnerBlock(block)) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+            }
+            return;
+        }
         Spawner spawner = plugin.manager().at(block.getLocation());
         if (spawner == null) return;
-        if (!plugin.ready()) { event.setCancelled(true); return; }
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) return;
+        if (!plugin.mayUse(player, spawner)) return;
         if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return;
         if (plugin.protection() != null && !plugin.protection().canUse(player, block.getLocation())) return;
         event.setCancelled(true);
 
         if (plugin.manager().guiThrottled(player.getUniqueId(), s.cooldownGuiMs)) return;
 
-        ItemStack hand = event.getItem();
-        if (hand != null && s.enableBoosters) {
-            Double multiplier = s.boosterItem(hand.getType());
-            if (multiplier != null) {
-                plugin.boosters().grantSpawner(spawner.id(), multiplier, s.boosterSeconds);
-                hand.setAmount(hand.getAmount() - 1);
-                player.sendMessage(Text.of("&aBooster &f" + multiplier + "x&a applied."));
+        if (player.isSneaking()) {
+            long wait = stackCooldowns.acquire(player.getUniqueId(), s.cooldownStackMs, System.currentTimeMillis());
+            if (wait > 0) {
+                player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore stacking again."));
                 return;
             }
-        }
-
-        if (player.isSneaking()) {
             report(player, stackService.stack(player, spawner, event.getItem()), spawner);
             return;
         }
 
-        if (!spawner.canUse(player.getUniqueId()) && !player.hasPermission("bravenspawner.admin")) {
+        if (!plugin.mayUse(player, spawner)) {
             player.sendMessage(Text.of("&cThat spawner is not yours."));
             return;
         }
@@ -305,14 +336,32 @@ public final class BlockListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        if (!plugin.settings().disableExplosionDamage) return;
-        event.blockList().removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+        shieldFromExplosion(event.blockList());
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
+        shieldFromExplosion(event.blockList());
+    }
+
+    private void shieldFromExplosion(java.util.List<Block> blocks) {
+        if (!plugin.ready()) {
+            // Records are not loaded: any spawner block may be a managed one.
+            blocks.removeIf(BlockListener::isSpawnerBlock);
+            return;
+        }
         if (!plugin.settings().disableExplosionDamage) return;
-        event.blockList().removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+        blocks.removeIf(b -> plugin.manager().at(b.getLocation()) != null);
+    }
+
+    static boolean isSpawnerBlock(Block block) {
+        return block != null && block.getType() == Material.SPAWNER;
+    }
+
+    private String unavailableMessage() {
+        return plugin.isStorageAvailable()
+                ? "&cSpawner storage is still loading."
+                : "&cSpawner storage is unavailable; spawners are locked until an administrator fixes it.";
     }
 
     /*
@@ -328,6 +377,12 @@ public final class BlockListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         ninja.forget(event.getPlayer());
+        breakCooldowns.forget(event.getPlayer().getUniqueId());
+        stackCooldowns.forget(event.getPlayer().getUniqueId());
+    }
+
+    private static String seconds(long millis) {
+        return String.format(java.util.Locale.ROOT, "%.1f", Math.max(0.1, millis / 1000.0));
     }
 
     @EventHandler

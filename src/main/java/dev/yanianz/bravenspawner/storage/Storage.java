@@ -42,6 +42,15 @@ public interface Storage extends AutoCloseable {
     void flushAll(Collection<Spawner> spawners);
 
     /**
+     * Flush with an explicit scope. {@code full=false} lets a backend write only the
+     * records that changed; {@code full=true} rewrites every live record. Whole-file
+     * backends treat both the same.
+     */
+    default void flushAll(Collection<Spawner> spawners, boolean full) {
+        flushAll(spawners);
+    }
+
+    /**
      * False when the last load failed. A checkpoint must not flush while this is
      * false, otherwise the in-memory map (possibly empty) would replace durable
      * records that simply could not be read yet.
@@ -143,13 +152,34 @@ public interface Storage extends AutoCloseable {
             }
         }
 
+        /**
+         * Joins the trust list. The set is a {@code synchronizedSet} that commands edit
+         * on another thread, so it is copied under its own monitor before iterating;
+         * iterating it unlocked can throw {@code ConcurrentModificationException} and
+         * fail the whole checkpoint.
+         */
         public static String encodeTrusted(Set<UUID> trusted) {
+            if (trusted == null) return "";
+            List<UUID> copy;
+            synchronized (trusted) {
+                copy = new ArrayList<>(trusted);
+            }
             StringBuilder sb = new StringBuilder();
-            for (UUID id : trusted) {
+            for (UUID id : copy) {
                 if (sb.length() > 0) sb.append(',');
                 sb.append(id);
             }
             return sb.toString();
+        }
+
+        /**
+         * Restores a persisted corruption flag and timestamp. Records written before
+         * the timestamp was stored carry 0; those keep the old behaviour (corrupted
+         * as of load time) instead of an epoch-zero timestamp.
+         */
+        public static void restoreCorruption(Spawner spawner, boolean corrupted, long corruptedAt) {
+            if (corrupted && corruptedAt <= 0L) spawner.corrupt();
+            else spawner.restoreCorruption(corrupted, corruptedAt);
         }
 
         public static Set<UUID> decodeTrusted(String raw) {

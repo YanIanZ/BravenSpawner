@@ -104,28 +104,31 @@ public final class Boosters {
     }
 
     /** Legacy grants preserve the old XP/loot effect rather than speeding production. */
-    public void grantPlayer(UUID player, double multiplier, long seconds) {
-        grantPlayer(Type.LEGACY, player, multiplier, seconds);
+    public boolean grantPlayer(UUID player, double multiplier, long seconds) {
+        return grantPlayer(Type.LEGACY, player, multiplier, seconds);
     }
 
-    public void grantSpawner(UUID spawner, double multiplier, long seconds) {
-        grantSpawner(Type.LEGACY, spawner, multiplier, seconds);
+    public boolean grantSpawner(UUID spawner, double multiplier, long seconds) {
+        return grantSpawner(Type.LEGACY, spawner, multiplier, seconds);
     }
 
-    public void grantPlayer(Type type, UUID player, double multiplier, long seconds) {
+    /** Returns false when boosters are disabled or a stronger effect is already active. */
+    public boolean grantPlayer(Type type, UUID player, double multiplier, long seconds) {
         synchronized (persistenceLock) {
-            if (!enabled) return;
-            state.grantPlayer(type, player, multiplier, seconds);
+            if (!enabled) return false;
+            if (!state.grantPlayer(type, player, multiplier, seconds)) return false;
         }
         if (type == Type.SPEED && plugin instanceof BravenSpawner host && host.manager() != null) {
             host.manager().ownedBy(player).forEach(host.manager()::reschedule);
         }
+        return true;
     }
 
-    public void grantSpawner(Type type, UUID spawner, double multiplier, long seconds) {
+    /** Returns false when boosters are disabled or a stronger effect is already active. */
+    public boolean grantSpawner(Type type, UUID spawner, double multiplier, long seconds) {
         synchronized (persistenceLock) {
-            if (!enabled) return;
-            state.grantSpawner(type, spawner, multiplier, seconds);
+            if (!enabled) return false;
+            if (!state.grantSpawner(type, spawner, multiplier, seconds)) return false;
         }
         if (type == Type.SPEED && plugin instanceof BravenSpawner host && host.manager() != null) {
             // Install against the already-updated multiplier instead of leaving
@@ -133,6 +136,7 @@ public final class Boosters {
             var target = host.manager().byId(spawner);
             if (target != null) host.manager().reschedule(target);
         }
+        return true;
     }
 
     public double multiplier(UUID owner, UUID spawner) { return multiplier(Type.LEGACY, owner, spawner); }

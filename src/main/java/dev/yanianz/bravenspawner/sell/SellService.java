@@ -36,6 +36,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * which is the only subsystem the bootstrap creates during onEnable; that keeps
  * autosell scheduled at boot without wiring changes elsewhere. The repeating pass
  * uses the global region scheduler so it runs on Folia as well as Paper.
+ *
+ * <p>Sales are serialised per spawner (its monitor), not by one service-wide lock,
+ * so a slow shop or Vault provider on one spawner never stalls sales of every
+ * other spawner. Shop-plugin quotes for the distinct item identities are fetched
+ * before the spawner monitor is taken, so provider pricing calls do not run while
+ * production on that spawner is blocked.
+ *
+ * <p>Payouts are rounded HALF_UP to {@code economy.round-to} decimals (default 2)
+ * when quoted, so the shown value, the deposit and the audit record always agree.
  */
 public final class SellService {
 
@@ -66,8 +75,14 @@ public final class SellService {
 
     private record Priced(List<Reservation> reserved, int items, double value) {}
 
-    private record PriceTable(Map<String, Double> unitPrices, double multiplier, Player viewer) {
-        private PriceTable(Map<String, Double> unitPrices, double multiplier) { this(unitPrices, multiplier, null); }
+    /** A shop-plugin unit quote for one item identity, fetched before the spawner lock. */
+    private record ShopQuote(ItemStack template, double unit) {}
+
+    private record PriceTable(Map<String, Double> unitPrices, double multiplier, Player viewer,
+                              List<ShopQuote> shopQuotes, int roundTo) {
+        PriceTable withMultiplier(double value) {
+            return new PriceTable(unitPrices, value, viewer, shopQuotes, roundTo);
+        }
     }
 
     private record DrainStep(int index, Reservation reservation, int amount) {}
@@ -81,7 +96,7 @@ public final class SellService {
      * <p>{@link #markPaid()} and {@link #markCleared()} refuse a second call, so
      * even a buggy caller cannot turn one quote into two deposits or two drains.
      * Methods are synchronized because the autosell pass and a GUI click share
-     * the service lock, but a future async settlement must not see a half state.
+     * the spawner lock, but a future async settlement must not see a half state.
      */
     private static final class SaleAttempt {
         private final UUID id = UUID.randomUUID();
@@ -133,11 +148,10 @@ public final class SellService {
 
     private final BravenSpawner plugin;
     private final ShopHook shop;
-    private final Object saleLock = new Object();
     private final AtomicBoolean economyWarned = new AtomicBoolean();
 
-    /** Paid-but-uncleared attempts, keyed by spawner; guarded by {@link #saleLock}. */
-    private final Map<UUID, SaleAttempt> pendingPayouts = new HashMap<>();
+    /** Paid-but-uncleared attempts, keyed by spawner; each entry is guarded by its spawner's monitor. */
+    private final Map<UUID, SaleAttempt> pendingPayouts = new java.util.concurrent.ConcurrentHashMap<>();
 
     private volatile ScheduledTask autosellTask;
 
@@ -201,7 +215,7 @@ public final class SellService {
      *
      * <p>Runs the same quote/pay/drain sequence as autosell so a manual click can
      * never pay a different amount than the GUI advertised, and serialises per
-     * service so a click and an autosell pass cannot both price the same stack.
+     * spawner so a click and an autosell pass cannot both price the same stack.
      * A previous payout that is still waiting for stock is finished first — that
      * is the retry path, and it never calls the economy again.
      */
@@ -224,34 +238,24 @@ public final class SellService {
         if (!enabled()) return Sale.refused(Status.DISABLED, "selling is disabled by config");
         if (!economyReady()) return Sale.refused(Status.NO_ECONOMY, "no Vault economy provider is registered");
 
-        synchronized (saleLock) {
+        PriceTable base = prices(spawner, player);
+        double combined = base.multiplier() * multiplier;
+        if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
+        synchronized (spawner) {
             Sale outstanding = settleOutstanding(spawner);
             if (outstanding != null) return outstanding;
-            PriceTable base = prices(spawner, player);
-            double combined = base.multiplier() * multiplier;
-            if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
-            return attemptSale(spawner, player, new PriceTable(base.unitPrices(), combined, player), player);
+            return attemptSale(spawner, player, base.withMultiplier(combined), player);
         }
     }
 
     /** Money text using the same {@code money-decimals} rules as the rest of the plugin. */
     public String format(double amount) {
-        ConfigurationSection money = plugin.getConfig().getConfigurationSection("money-decimals");
-        boolean compact = money == null || money.getBoolean("enabled", true);
-        boolean applyOnAmount = money == null || money.getBoolean("apply-on-amount", true);
-        List<String> formats = new ArrayList<>(6);
-        for (int i = 1; i <= 6; i++) {
-            String fallback = "%number%" + switch (i) {
-                case 1 -> "K";
-                case 2 -> "M";
-                case 3 -> "B";
-                case 4 -> "T";
-                case 5 -> "Q";
-                default -> "Qt";
-            };
-            formats.add(money == null ? fallback : money.getString(String.valueOf(i), fallback));
+        var settings = plugin.settings();
+        if (settings != null) {
+            return Text.money(amount, settings.moneyEnabled, settings.moneyApplyOnAmount, settings.moneyFormats);
         }
-        return Text.money(amount, compact, applyOnAmount, formats);
+        var parsed = dev.yanianz.bravenspawner.config.Settings.load(plugin.getConfig(), null, null);
+        return Text.money(amount, parsed.moneyEnabled, parsed.moneyApplyOnAmount, parsed.moneyFormats);
     }
 
     /** Cancels the autosell pass when a host wires plugin shutdown explicitly. */
@@ -259,13 +263,11 @@ public final class SellService {
         ScheduledTask task = autosellTask;
         autosellTask = null;
         if (task != null && !task.isCancelled()) task.cancel();
-        synchronized (saleLock) {
-            if (!pendingPayouts.isEmpty()) {
-                plugin.getLogger().warning(pendingPayouts.size()
-                        + " paid sale(s) still had unremoved stock at shutdown; they were not paid again.");
-            }
-            pendingPayouts.clear();
+        if (!pendingPayouts.isEmpty()) {
+            plugin.getLogger().warning(pendingPayouts.size()
+                    + " paid sale(s) still had unremoved stock at shutdown; they were not paid again.");
         }
+        pendingPayouts.clear();
     }
 
     // ------------------------------------------------------------ autosell
@@ -311,7 +313,8 @@ public final class SellService {
                 && (plugin.boosters() == null || !plugin.boosters().autosell(spawner.owner(), spawner.id()))) return;
         if (plugin.restrictions() != null && !plugin.restrictions().rules().canOpen(spawner.product(), false)) return;
         Sale sale;
-        synchronized (saleLock) {
+        PriceTable table = prices(spawner);
+        synchronized (spawner) {
             Sale outstanding = settleOutstanding(spawner);
             if (outstanding != null) {
                 if (outstanding.status() == Status.PENDING) {
@@ -320,7 +323,7 @@ public final class SellService {
                 }
                 return;
             }
-            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), prices(spawner), null);
+            sale = attemptSale(spawner, Bukkit.getOfflinePlayer(spawner.owner()), table, null);
         }
         if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
     }
@@ -377,7 +380,50 @@ public final class SellService {
         if (plugin.events() != null) multiplier *= plugin.events().cashMultiplier();
         if (viewer != null && plugin.boosters() != null) multiplier *= plugin.boosters().personalMultiplier(
                 dev.yanianz.bravenspawner.boosters.Boosters.Type.CASH, viewer.getUniqueId());
-        return new PriceTable(Map.copyOf(units), multiplier, viewer);
+        return new PriceTable(Map.copyOf(units), multiplier, viewer, shopQuotes(spawner, viewer), roundTo());
+    }
+
+    /**
+     * Shop-plugin unit prices for each distinct identity currently stored, fetched
+     * without holding the spawner monitor. Identities that appear later are quoted
+     * inline by {@link #unitPrice}.
+     */
+    private List<ShopQuote> shopQuotes(Spawner spawner, Player viewer) {
+        if (plugin.shops() == null) return List.of();
+        List<ShopQuote> quotes = new ArrayList<>();
+        for (ItemStack stack : spawner.contents()) {
+            if (stack == null || stack.getType().isAir()) continue;
+            boolean known = false;
+            for (ShopQuote quote : quotes) {
+                if (quote.template().isSimilar(stack)) { known = true; break; }
+            }
+            if (!known) quotes.add(new ShopQuote(stack.clone(), plugin.shops().priceOf(viewer, stack)));
+        }
+        return List.copyOf(quotes);
+    }
+
+    private Double unitPrice(PriceTable table, ItemStack stack) {
+        Double unit = table.unitPrices().get(stack.getType().name());
+        if (plugin.shops() == null) return unit;
+        double quote = Double.NaN;
+        boolean cached = false;
+        for (ShopQuote candidate : table.shopQuotes()) {
+            if (candidate.template().isSimilar(stack)) { quote = candidate.unit(); cached = true; break; }
+        }
+        if (!cached) quote = plugin.shops().priceOf(table.viewer(), stack);
+        return Double.isFinite(quote) && quote >= 0.0 ? Double.valueOf(quote) : unit;
+    }
+
+    /** Decimal places for payouts; {@code economy.round-to}, default 2, clamped to 0..6. */
+    private int roundTo() {
+        return Math.max(0, Math.min(6, plugin.getConfig().getInt("economy.round-to", 2)));
+    }
+
+    /** HALF_UP to {@code decimals} places; non-finite values pass through for the caller to refuse. */
+    static double round(double value, int decimals) {
+        if (!Double.isFinite(value)) return value;
+        return java.math.BigDecimal.valueOf(value)
+                .setScale(decimals, java.math.RoundingMode.HALF_UP).doubleValue();
     }
 
     /**
@@ -394,11 +440,7 @@ public final class SellService {
 
         for (ItemStack stack : contents) {
             if (stack == null || stack.getType().isAir()) continue;
-            Double unit = table.unitPrices().get(stack.getType().name());
-            if (plugin.shops() != null) {
-                double quote = plugin.shops().priceOf(table.viewer(), stack);
-                if (Double.isFinite(quote) && quote >= 0.0) unit = quote;
-            }
+            Double unit = unitPrice(table, stack);
             if (unit == null || unit <= 0.0) continue;
             int amount = stack.getAmount();
             if (amount <= 0) continue;
@@ -418,7 +460,7 @@ public final class SellService {
             items += amount;
             total += unit * amount;
         }
-        return new Priced(List.copyOf(reserved), items, total * table.multiplier());
+        return new Priced(List.copyOf(reserved), items, round(total * table.multiplier(), table.roundTo()));
     }
 
     // ---------------------------------------------------------- settlement
