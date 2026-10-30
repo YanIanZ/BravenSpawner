@@ -5,7 +5,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-30
+
+### Fixed
+- Paper 26.x: `checkpoint flush failed ... could not encode 1 item stack(s)`. Newer Paper
+  refuses to serialize ItemStacks above 99. Item codec v2 stores the amount separately
+  (`BSC2` header + long amount + `serializeAsBytes` template of one item). Legacy blobs,
+  including 1.21.1 blobs with amounts above 99, still load. Checkpoint errors now log
+  the spawner id and root cause.
+- Player-head skins in menus and spawner items: product `head.head-texture` is now parsed
+  and `%head_texture%` / `spawnerhead` resolve to it (URL, hash or base64; no Mojang lookup).
+- Storage cells show the real stored amount (`gui.storage.amount-lore`, e.g. `Stored: 1,234`).
+
 ### Added
+- Particles: spawner production, stack, upgrade and booster bursts (`particles.*` in
+  config.yml); sell wand ring and trail (`sellwand.yml: particles`).
 - Mob catalogue completed up to Minecraft 26.2: 50 new `mobs/*.yml` (90 total), drops
   derived from the vanilla 26.2 loot tables, per-drop sell prices, verified head textures.
   `ender_dragon`, `wither`, `giant` and `illusioner` ship with the new `enabled: false` flag.
@@ -13,13 +27,6 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the next start; files the owner deleted are not recreated (the `.migrated` marker now
   records the offered ids). Migrated legacy catalogues are left untouched.
 
-### Changed
-- Entity types and drop materials resolve version-safely (registry key first, then the
-  enum name, plus aliases such as `MUSHROOM_COW`/`MOOSHROOM`, `SNOWMAN`/`SNOW_GOLEM`).
-  Products whose type does not exist on the running server (e.g. `sulfur_cube` on
-  1.21.1) are skipped with one info line; unknown drop materials are skipped with one
-  summarised warning instead of per-file errors. `mushroom_cow.yml` keeps its id and now
-  names `MOOSHROOM`.
 - Currency abstraction (`econ/Currency`, `CurrencyRegistry`) with per-action selection
   in `economy.currencies` (`sell`, `buy-stack`, `upgrade`, `spawner-buy`). Providers:
   `VAULT` (default), `PLAYERPOINTS`, `coinsengine:<id>` (CoinsEngine 2.x and
@@ -33,6 +40,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   selection per action.
 
 ### Changed
+- Entity types and drop materials resolve version-safely (registry key first, then the
+  enum name, plus aliases such as `MUSHROOM_COW`/`MOOSHROOM`, `SNOWMAN`/`SNOW_GOLEM`).
+  Products whose type does not exist on the running server (e.g. `sulfur_cube` on
+  1.21.1) are skipped with one info line; unknown drop materials are skipped with one
+  summarised warning instead of per-file errors. `mushroom_cow.yml` keeps its id and now
+  names `MOOSHROOM`.
 - Sale payouts, buy-stack and upgrade charges go through the selected currency.
   Whole-unit currencies round payouts down and charges up; an unavailable or unknown
   currency refuses the action with a message and is logged once.
