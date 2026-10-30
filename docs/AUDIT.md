@@ -1,6 +1,8 @@
 # Source Audit — 2026-10-30
 
-**Repository:** `YanIanZ/BravenSpawner` · **Branch:** `main` · **Examined commit:** `90b39fce6326e50b45f77121c65b3efc0ae89e7d` · **Code version:** `1.0.1`.
+> **Status (updated for 1.2.1):** this is the historical audit of v1.0.1. Nearly all of its findings (BS-001..016) are addressed in code by releases 1.0.2–1.2.1 (single schedule per spawner, dirty-only checkpoints and SQL UPSERT, fail-closed storage, authorized `StackService`, checked Vault responses and sale reservations, typed menu holders, Folia schedulers). The open exception is the `RestoreMissing` half of BS-016, tracked as a 1.2.x P2. See [CHANGELOG](../CHANGELOG.md). Fixes are not yet owner-verified in game ([TESTER_OWNER](TESTER_OWNER.md)). For the current findings, read [GAP_AUDIT.md](GAP_AUDIT.md) (against 1.2.0, P2 rows still open). For the plan, read [ROADMAP.md](ROADMAP.md).
+
+**Repository:** `YanIanZ/BravenSpawner` · **Branch:** `main` · **Examined commit:** `90b39fce6326e50b45f77121c65b3efc0ae89e7d` · **Code version:** `1.0.1` (historical).
 
 ## Scope, severity, and evidence
 
