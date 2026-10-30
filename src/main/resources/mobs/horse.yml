@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: HORSE
 display-name: Horse
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/e1131ae9f6cf79560e08326827511457c99c2866bfa25d68284d4a1679c3e626
 spawn-delays:
   min: 5
   max: 15

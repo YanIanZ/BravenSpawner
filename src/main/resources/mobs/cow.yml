@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: COW
 display-name: Cow
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/8229fc777a5e06e531a4a799384a7e2821ee71929e885118a12f46d2122bde88
 spawn-delays:
   min: 5
   max: 15

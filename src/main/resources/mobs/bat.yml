@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: BAT
 display-name: Bat
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/a7365536f978323b52c5de45d8f28e1646815d59078f527a732839a388beb49c
 spawn-delays:
   min: 5
   max: 15

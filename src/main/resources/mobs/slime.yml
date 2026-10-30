@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: SLIME
 display-name: Slime
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c06424ec7a196b15f9ad5733a36a6d1f2e6a0d42ffce1e1508f90f312ac4caed
 spawn-delays:
   min: 5
   max: 15

@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: PARROT
 display-name: Parrot
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/40a3d47f54e71a58bf8f57c5253fb2d213f4f55bb7934a19104bfb94edc76eaa
 spawn-delays:
   min: 5
   max: 15

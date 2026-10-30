@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: STRIDER
 display-name: Strider
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/8d69ee8312cc7b1cfbd95e41e8971b2b3602cafa1102c1cc88add617f28cfc7d
 spawn-delays:
   min: 5
   max: 15

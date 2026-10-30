@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: GLOW_SQUID
 display-name: Glow Squid
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/fe7ee0ce9b17630dc5bd74747ec4ab890ab19f1e03f182d33fdcd9a8d1b4e959
 spawn-delays:
   min: 5
   max: 15

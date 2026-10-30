@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: HUSK
 display-name: Husk
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/7338318bc91a36cd5ab6aa885c9a4ee2bdacdaa5c66b2a99dfb0a560983f2480
 spawn-delays:
   min: 5
   max: 15

@@ -4,6 +4,7 @@ display-name: "&8Wither Skeleton"
 
 head:
   material: WITHER_SKELETON_SKULL
+  head-texture: ""
   lore:
     - "&aA spawner for wither skeletons."
 

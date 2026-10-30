@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: PIG
 display-name: Pig
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/9fdcb0b68727938402c009d230078c157af64d912fc196a71845eaa5ab109c9
 spawn-delays:
   min: 5
   max: 15

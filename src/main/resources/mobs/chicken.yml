@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: CHICKEN
 display-name: Chicken
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/4de7e8492a652ea7f3283a13cf4f171f000076c20cdc970d382aa6bfab70ecc6
 spawn-delays:
   min: 5
   max: 15

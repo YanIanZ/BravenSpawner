@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: SHEEP
 display-name: Sheep
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/6dfe7cc46d749b153261c1dc11abbf2a3108ea1ba0b2650280eed1592dcfc75b
 spawn-delays:
   min: 5
   max: 15

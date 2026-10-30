@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: GOAT
 display-name: Goat
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/9f4ea9649aa7a9737e228b65151dbd9ec5e69543d0882c4b5ad99a7f4a1efa16
 spawn-delays:
   min: 5
   max: 15

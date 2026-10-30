@@ -1,6 +1,9 @@
 # One product per file. The file name is the product id stored on placed spawners.
 entity-type: HOGLIN
 display-name: "&cHoglin"
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/4a7e288e35445b528c401ebc790f551f6dc7491c0de66b63626c517591bd55b4
 
 interval-ticks: 1200
 xp: 8

@@ -1,6 +1,9 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
 entity-type: ZOMBIFIED_PIGLIN
 display-name: Zombified Piglin
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/9c0ce2e8964db983a81290ea86a289852f448c968d64511f47d9cfb5911dde40
 spawn-delays:
   min: 5
   max: 15
