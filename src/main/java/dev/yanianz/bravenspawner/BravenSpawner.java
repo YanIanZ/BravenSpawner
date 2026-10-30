@@ -319,6 +319,12 @@ public final class BravenSpawner extends JavaPlugin {
         pdc.set(itemKindKey, PersistentDataType.STRING, kind.name());
         pdc.set(itemProductKey, PersistentDataType.STRING, product);
         pdc.set(itemStackKey, PersistentDataType.INTEGER, Math.max(1, stack));
+        // Only a head-shaped spawner item can carry a skin; the item material itself
+        // stays spawner-item.material because placement recognises it by type.
+        if (definition != null && meta instanceof org.bukkit.inventory.meta.SkullMeta skull
+                && (definition.headMaterial() == null || definition.headMaterial() == org.bukkit.Material.PLAYER_HEAD)) {
+            dev.yanianz.bravenspawner.util.HeadTextures.apply(skull, definition.headTexture());
+        }
         item.setItemMeta(meta);
         return item;
     }
@@ -331,6 +337,7 @@ public final class BravenSpawner extends JavaPlugin {
         reloadConfig();
         loadDatabases();
         products.reload();
+        dev.yanianz.bravenspawner.util.HeadTextures.clearCache();
         settings = Settings.load(getConfig(), databases, null, products);
         platform = new PlatformDetector(this);
         placeholders = new Placeholders();

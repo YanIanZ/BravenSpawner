@@ -208,7 +208,7 @@ public final class SpawnerGui implements Listener {
         holder.attach(inv);
         fill(inv);
         Map<String, String> values = placeholders(player, spawner, 0, 1);
-        inv.setItem(4, button(Material.SPAWNER, HologramConfig.productColor(spawner.product()) + "&l" + name + " Spawner",
+        inv.setItem(4, headButton(plugin.product(spawner), HologramConfig.productColor(spawner.product()) + "&l" + name + " Spawner",
                 List.of("&7Speed: &f" + values.get("speed") + "s",
                         "&7Stack: &f" + values.get("stack") + "&7/&f" + values.get("max_stack"),
                         "&7Tier: &f" + spawner.tier())));
@@ -342,7 +342,9 @@ public final class SpawnerGui implements Listener {
                 (int) Math.min(Integer.MAX_VALUE, (long) dropMax * stack),
                 (int) Math.min(Integer.MAX_VALUE, (long) (product == null ? 0 : product.xp()) * stack),
                 (int) Math.min(Integer.MAX_VALUE, (long) (product == null ? 0 : product.maxXpPerCycle()) * stack),
-                page, pages);
+                page, pages,
+                product == null ? "" : product.headTexture(),
+                headIcon(product).name());
         Map<String, String> values = MenuPlaceholders.build(snapshot);
         Messages messages = messages();
         values.put("player", messages.format("log.all"));
@@ -1184,6 +1186,21 @@ public final class SpawnerGui implements Listener {
     private void fill(Inventory inventory) {
         ItemStack pane = filler();
         for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, pane.clone());
+    }
+
+    private static Material headIcon(dev.yanianz.bravenspawner.product.ProductDefinition product) {
+        return product == null ? Material.SPAWNER
+                : dev.yanianz.bravenspawner.util.HeadTextures.iconMaterial(product.headMaterial(), product.headTexture());
+    }
+
+    /** The fallback menu's spawner icon: the product head when one is configured. */
+    private ItemStack headButton(dev.yanianz.bravenspawner.product.ProductDefinition product, String name, List<String> lore) {
+        ItemStack item = button(headIcon(product), name, lore);
+        if (product != null && item.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skull
+                && dev.yanianz.bravenspawner.util.HeadTextures.apply(skull, product.headTexture())) {
+            item.setItemMeta(skull);
+        }
+        return item;
     }
 
     private ItemStack button(Material material, String name, List<String> lore) {

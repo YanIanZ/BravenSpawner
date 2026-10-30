@@ -52,6 +52,9 @@ class ProductCompatibilityTest {
             storage: {max-items: 1000, max-xp: 2000}
             max-stack: 32
             spawner-price: 100000
+            head:
+              material: PLAYER_HEAD
+              head-texture: https://textures.minecraft.net/texture/abc123
             """);
         JavaPlugin plugin = mock(JavaPlugin.class);
         when(plugin.getDataFolder()).thenReturn(data.toFile());
@@ -68,6 +71,7 @@ class ProductCompatibilityTest {
         assertEquals(5, diamond.xp());
         assertEquals(100, diamond.intervalTicks());
         assertEquals(100000, diamond.spawnerPrice());
+        assertEquals("https://textures.minecraft.net/texture/abc123", diamond.headTexture());
         }
     }
 }

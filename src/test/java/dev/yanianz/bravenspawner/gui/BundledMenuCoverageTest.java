@@ -61,7 +61,7 @@ class BundledMenuCoverageTest {
     @Test void theResolverFillsEveryKnownTokenOutsideTheBoosterLine() {
         Map<String, String> values = MenuPlaceholders.build(new MenuPlaceholders.Snapshot(
                 "zombie", "Zombie", "&#ff6b6b", 0, 3, 100, 1234, 5000, 50, 0, "1.2K", "100", "6.4K",
-                100, 300, 2, 6, 3, 9, 0, 1));
+                100, 300, 2, 6, 3, 9, 0, 1, "", ""));
         Set<String> expected = new HashSet<>(MenuPlaceholders.KNOWN);
         expected.removeAll(MenuPlaceholders.BOOSTER_LINE);
         assertTrue(values.keySet().containsAll(expected), () -> "missing " + expected.stream()
@@ -71,6 +71,15 @@ class BundledMenuCoverageTest {
         assertEquals("50", values.get("xp_value"), "unlimited XP shows the plain amount");
         assertEquals("2-6", values.get("drop_info"));
         assertEquals("Zombie", values.get("displayname"));
+    }
+
+    @Test void headTextureIsTheProductTexture() {
+        String texture = "https://textures.minecraft.net/texture/b20657e24b56e1b2f8fc219da1de788c0c24f36388b1a409d0cd2d8dba44aa3b";
+        Map<String, String> values = MenuPlaceholders.build(new MenuPlaceholders.Snapshot(
+                "blaze", "Blaze", "&6", 0, 1, 100, 0, 0, 0, 0, "0", "0", "0",
+                100, 100, 1, 2, 10, 10, 0, 1, texture, "PLAYER_HEAD"));
+        assertEquals(texture, values.get("head_texture"));
+        assertEquals("PLAYER_HEAD", values.get("head_material"));
     }
 
     @Test void everyBundledActionHasAHandler() throws Exception {
