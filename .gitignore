@@ -25,3 +25,6 @@ logs/
 
 # Ultracode workflow artifacts
 .workflow/
+
+# Build outputs are produced by CI/gradle, never committed
+artifacts/**/*.jar

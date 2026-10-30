@@ -81,4 +81,11 @@ tasks.shadowJar {
 
 tasks.build { dependsOn(tasks.shadowJar) }
 
-tasks.test { useJUnitPlatform() }
+tasks.test {
+    useJUnitPlatform()
+    // ShadedSqliteTest opens SQLite through the shipped jar to catch relocation breakage.
+    dependsOn(tasks.shadowJar)
+    val shaded = tasks.shadowJar.flatMap { it.archiveFile }
+    inputs.file(shaded)
+    systemProperty("bravenspawner.shadedJar", shaded.get().asFile.absolutePath)
+}
