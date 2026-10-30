@@ -87,6 +87,24 @@ Every switch in `config.yml` is documented inline. The full surface is large by
 design — a server that wants only "spawn mobs, store loot" can leave everything
 else at defaults.
 
+## Colours & Unicode
+
+Every name, lore line, menu title, message and hologram line accepts, freely mixed:
+
+| Format | Example |
+| --- | --- |
+| Legacy codes | `&a`, `&l`, `&r` (and `§a`) |
+| Hex | `&#ff8800`, `{#ff8800}`, `<#ff8800>`, `&x&f&f&8&8&0&0` |
+| MiniMessage | `<red>`, `<bold>`, `<color:#ff8800>`, `<gradient:#ff0000:#0000ff>Text</gradient>`, `<rainbow>Text</rainbow>` |
+| Unicode | raw UTF-8 (`✦ ❤ 🔥`) or escapes `\u2764`, `\U0001F525` |
+
+A backslash makes the next character literal (`\<`, `\&`, `\{`, `\\`). Write backslash
+forms in single-quoted or unquoted YAML values; double quotes apply YAML's own escapes. Text that
+only uses legacy codes renders exactly as before; an unknown or broken tag is shown
+as typed instead of failing. Item names and lore are no longer italic by default —
+add `&o` or `<italic>` to get it back. Player names and other player-controlled
+values are escaped before formatting, so they cannot inject colours or tags.
+
 ## Architecture and upgrade documentation
 
 The [architecture guide](docs/ARCHITECTURE.md) distinguishes implemented code from the target design. The [documentation hub](docs/README.md) links the [source audit](docs/AUDIT.md), [PRD](docs/PRD.md), [technical specification](docs/TECHNICAL_SPEC.md), [roadmap](docs/ROADMAP.md), [migration guide](docs/MIGRATION.md), and [owner test plan](docs/TESTER_OWNER.md). These describe **proposed** work, not shipped features.
