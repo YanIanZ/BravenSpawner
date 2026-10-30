@@ -3,296 +3,172 @@ package dev.yanianz.bravenspawner.platform;
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Parsed holograms.yml: the text each spawner's hologram shows and how often it is
- * refreshed.
+ * Hologram settings, read from the original plugin's {@code holograms.yml}.
  *
- * <p>Parsed once at enable into immutable lists. A hologram refresh touches every
- * visible spawner on a timer, so the render path must not read a live
- * {@link ConfigurationSection} — a reload swaps this whole object instead, which
- * means a refresh already in flight keeps rendering a consistent template.
+ * <p>The file is shipped verbatim from VirtualSpawner, so the keys here are that
+ * plugin's keys — {@code hologram.content}, {@code bar-length}, {@code bar-char},
+ * the corrupted palette. Parsing our own schema instead would have produced a
+ * hologram that looks almost right, which is worse than not supporting it at all.
  *
- * <p>Values are clamped rather than rejected. A hand-edited interval of 0 would
- * rewrite a display every tick and a view distance of 10 000 would track the whole
- * map; both are user error, not corruption, so they are folded into the nearest
- * sane value instead of disabling holograms.
+ * <p>Placeholders resolved per line: {@code %stack%}, {@code %spawner_type_cap%},
+ * {@code %storage_bar%}, {@code %xp_bar%}, {@code %color%},
+ * {@code %corruption_status%}.
  */
 public final class HologramConfig {
 
-    /** Product, stored count and stack size — the three numbers a player wants at a glance. */
-    public static final List<String> DEFAULT_LINES = List.of(
-            "&e%product%",
-            "&7Stored: &f%stored%",
-            "&7Stack: &f%stack%");
-
-    public static final long DEFAULT_UPDATE_INTERVAL_TICKS = 40L;
-    public static final int DEFAULT_VIEW_DISTANCE = 32;
-
-    /** One hour. Past this a refresh is indistinguishable from "never". */
-    private static final long MAX_UPDATE_INTERVAL_TICKS = 72_000L;
-
-    /** Eight chunks, the practical edge of a display's usefulness. */
-    private static final int MAX_VIEW_DISTANCE = 128;
+    private static final List<String> FALLBACK_CONTENT = List.of(
+            "#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %color%&l%spawner_type_cap% SPAWNER %corruption_status%",
+            "#34eb98☁ ѕᴛoʀᴀɢᴇ #6e6d6d➤ %storage_bar%",
+            "#fab170❆ xᴘ #6e6d6d➤ %xp_bar%");
 
     private final boolean enabled;
-    private final long updateIntervalTicks;
-    private final int viewDistance;
-    private final List<String> lines;
-    private final Map<String, TierOverride> tiers;
+    private final String type;
+    private final boolean toggleCommandEnabled;
+    private final List<String> content;
+    private final int barLength;
+    private final String barChar;
+    private final String barCompletedColor;
+    private final String barEmptyColor;
+    private final int activationRadius;
+    private final String corruptedColor;
+    private final String corruptedChars;
+    private final String corruptedText;
 
-    private HologramConfig(boolean enabled, long updateIntervalTicks, int viewDistance,
-                           List<String> lines, Map<String, TierOverride> tiers) {
+    private HologramConfig(boolean enabled, String type, boolean toggleCommandEnabled, List<String> content,
+                           int barLength, String barChar, String barCompletedColor, String barEmptyColor,
+                           int activationRadius, String corruptedColor, String corruptedChars, String corruptedText) {
         this.enabled = enabled;
-        this.updateIntervalTicks = updateIntervalTicks;
-        this.viewDistance = viewDistance;
-        this.lines = List.copyOf(lines);
-        this.tiers = Map.copyOf(tiers);
+        this.type = type;
+        this.toggleCommandEnabled = toggleCommandEnabled;
+        this.content = List.copyOf(content);
+        this.barLength = barLength;
+        this.barChar = barChar;
+        this.barCompletedColor = barCompletedColor;
+        this.barEmptyColor = barEmptyColor;
+        this.activationRadius = activationRadius;
+        this.corruptedColor = corruptedColor;
+        this.corruptedChars = corruptedChars;
+        this.corruptedText = corruptedText;
     }
 
-    /**
-     * Loads holograms.yml, writing the packaged default when the file is missing.
-     *
-     * <p>An unreadable file is logged and replaced with the built-in defaults
-     * rather than rethrown: holograms are decoration, and a typo in one line of
-     * YAML must not stop spawners from ticking.
-     */
     public static HologramConfig load(BravenSpawner plugin) {
         File file = new File(plugin.getDataFolder(), "holograms.yml");
-        if (!file.isFile()) {
-            try {
-                plugin.saveResource("holograms.yml", false);
-            } catch (IllegalArgumentException missingFromJar) {
-                plugin.getLogger().warning("holograms.yml is not packaged; holograms use built-in defaults");
-            }
-        }
-
-        YamlConfiguration yaml = new YamlConfiguration();
-        if (file.isFile()) {
-            try {
-                yaml.load(file);
-            } catch (IOException | InvalidConfigurationException unreadable) {
-                plugin.getLogger().warning("holograms.yml could not be read ("
-                        + unreadable.getMessage() + "); using built-in defaults");
-                return defaults();
-            }
-        }
+        if (!file.exists()) plugin.saveResource("holograms.yml", false);
+        if (!file.exists()) return defaults();
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         return from(yaml);
     }
 
-    /** Parses an already-loaded section; separated so a reload can hand in any source. */
     public static HologramConfig from(ConfigurationSection root) {
         if (root == null) return defaults();
+        ConfigurationSection holo = root.getConfigurationSection("hologram");
+        List<String> content = holo == null ? FALLBACK_CONTENT : holo.getStringList("content");
+        if (content.isEmpty()) content = FALLBACK_CONTENT;
 
-        long interval = clampInterval(longValue(root, "update-interval-ticks", DEFAULT_UPDATE_INTERVAL_TICKS));
-        int distance = clampDistance(intValue(root, "view-distance", DEFAULT_VIEW_DISTANCE));
-
-        List<String> lines = root.getStringList("lines");
-        if (lines.isEmpty()) lines = DEFAULT_LINES;
-
-        Map<String, TierOverride> overrides = new LinkedHashMap<>();
-        ConfigurationSection tierSection = root.getConfigurationSection("tiers");
-        if (tierSection != null) {
-            for (String key : tierSection.getKeys(false)) {
-                ConfigurationSection tier = tierSection.getConfigurationSection(key);
-                if (tier == null || key == null || key.isBlank()) continue;
-
-                List<String> tierLines = tier.getStringList("lines");
-                Long tierInterval = tier.isSet("update-interval-ticks")
-                        ? clampInterval(longValue(tier, "update-interval-ticks", interval))
-                        : null;
-                Integer tierDistance = tier.isSet("view-distance")
-                        ? clampDistance(intValue(tier, "view-distance", distance))
-                        : null;
-
-                // An override whose lines list was emptied falls back to the default
-                // template: silently blanking a hologram is never what an operator
-                // meant by "I'll fix this tier later".
-                overrides.put(key.toLowerCase(Locale.ROOT), new TierOverride(
-                        tierLines.isEmpty() ? null : List.copyOf(tierLines), tierInterval, tierDistance));
-            }
-        }
+        ConfigurationSection toggle = root.getConfigurationSection("commands.shtoggle");
 
         return new HologramConfig(
-                root.getBoolean("enabled", true), interval, distance, lines, overrides);
+                root.getBoolean("enabled", false),
+                root.getString("type", "decentholograms"),
+                toggle != null && toggle.getBoolean("enabled", false),
+                content,
+                clamp(holo == null ? 12 : holo.getInt("bar-length", 12), 1, 64),
+                holo == null ? "☰" : holo.getString("bar-char", "☰"),
+                holo == null ? "#00ff00" : holo.getString("bar-completed-color", "#00ff00"),
+                holo == null ? "#dedede" : holo.getString("bar-not-completed-color", "#dedede"),
+                clamp(holo == null ? 10 : holo.getInt("activation-radius", 10), 1, 128),
+                holo == null ? "#8A2BE2" : holo.getString("corrupted-color", "#8A2BE2"),
+                holo == null ? "" : holo.getString("corrupted-chars", ""),
+                holo == null ? "&5&l[CORRUPTED]" : holo.getString("corrupted-text", "&5&l[CORRUPTED]"));
     }
 
-    /** The packaged defaults, for a missing or unreadable file. */
     public static HologramConfig defaults() {
-        return new HologramConfig(true, DEFAULT_UPDATE_INTERVAL_TICKS, DEFAULT_VIEW_DISTANCE,
-                DEFAULT_LINES, Map.of());
+        return new HologramConfig(false, "decentholograms", false, FALLBACK_CONTENT,
+                12, "☰", "#00ff00", "#dedede", 10, "#8A2BE2", "", "&5&l[CORRUPTED]");
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     public boolean enabled() { return enabled; }
+    public String type() { return type; }
+    public boolean toggleCommandEnabled() { return toggleCommandEnabled; }
+    public int activationRadius() { return activationRadius; }
+    public List<String> content() { return content; }
 
-    public long updateIntervalTicks() { return updateIntervalTicks; }
+    /** Kept for callers written against the earlier API. */
+    public long updateIntervalTicks() { return 40L; }
+    public int viewDistance() { return activationRadius; }
+    public List<String> defaultLines() { return content; }
 
-    public int viewDistance() { return viewDistance; }
-
-    public List<String> defaultLines() { return lines; }
-
-    /**
-     * The finished lines for one spawner, placeholders already substituted.
-     *
-     * <p>The caller's map wins over the values read from the spawner, so a GUI or a
-     * scoreboard can override one number without rebuilding the whole map. An empty
-     * map is valid and renders product/stored/stack from the model alone.
-     *
-     * <p>Returns an empty list when holograms are disabled or the spawner is null,
-     * so callers can pass the result straight to a display without a null check.
-     */
-    public List<String> lines(Spawner spawner, Map<String, String> placeholders) {
-        if (!enabled || spawner == null) return List.of();
-        Map<String, String> tokens = tokens(spawner, placeholders);
-        List<String> template = templateFor(tokens.get("tier"));
-        List<String> out = new ArrayList<>(template.size());
-        for (String line : template) out.add(substitute(line, tokens));
+    /** Rendering entry point: every line of the configured content, substituted. */
+    public List<String> lines(Spawner spawner, Map<String, String> extra) {
+        List<String> out = new ArrayList<>(content.size());
+        for (String line : content) out.add(resolve(line, spawner, extra));
         return out;
     }
 
-    /** Refresh period for one spawner, honouring a per-tier override. */
-    public long updateIntervalTicks(Spawner spawner, Map<String, String> placeholders) {
-        TierOverride override = overrideFor(tokens(spawner, placeholders).get("tier"));
-        return override != null && override.updateIntervalTicks != null
-                ? override.updateIntervalTicks : updateIntervalTicks;
-    }
+    private String resolve(String line, Spawner spawner, Map<String, String> extra) {
+        String result = line;
 
-    /** View distance for one spawner, honouring a per-tier override. */
-    public int viewDistance(Spawner spawner, Map<String, String> placeholders) {
-        TierOverride override = overrideFor(tokens(spawner, placeholders).get("tier"));
-        return override != null && override.viewDistance != null ? override.viewDistance : viewDistance;
-    }
+        int stack = spawner == null ? 1 : spawner.stack();
+        String product = spawner == null ? "SPAWNER" : spawner.product();
 
-    // ------------------------------------------------------------- internals
+        result = result.replace("%stack%", String.valueOf(stack));
+        result = result.replace("%spawner_type_cap%", product.toUpperCase(Locale.ROOT));
+        result = result.replace("%spawner_type%", product);
+        result = result.replace("%color%", colorFor(product));
+        result = result.replace("%storage_bar%", bar(storageRatio(spawner)));
+        result = result.replace("%xp_bar%", bar(xpRatio(spawner)));
 
-    /**
-     * Builds the substitution table: model values first, caller values on top.
-     *
-     * <p>Keys are normalised to lower case without the surrounding '%', which is
-     * what lets {@code %Product%} in a hand-written template resolve without the
-     * operator having to remember the case.
-     */
-    private static Map<String, String> tokens(Spawner spawner, Map<String, String> placeholders) {
-        Map<String, String> tokens = new HashMap<>();
-        if (spawner != null) {
-            tokens.put("product", spawner.product() == null ? "" : spawner.product());
-            tokens.put("kind", spawner.kind() == null ? "" : spawner.kind().name().toLowerCase(Locale.ROOT));
-            tokens.put("stack", String.valueOf(spawner.stack()));
-            tokens.put("stored", String.valueOf(spawner.storedCount()));
-            tokens.put("slots", String.valueOf(spawner.distinctSlots()));
-            tokens.put("owner", spawner.owner() == null ? "" : spawner.owner().toString().substring(0, 8));
-            tokens.put("world", spawner.world() == null ? "" : spawner.world());
-            tokens.put("x", String.valueOf(spawner.x()));
-            tokens.put("y", String.valueOf(spawner.y()));
-            tokens.put("z", String.valueOf(spawner.z()));
-            tokens.put("tier", String.valueOf(spawner.tier()));
-        }
-        if (placeholders != null) {
-            for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-                if (entry.getKey() == null) continue;
-                String key = entry.getKey().toLowerCase(Locale.ROOT);
-                if (key.startsWith("%") && key.endsWith("%") && key.length() > 2) {
-                    key = key.substring(1, key.length() - 1);
-                }
-                tokens.put(key, entry.getValue() == null ? "" : entry.getValue());
+        boolean corrupted = spawner != null && spawner.corrupted();
+        result = result.replace("%corruption_status%",
+                corrupted ? corruptedColor + corruptedText + (corruptedChars.isEmpty() ? "" : corruptedChars) : "");
+
+        if (extra != null) {
+            for (Map.Entry<String, String> entry : extra.entrySet()) {
+                result = result.replace("%" + entry.getKey() + "%", entry.getValue());
             }
         }
-        return tokens;
+        return result;
     }
 
-    private List<String> templateFor(String tierKey) {
-        TierOverride override = overrideFor(tierKey);
-        return override != null && override.lines != null ? override.lines : lines;
+    /** Deterministic per-product colour so the same mob always looks the same. */
+    private String colorFor(String product) {
+        String[] palette = {"#ff6b6b", "#6bcB77", "#4d96ff", "#ffd93d", "#c780fa", "#ff9f45"};
+        int index = Math.abs(product.hashCode()) % palette.length;
+        return palette[index];
     }
 
-    private TierOverride overrideFor(String tierKey) {
-        if (tierKey == null || tiers.isEmpty()) return null;
-        return tiers.get(tierKey.toLowerCase(Locale.ROOT));
+    private double storageRatio(Spawner spawner) {
+        if (spawner == null) return 0;
+        int stored = spawner.storedCount();
+        int capacity = Math.max(1, spawner.distinctSlots());
+        return Math.min(1.0, capacity == 0 ? 0 : (double) stored / (capacity * 64.0));
     }
 
-    /**
-     * Replaces {@code %name%} tokens in one pass.
-     *
-     * <p>A scanner rather than a chain of {@code String.replace} calls: replacements
-     * are looked up case-insensitively and an unknown token is left exactly as
-     * written, so a typo in the YAML shows up in-game instead of disappearing.
-     * Nothing in a substituted value is re-scanned, so a product name containing a
-     * '%' cannot inject a second token.
-     */
-    private static String substitute(String line, Map<String, String> tokens) {
-        if (line == null) return "";
-        int open = line.indexOf('%');
-        if (open < 0) return line;
-
-        StringBuilder out = new StringBuilder(line.length() + 16);
-        int cursor = 0;
-        while (open >= 0) {
-            int close = line.indexOf('%', open + 1);
-            if (close < 0) break;
-            out.append(line, cursor, open);
-            String key = line.substring(open + 1, close).toLowerCase(Locale.ROOT);
-            String value = tokens.get(key);
-            if (value == null) out.append(line, open, close + 1);
-            else out.append(value);
-            cursor = close + 1;
-            open = line.indexOf('%', cursor);
-        }
-        out.append(line, cursor, line.length());
-        return out.toString();
+    private double xpRatio(Spawner spawner) {
+        if (spawner == null) return 0;
+        return Math.min(1.0, spawner.storedXp() / 100_000.0);
     }
 
-    private static long clampInterval(long raw) {
-        return Math.max(1L, Math.min(MAX_UPDATE_INTERVAL_TICKS, raw));
-    }
-
-    private static int clampDistance(int raw) {
-        return Math.max(1, Math.min(MAX_VIEW_DISTANCE, raw));
-    }
-
-    /**
-     * Reads a long without trusting the file.
-     *
-     * <p>Bukkit's typed getters throw on a value of the wrong shape (a quoted "40"
-     * reads as a String, not a Number). A single bad key should cost that key, not
-     * the whole hologram system.
-     */
-    private static long longValue(ConfigurationSection section, String path, long fallback) {
-        try {
-            return section.getLong(path, fallback);
-        } catch (RuntimeException wrongShape) {
-            return fallback;
-        }
-    }
-
-    private static int intValue(ConfigurationSection section, String path, int fallback) {
-        try {
-            return section.getInt(path, fallback);
-        } catch (RuntimeException wrongShape) {
-            return fallback;
-        }
-    }
-
-    /** Per-tier template and rate; a null field means "inherit the default". */
-    private static final class TierOverride {
-        final List<String> lines;
-        final Long updateIntervalTicks;
-        final Integer viewDistance;
-
-        TierOverride(List<String> lines, Long updateIntervalTicks, Integer viewDistance) {
-            this.lines = lines;
-            this.updateIntervalTicks = updateIntervalTicks;
-            this.viewDistance = viewDistance;
-        }
+    private String bar(double ratio) {
+        int filled = (int) Math.round(ratio * barLength);
+        StringBuilder sb = new StringBuilder(barLength * 6);
+        sb.append(barCompletedColor);
+        for (int i = 0; i < filled; i++) sb.append(barChar);
+        sb.append(barEmptyColor);
+        for (int i = filled; i < barLength; i++) sb.append(barChar);
+        return sb.toString();
     }
 }

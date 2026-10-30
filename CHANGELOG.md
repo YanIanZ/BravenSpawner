@@ -5,6 +5,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-30
+
+### Changed
+- `gui/spawner.yml`, `storage.yml`, `buy_stack.yml`, `corruption.yml` and
+  `log.yml` are now byte-identical to VirtualSpawner 7.2.0's shipped menus.
+- `holograms.yml` is byte-identical to the original, and the renderer reads that
+  schema: `hologram.content`, bar length/character/colours, activation radius,
+  corrupted palette and text. Placeholders `%stack%`, `%spawner_type_cap%`,
+  `%storage_bar%`, `%xp_bar%`, `%color%` and `%corruption_status%` resolve the
+  same way the original documents them.
+
 ## [1.1.4] - 2026-10-30
 
 ### Added
@@ -132,7 +143,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.4...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.2.0
 [1.1.4]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.4
 [1.1.3]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.3
 [1.1.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.2

@@ -1,15 +1,10 @@
-# ================================
-#   BravenSpawner: Buy Stacks Menu
-# ================================
-# %entity%, %stack%, %max_stack%, %price% and %total_price% come from the caller.
 menu:
   title: "&b✹ &7%entity% &b> &fBuy Stacks"
   rows: 3
   layout:
-    default:
-      - "---------"
-      - "-1-5-a-g-"
-      - "---------"
+    - "---------"
+    - "-1-5-a-g-"
+    - "---------"
 
 items:
   filler:
@@ -48,7 +43,7 @@ items:
     material: EMERALD_BLOCK
     name: "&a&lBuy Max Stacks"
     lore:
-      - "&7Current: &f%stack%&7/&f%max_stack%"
+      - "&7Current Stack: &f%stack%&7/&f%max_stack%"
       - "&7Price per stack: &a%price%$"
       - ""
       - "&aClick to buy as many as you can afford"

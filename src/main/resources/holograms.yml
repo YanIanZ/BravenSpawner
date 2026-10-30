@@ -1,49 +1,50 @@
-# Per-spawner hologram text and refresh policy.
+# ================================
+#   VirtualSpawner Hologram Config
+# ================================
+# Notes:
+# - This configuration file sets up the hologram display for Virtual Spawners.
+# - Supported hologram types: decentholograms, fancyholograms, cmi
 #
-# Read once at enable, then again on /bspawner reload. Every line goes through
-# PlatformText, so colour codes work here and PlaceholderAPI placeholders are
-# resolved when config.yml has placeholders-in-gui: true.
+# Placeholders:
+# %stack% - Number of stacked spawners
+# %spawner_type_cap% - Capitalized spawner type (e.g., ZOMBIE, SKELETON)
+# %storage_bar% - Visual representation of storage progress
+# %xp_bar% - Visual representation of XP progress
+# %color% - Dynamic color based on spawner type
 #
-# Tokens filled per spawner before rendering:
-#   %product%   mob or item id from config.yml (mobs: / items:)
-#   %kind%      "mob" or "item"
-#   %stored%    items currently stored in the spawner
-#   %slots%     distinct storage slots in use
-#   %stack%     stacked spawner count
-#   %tier%      tier name when the caller supplies one, else the tier index
-#   %owner%     first eight characters of the owner UUID
-#   %world% %x% %y% %z%   the block the hologram floats over
-#
-# An unknown token is left as written, so a typo is visible in-game instead of
-# silently disappearing.
+# Color Codes:
+# Use #RRGGBB format for custom colors (e.g., #FF0000 for red)
+# ================================
 
-enabled: true
+# Enable or disable the hologram feature
+enabled: false
 
-# How often every visible hologram is rewritten, in ticks. 40 = two seconds.
-# Clamped to 1..72000 on load: 0 would rewrite the display every tick, and
-# anything past an hour is indistinguishable from never.
-update-interval-ticks: 40
+# Hologram plugin to use (decentholograms, fancyholograms or cmi)
+type: "decentholograms"
 
-# Players further than this many blocks from a spawner do not receive its
-# hologram. Clamped to 1..128 on load; an unbounded value would track every
-# spawner on the map for every player.
-view-distance: 32
+# Command configuration
+commands:
+  shtoggle:
+    enabled: false  # Enables/disables the shtoggle command
 
-# Default template, used by every tier without an entry under tiers:.
-lines:
-  - "&e%product%"
-  - "&7Stored: &f%stored%"
-  - "&7Stack: &f%stack%"
+# Hologram configuration
+hologram:
+  # Content of the hologram, supports placeholders and color codes
+  content:
+    - '#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %color%&l%spawner_type_cap% SPAWNER %corruption_status%'  # Displays stack count, spawner type, and corruption status
+    - '#34eb98☁ sᴛoʀᴀɢᴇ #6e6d6d➤ %storage_bar%'  # Shows storage progress
+    - '#fab170❆ xᴘ #6e6d6d➤ %xp_bar%'  # Shows XP progress
 
-# Per-tier overrides. Keys are tier names from config.yml upgrades.tiers.
-# An entry may set lines, update-interval-ticks and view-distance; anything it
-# omits falls back to the defaults above. Uncomment to use.
-#tiers:
-#  iron:
-#    lines:
-#      - "&f%product% &7[&fIron&7]"
-#      - "&7Stored: &f%stored%"
-#      - "&7Stack: &f%stack%"
-#    update-interval-ticks: 30
-#  gold:
-#    view-distance: 48
+  # Progress bar settings
+  bar-length: 12  # Total number of characters in the progress bar
+  bar-char: ☰     # Character used to represent the progress bar
+  bar-completed-color: '#00ff00'  # Color of the completed portion of the bar
+  bar-not-completed-color: '#dedede'  # Color of the uncompleted portion of the bar
+
+  # Distance in blocks at which the hologram becomes visible to players
+  activation-radius: 10
+
+  # Corruption
+  corrupted-color: '#8A2BE2'  # Purple color for corrupted spawners
+  corrupted-chars: '҉̸̢̡̛̖̗̘̙̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̀́̂̃̄̅̆̇̈̉̊̋̌̍̎̏̐̑̒̓̔̽̾̿̀́͂̓̈́͆͊͋͌̕̚ͅ' # Characters used for corruption effect
+  corrupted-text: '&5&l[CORRUPTED]'  # Text to display when a spawner is corrupted
