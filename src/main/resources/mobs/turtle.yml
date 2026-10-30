@@ -1,0 +1,43 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: TURTLE
+display-name: "&#5FAF5ATurtle"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/304931200ad460b650a190e8d41227c3999fbeb933b51ca49fd9e5920d1f8e7d
+  lore:
+    - "&aA spawner for turtles."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (scutes are shed by growing turtles).
+drops:
+  1:
+    material: SEAGRASS
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.1
+  2:
+    material: TURTLE_SCUTE
+    amount:
+      min: 1
+      max: 1
+    chance: 10.0
+    sell-price: 3.0
+  3:
+    material: BOWL
+    amount:
+      min: 1
+      max: 1
+    chance: 5.0
+    sell-price: 0.1
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 7500

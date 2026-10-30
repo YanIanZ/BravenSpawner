@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: RAVAGER
+display-name: "&#5A5F63Ravager"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/eb4db2986140e251e32e70ed08c8a081720313ce257632be1ef94a0737394db
+  lore:
+    - "&aA spawner for ravagers."
+
+interval-ticks: 2400
+xp: 10
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: SADDLE
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 3.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 75000

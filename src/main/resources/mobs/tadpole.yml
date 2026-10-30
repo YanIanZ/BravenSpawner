@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: TADPOLE
+display-name: "&#6B4F3ATadpole"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/e7b6595d89c2fb0b9bf01c5e927b93e6bb359bbb80e50e8c7293bcf660684457
+  lore:
+    - "&aA spawner for tadpoles."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; slime is frog food).
+drops:
+  1:
+    material: SLIME_BALL
+    amount:
+      min: 1
+      max: 1
+    chance: 10.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 1500

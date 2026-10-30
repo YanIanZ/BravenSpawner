@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: SILVERFISH
+display-name: "&#9A9A9ASilverfish"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/f25e9fae371664de1a800c84d025124abb8f15111807c8bc1ab9126aacbd4f95
+  lore:
+    - "&aA spawner for silverfish."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; the stone it hides in).
+drops:
+  1:
+    material: COBBLESTONE
+    amount:
+      min: 1
+      max: 2
+    chance: 30.0
+    sell-price: 0.1
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 10000

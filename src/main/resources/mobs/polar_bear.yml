@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: POLAR_BEAR
+display-name: "&#F5F8FAPolar Bear"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/cd8702911e616c0d32fbe778d195f21ecce9025bcbd09151e3d97af3192aa7ec
+  lore:
+    - "&aA spawner for polar bears."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: COD
+    amount:
+      min: 1
+      max: 2
+    chance: 50.0
+    sell-price: 0.5
+  2:
+    material: SALMON
+    amount:
+      min: 1
+      max: 2
+    chance: 25.0
+    sell-price: 0.6
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 7500

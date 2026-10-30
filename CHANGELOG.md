@@ -5,6 +5,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Mob catalogue completed up to Minecraft 26.2: 50 new `mobs/*.yml` (90 total), drops
+  derived from the vanilla 26.2 loot tables, per-drop sell prices, verified head textures.
+  `ender_dragon`, `wither`, `giant` and `illusioner` ship with the new `enabled: false` flag.
+- Existing installs initialized from the bundled defaults receive newly bundled mobs on
+  the next start; files the owner deleted are not recreated (the `.migrated` marker now
+  records the offered ids). Migrated legacy catalogues are left untouched.
+
+### Changed
+- Entity types and drop materials resolve version-safely (registry key first, then the
+  enum name, plus aliases such as `MUSHROOM_COW`/`MOOSHROOM`, `SNOWMAN`/`SNOW_GOLEM`).
+  Products whose type does not exist on the running server (e.g. `sulfur_cube` on
+  1.21.1) are skipped with one info line; unknown drop materials are skipped with one
+  summarised warning instead of per-file errors. `mushroom_cow.yml` keeps its id and now
+  names `MOOSHROOM`.
+
 ## [1.2.1] - 2026-10-30
 
 ### Fixed

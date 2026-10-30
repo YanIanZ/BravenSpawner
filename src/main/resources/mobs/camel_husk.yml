@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: CAMEL_HUSK
+display-name: "&#C2A06BCamel Husk"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/87632e4c32f14b617fab81cf010bdee4f2dd5643b5e5d32799ebc728ba6969b2
+  lore:
+    - "&aA spawner for camel husks."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ROTTEN_FLESH
+    amount:
+      min: 2
+      max: 3
+    chance: 100.0
+    sell-price: 0.3
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

@@ -1,0 +1,43 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: PARCHED
+display-name: "&#D8B878Parched"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/db47f26d379d96698426f37836599734a78086b0e7ea004ff59d4a7458d57340
+  lore:
+    - "&aA spawner for parched."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ARROW
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.2
+  2:
+    material: BONE
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.5
+  3:
+    material: TIPPED_ARROW
+    amount:
+      min: 1
+      max: 1
+    chance: 25.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

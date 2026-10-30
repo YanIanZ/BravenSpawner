@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: WARDEN
+display-name: "&#0F4C5CWarden"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/468f83357f961c11ff11545dfe4093f2f9c7386584020f298c67b84fcf447d9
+  lore:
+    - "&aA spawner for wardens."
+
+interval-ticks: 2400
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: SCULK_CATALYST
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 10.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 150000

@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+# Disabled by default: not obtainable in survival. Set enabled to true to offer it.
+enabled: false
+entity-type: ILLUSIONER
+display-name: "&#3B5BA5Illusioner"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/d382701c67d6c54c907558891dc176225112518771e061c5d8bd918479e6bdd8
+  lore:
+    - "&aA spawner for illusioners."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: BOW
+    amount:
+      min: 1
+      max: 1
+    chance: 8.5
+    sell-price: 1.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8

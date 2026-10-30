@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+# Disabled by default: a boss mob. Set enabled to true to offer it.
+enabled: false
+entity-type: WITHER
+display-name: "&#7A7A7AWither"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/eda10828f63b7ecdefd767b3245fbdaa13c3ec0c6b13774f1ee8d307c034c383
+  lore:
+    - "&aA spawner for withers."
+
+interval-ticks: 72000
+xp: 50
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: NETHER_STAR
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 50.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8

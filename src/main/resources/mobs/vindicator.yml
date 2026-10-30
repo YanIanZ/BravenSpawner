@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: VINDICATOR
+display-name: "&#4F5A5CVindicator"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/2dabafde27ee12b09865047aff6f183fdb64e04dae1c00ccbde04ad93dcc6c95
+  lore:
+    - "&aA spawner for vindicators."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: EMERALD
+    amount:
+      min: 1
+      max: 1
+    chance: 25.0
+    sell-price: 3.0
+  2:
+    material: IRON_AXE
+    amount:
+      min: 1
+      max: 1
+    chance: 8.5
+    sell-price: 1.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 30000

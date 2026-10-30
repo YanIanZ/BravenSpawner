@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+# Disabled by default: a boss mob. Set enabled to true to offer it.
+enabled: false
+entity-type: ENDER_DRAGON
+display-name: "&#B04DE0Ender Dragon"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/74ecc040785e54663e855ef0486da72154d69bb4b7424b7381ccf95b095a
+  lore:
+    - "&aA spawner for ender dragons."
+
+interval-ticks: 72000
+xp: 500
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: DRAGON_BREATH
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 5.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8

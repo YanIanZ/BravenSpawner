@@ -1,0 +1,57 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: ELDER_GUARDIAN
+display-name: "&#C8C3A7Elder Guardian"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/4a2d64f4a00e9c85f67262edcacb84523581ae0f37bdab22dd704524f62e169f
+  lore:
+    - "&aA spawner for elder guardians."
+
+interval-ticks: 2400
+xp: 10
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: PRISMARINE_SHARD
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 1.5
+  2:
+    material: PRISMARINE_CRYSTALS
+    amount:
+      min: 1
+      max: 1
+    chance: 33.0
+    sell-price: 2.5
+  3:
+    material: COD
+    amount:
+      min: 1
+      max: 1
+    chance: 33.0
+    sell-price: 0.5
+  4:
+    material: WET_SPONGE
+    amount:
+      min: 1
+      max: 1
+    chance: 50.0
+    sell-price: 5.0
+  5:
+    material: TIDE_ARMOR_TRIM_SMITHING_TEMPLATE
+    amount:
+      min: 1
+      max: 1
+    chance: 20.0
+    sell-price: 25.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 150000

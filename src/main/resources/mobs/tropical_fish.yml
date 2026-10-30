@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: TROPICAL_FISH
+display-name: "&#F28C28Tropical Fish"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/36389acd7c8280d2c8085e6a6a91e182465347cc898db8c2d9bb148e0271c3e5
+  lore:
+    - "&aA spawner for tropical fish."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: TROPICAL_FISH
+    amount:
+      min: 1
+      max: 1
+    chance: 100.0
+    sell-price: 1.0
+  2:
+    material: BONE_MEAL
+    amount:
+      min: 1
+      max: 1
+    chance: 5.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 1500

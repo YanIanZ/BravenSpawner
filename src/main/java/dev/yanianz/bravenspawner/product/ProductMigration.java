@@ -227,16 +227,7 @@ public final class ProductMigration {
     }
 
     private static EntityType entityType(String raw) {
-        if (raw == null) return null;
-        String name = raw.trim().toUpperCase(Locale.ROOT);
-        int colon = name.indexOf(':');
-        if (colon >= 0) name = name.substring(colon + 1);
-        try {
-            EntityType type = EntityType.valueOf(name);
-            return type.isSpawnable() ? type : null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        return EntityTypes.entity(raw);
     }
 
     private static String displayName(String raw) {

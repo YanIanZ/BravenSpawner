@@ -1,0 +1,50 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: ZOMBIE_VILLAGER
+display-name: "&#5C8A3CZombie Villager"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/426c32fbd3c2606e8728d939001f1ed046a9d77e1532a4b5aec03e480d4f5b98
+  lore:
+    - "&aA spawner for zombie villagers."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ROTTEN_FLESH
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.3
+  2:
+    material: IRON_INGOT
+    amount:
+      min: 1
+      max: 1
+    chance: 1.0
+    sell-price: 2.0
+  3:
+    material: CARROT
+    amount:
+      min: 1
+      max: 1
+    chance: 1.0
+    sell-price: 0.3
+  4:
+    material: POTATO
+    amount:
+      min: 1
+      max: 1
+    chance: 1.0
+    sell-price: 0.3
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

@@ -41,8 +41,8 @@ import java.util.Objects;
  */
 public final class ProductLoader {
 
-    /** Products shipped inside the jar; keep in sync with {@code resources/mobs}. */
-    private static final List<String> DEFAULT_MOBS = List.of(
+    /** The catalogue shipped up to 1.2.1; a marker without an id list was written for exactly these. */
+    private static final List<String> LEGACY_DEFAULT_MOBS = List.of(
             "allay", "axolotl", "bat", "blaze", "camel", "cat",
             "cave_spider", "chicken", "cod", "cow", "creeper", "enderman",
             "frog", "glow_squid", "goat", "guardian", "hoglin", "horse",
@@ -50,6 +50,24 @@ public final class ProductLoader {
             "pig", "piglin", "piglin_brute", "rabbit", "sheep", "skeleton",
             "slime", "sniffer", "spider", "squid", "strider", "witch",
             "wither_skeleton", "wolf", "zombie", "zombified_piglin");
+
+    /**
+     * Products shipped inside the jar; keep in sync with {@code resources/mobs}.
+     * Types newer than the running server are skipped at load, not rejected.
+     */
+    static final List<String> DEFAULT_MOBS = concat(LEGACY_DEFAULT_MOBS, List.of(
+            "armadillo", "bee", "bogged", "breeze", "camel_husk", "copper_golem",
+            "creaking", "dolphin", "donkey", "drowned", "elder_guardian", "ender_dragon",
+            "endermite", "evoker", "fox", "ghast", "giant", "happy_ghast",
+            "illusioner", "llama", "mule", "nautilus", "ocelot", "panda",
+            "parched", "pillager", "polar_bear", "pufferfish", "ravager", "salmon",
+            "shulker", "silverfish", "skeleton_horse", "snow_golem", "stray", "sulfur_cube",
+            "tadpole", "trader_llama", "tropical_fish", "turtle", "vex", "villager",
+            "vindicator", "wandering_trader", "warden", "wither", "zoglin", "zombie_horse",
+            "zombie_nautilus", "zombie_villager"));
+
+    private static final String DEFAULTS_MARKER = ".migrated";
+    private static final String DEFAULTS_HEADER = "catalogue initialized";
 
     /** Products shipped inside the jar; keep in sync with {@code resources/itemspawners}. */
     private static final List<String> DEFAULT_ITEMS = List.of(
@@ -66,6 +84,11 @@ public final class ProductLoader {
 
     private final JavaPlugin plugin;
     private final boolean migrateLegacy;
+
+    /** Per-load summaries, logged once each instead of one line per file. */
+    private final List<String> unavailable = new ArrayList<>();
+    private final List<String> disabled = new ArrayList<>();
+    private final List<String> unknownDropMaterials = new ArrayList<>();
 
     public ProductLoader(JavaPlugin plugin) { this(plugin, true); }
 
@@ -92,9 +115,13 @@ public final class ProductLoader {
         boolean mobsMigrated = migrateLegacy && migration.migrateIfEmpty(mobsDir, "mobs", ProductDefinition.Kind.MOB);
         boolean itemsMigrated = migrateLegacy && migration.migrateIfEmpty(itemsDir, "items", ProductDefinition.Kind.ITEM);
 
-        if (!mobsMigrated && firstCatalogue(mobsDir)) saveDefaults(mobsDir, "mobs", DEFAULT_MOBS);
-        if (!itemsMigrated && firstCatalogue(itemsDir)) saveDefaults(itemsDir, "itemspawners", DEFAULT_ITEMS);
+        if (!mobsMigrated && firstCatalogue(mobsDir)) saveDefaults(mobsDir, "mobs", DEFAULT_MOBS, List.of());
+        else if (!mobsMigrated) offerNewDefaults(mobsDir, "mobs", DEFAULT_MOBS, LEGACY_DEFAULT_MOBS);
+        if (!itemsMigrated && firstCatalogue(itemsDir)) saveDefaults(itemsDir, "itemspawners", DEFAULT_ITEMS, List.of());
 
+        unavailable.clear();
+        disabled.clear();
+        unknownDropMaterials.clear();
         Map<String, ProductDefinition> mobs = new LinkedHashMap<>();
         int malformed = parseDirectory(mobsDir, ProductDefinition.Kind.MOB, mobs);
         Map<String, ProductDefinition> items = new LinkedHashMap<>();
@@ -103,7 +130,27 @@ public final class ProductLoader {
         plugin.getLogger().info("Loaded " + mobs.size() + " mob product(s) and "
                 + items.size() + " item product(s)"
                 + (malformed > 0 ? "; " + malformed + " malformed file(s) skipped" : ""));
-        return new LoadResult(mobs, items, malformed);
+        if (!unavailable.isEmpty()) {
+            plugin.getLogger().info("Skipped " + unavailable.size()
+                    + " product(s) whose type is not available on this server version: "
+                    + String.join(", ", unavailable));
+        }
+        if (!disabled.isEmpty()) {
+            plugin.getLogger().info(disabled.size() + " product(s) disabled (enabled: false): "
+                    + String.join(", ", disabled));
+        }
+        if (!unknownDropMaterials.isEmpty()) {
+            plugin.getLogger().warning("Skipped " + unknownDropMaterials.size()
+                    + " drop(s) with a material unknown on this server: "
+                    + String.join(", ", unknownDropMaterials));
+        }
+        return new LoadResult(mobs, items, malformed, unavailable, disabled);
+    }
+
+    private static List<String> concat(List<String> first, List<String> second) {
+        List<String> out = new ArrayList<>(first);
+        out.addAll(second);
+        return List.copyOf(out);
     }
 
     private static boolean firstCatalogue(File directory) {
@@ -124,8 +171,9 @@ public final class ProductLoader {
      * The existence check avoids {@code saveResource}'s warning for every file on
      * every boot; {@code replace=false} remains the safety net.
      */
-    private void saveDefaults(File directory, String resourceDirectory, List<String> ids) {
+    private void saveDefaults(File directory, String resourceDirectory, List<String> ids, List<String> alreadyOffered) {
         for (String id : ids) {
+            if (alreadyOffered.contains(id)) continue;
             File target = new File(directory, id + ".yml");
             if (target.isFile()) continue;
             String resource = resourceDirectory + '/' + id + ".yml";
@@ -138,8 +186,36 @@ public final class ProductLoader {
         }
         String[] present = directory.list((dir, name) -> name.endsWith(".yml"));
         if (present != null && present.length > 0) {
-            try { java.nio.file.Files.writeString(new File(directory, ".migrated").toPath(), "catalogue initialized\n", java.nio.charset.StandardCharsets.UTF_8); }
+            // The id list records which defaults were offered, so a later release
+            // can add new products without resurrecting files the owner deleted.
+            String body = DEFAULTS_HEADER + "\n" + String.join("\n", ids) + "\n";
+            try { java.nio.file.Files.writeString(new File(directory, DEFAULTS_MARKER).toPath(), body, java.nio.charset.StandardCharsets.UTF_8); }
             catch (IOException error) { plugin.getLogger().warning("Could not mark catalogue initialized: " + error.getMessage()); }
+        }
+    }
+
+    /**
+     * Lays down bundled products added after the catalogue was initialized.
+     * Only directories initialized from the defaults are touched; a directory
+     * produced by legacy migration (empty marker) keeps exactly what it had.
+     */
+    private void offerNewDefaults(File directory, String resourceDirectory, List<String> ids, List<String> legacy) {
+        File marker = new File(directory, DEFAULTS_MARKER);
+        if (!marker.isFile()) return;
+        List<String> lines;
+        try { lines = java.nio.file.Files.readAllLines(marker.toPath(), java.nio.charset.StandardCharsets.UTF_8); }
+        catch (IOException error) { return; }
+        if (lines.isEmpty() || !lines.getFirst().trim().equals(DEFAULTS_HEADER)) return;
+        List<String> offered = new ArrayList<>();
+        for (String line : lines.subList(1, lines.size())) if (!line.isBlank()) offered.add(line.trim());
+        if (offered.isEmpty()) offered.addAll(legacy);
+        if (offered.containsAll(ids)) return;
+        List<String> added = new ArrayList<>();
+        for (String id : ids) if (!offered.contains(id) && !new File(directory, id + ".yml").exists()) added.add(id);
+        saveDefaults(directory, resourceDirectory, ids, offered);
+        if (!added.isEmpty()) {
+            plugin.getLogger().info("Added " + added.size() + " new bundled product(s) to "
+                    + directory.getName() + "/: " + String.join(", ", added));
         }
     }
 
@@ -166,6 +242,8 @@ public final class ProductLoader {
             } catch (InvalidConfigurationException | IOException e) {
                 malformed++;
                 plugin.getLogger().severe(label(directory, file) + ": " + e.getMessage());
+            } catch (SkippedProductException e) {
+                (e.disabled ? disabled : unavailable).add(id);
             } catch (MalformedProductException e) {
                 malformed++;
                 plugin.getLogger().severe(label(directory, file) + ": " + e.getMessage()
@@ -187,6 +265,8 @@ public final class ProductLoader {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.load(file);
 
+        if (!yaml.getBoolean("enabled", true)) throw new SkippedProductException(true);
+
         ProductDefinition.Builder builder = ProductDefinition.builder(kind, id);
 
         // The original ships `type:` and older BravenSpawner builds wrote
@@ -201,10 +281,14 @@ public final class ProductLoader {
         }
 
         if (kind == ProductDefinition.Kind.MOB) {
-            EntityType type = entityType(typeName);
+            EntityType type = EntityTypes.entity(typeName);
             if (type == null) {
-                throw new MalformedProductException("unknown or unspawnable entity-type '"
-                        + typeName + "'");
+                if (EntityTypes.entityCandidates(typeName).isEmpty()) {
+                    throw new MalformedProductException("invalid entity-type '" + typeName + "'");
+                }
+                // Unknown here usually means newer than this server (e.g. a 26.x mob
+                // on 1.21.1); summarised in one line rather than one error per file.
+                throw new SkippedProductException(false);
             }
             builder.entityType(type);
         } else {
@@ -229,8 +313,10 @@ public final class ProductLoader {
         builder.limits(yaml.getInt("storage.max-items", 0), yaml.getInt("storage.max-xp", 0),
                 yaml.getInt("max-stack", 0));
 
+        int unknownBefore = unknownDropMaterials.size();
         List<ProductDefinition.Drop> drops = drops(yaml, id);
         if (drops.isEmpty()) {
+            if (unknownDropMaterials.size() > unknownBefore) throw new SkippedProductException(false);
             throw new MalformedProductException("no usable drops");
         }
         for (ProductDefinition.Drop drop : drops) builder.addDrop(drop);
@@ -299,8 +385,7 @@ public final class ProductLoader {
     private void addDrop(List<ProductDefinition.Drop> target, Map<?, ?> map, String id) {
         Material material = material(map.get("material"));
         if (material == null) {
-            plugin.getLogger().warning("product " + id
-                    + ": drop has an unknown material '" + map.get("material") + "' — drop skipped");
+            unknownDropMaterials.add(id + ":" + map.get("material"));
             return;
         }
 
@@ -356,31 +441,8 @@ public final class ProductLoader {
         return new ProductDefinition.Drop(material, amount, amount, chance);
     }
 
-    private static EntityType entityType(String raw) {
-        String name = stripNamespace(raw);
-        if (name == null || name.isBlank()) return null;
-        try {
-            if (name.equals("MUSHROOM_COW")) name = "MOOSHROOM";
-            EntityType type = EntityType.valueOf(name);
-            return type.isSpawnable() ? type : null;
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
     private static Material material(Object raw) {
-        String name = stripNamespace(raw == null ? null : String.valueOf(raw));
-        if (name == null || name.isBlank()) return null;
-        Material material = Material.matchMaterial(name);
-        if (material == null || !material.isItem() || material.isAir()) return null;
-        return material;
-    }
-
-    private static String stripNamespace(String raw) {
-        if (raw == null) return null;
-        String name = raw.trim().toUpperCase(Locale.ROOT);
-        int colon = name.indexOf(':');
-        return colon >= 0 ? name.substring(colon + 1) : name;
+        return raw == null ? null : EntityTypes.material(String.valueOf(raw));
     }
 
     /** Returns the first non-blank value among the given keys. */
@@ -437,10 +499,27 @@ public final class ProductLoader {
     /** Immutable result of one scan. */
     public record LoadResult(Map<String, ProductDefinition> mobs,
                              Map<String, ProductDefinition> items,
-                             int malformed) {
+                             int malformed,
+                             List<String> unavailable,
+                             List<String> disabled) {
         public LoadResult {
             mobs = Collections.unmodifiableMap(new LinkedHashMap<>(mobs));
             items = Collections.unmodifiableMap(new LinkedHashMap<>(items));
+            unavailable = List.copyOf(unavailable);
+            disabled = List.copyOf(disabled);
+        }
+
+        public LoadResult(Map<String, ProductDefinition> mobs, Map<String, ProductDefinition> items, int malformed) {
+            this(mobs, items, malformed, List.of(), List.of());
+        }
+    }
+
+    /** Internal signal: the product is valid but switched off or not available on this server. */
+    private static final class SkippedProductException extends RuntimeException {
+        final boolean disabled;
+        SkippedProductException(boolean disabled) {
+            super(null, null, false, false);
+            this.disabled = disabled;
         }
     }
 

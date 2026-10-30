@@ -1,5 +1,5 @@
 # BravenSpawner virtual loot product. Delay values are seconds.
-entity-type: MUSHROOM_COW
+entity-type: MOOSHROOM
 display-name: Mushroom Cow
 spawn-delays:
   min: 5

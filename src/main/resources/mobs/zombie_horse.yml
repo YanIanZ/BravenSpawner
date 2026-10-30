@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: ZOMBIE_HORSE
+display-name: "&#4E7A4AZombie Horse"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/6618ffbe1cfa2058fe80a065f70c128c225a1e0bc9deaf8b38b0395443f40909
+  lore:
+    - "&aA spawner for zombie horses."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: ROTTEN_FLESH
+    amount:
+      min: 2
+      max: 3
+    chance: 100.0
+    sell-price: 0.3
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 15000

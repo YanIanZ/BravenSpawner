@@ -1,0 +1,29 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: CREAKING
+display-name: "&#8C8478Creaking"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/12ffce4561f3b07690f58cd62c6f2b5f8ccc276f443c2d1d7cfde4870a2baf03
+  lore:
+    - "&aA spawner for creakings."
+
+interval-ticks: 1200
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; resin comes from the creaking heart).
+drops:
+  1:
+    material: RESIN_CLUMP
+    amount:
+      min: 1
+      max: 3
+    chance: 60.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 25000

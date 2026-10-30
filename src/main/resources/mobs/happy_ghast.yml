@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: HAPPY_GHAST
+display-name: "&#9FD4F5Happy Ghast"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/b1bd05619ba1f3554742caa0c22e38db291b382eecb22be8be24a52ef98db1
+  lore:
+    - "&aA spawner for happy ghasts."
+
+interval-ticks: 1600
+xp: 5
+
+# Drops follow the vanilla loot table (empty loot table; snowballs feed happy ghasts).
+drops:
+  1:
+    material: SNOWBALL
+    amount:
+      min: 1
+      max: 4
+    chance: 60.0
+    sell-price: 0.1
+  2:
+    material: DRIED_GHAST
+    amount:
+      min: 1
+      max: 1
+    chance: 2.0
+    sell-price: 10.0
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 25000

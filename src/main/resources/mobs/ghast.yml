@@ -1,0 +1,36 @@
+# One product per file. The file name is the product id stored on placed spawners.
+entity-type: GHAST
+display-name: "&#F0F0F0Ghast"
+
+head:
+  material: PLAYER_HEAD
+  head-texture: https://textures.minecraft.net/texture/c53de31a2d0041a6ef75bf7a6c8468464db1aaa6201ebb1a6013edb2245c7607
+  lore:
+    - "&aA spawner for ghasts."
+
+interval-ticks: 1600
+xp: 5
+
+# Drops follow the vanilla loot table; chance is a percentage.
+drops:
+  1:
+    material: GHAST_TEAR
+    amount:
+      min: 1
+      max: 1
+    chance: 50.0
+    sell-price: 4.0
+  2:
+    material: GUNPOWDER
+    amount:
+      min: 1
+      max: 2
+    chance: 67.0
+    sell-price: 0.5
+
+stock:
+  enabled: true
+  max-stock: 1000
+  restock-per-cycle: 8
+
+spawner-price: 40000
