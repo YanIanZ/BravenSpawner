@@ -63,6 +63,33 @@ class BoosterStateTest {
         assertEquals(1.0, state.personalMultiplier(Boosters.Type.XP, owner));
     }
 
+    @Test void weakerGrantNeverReplacesStrongerActiveBooster() {
+        assertTrue(state.grantSpawner(Boosters.Type.LOOT, spawner, 4.0, 10));
+        assertFalse(state.grantSpawner(Boosters.Type.LOOT, spawner, 1.5, 600));
+        assertEquals(4.0, state.multiplier(Boosters.Type.LOOT, owner, spawner));
+        clock.set(11_000L);
+        assertEquals(1.0, state.multiplier(Boosters.Type.LOOT, owner, spawner), "the weaker grant did not extend it");
+    }
+
+    @Test void strongerGrantUpgradesAndEqualGrantKeepsLongestDeadline() {
+        state.grantSpawner(Boosters.Type.XP, spawner, 1.5, 100);
+        assertTrue(state.grantSpawner(Boosters.Type.XP, spawner, 2.0, 10));
+        assertEquals(2.0, state.multiplier(Boosters.Type.XP, owner, spawner));
+        assertTrue(state.grantSpawner(Boosters.Type.XP, spawner, 2.0, 20));
+        assertFalse(state.grantSpawner(Boosters.Type.XP, spawner, 2.0, 5));
+        clock.set(20_999L);
+        assertEquals(2.0, state.multiplier(Boosters.Type.XP, owner, spawner));
+        clock.set(21_000L);
+        assertEquals(1.0, state.multiplier(Boosters.Type.XP, owner, spawner));
+    }
+
+    @Test void expiredBoosterIsReplacedByAnyGrant() {
+        state.grantSpawner(Boosters.Type.XP, spawner, 4.0, 1);
+        clock.set(5_000L);
+        assertTrue(state.grantSpawner(Boosters.Type.XP, spawner, 1.5, 10));
+        assertEquals(1.5, state.multiplier(Boosters.Type.XP, owner, spawner));
+    }
+
     @Test void refusesNonfiniteNegativeAndOverflowingGrants() {
         for (double value : new double[]{Double.NaN, Double.POSITIVE_INFINITY, -1, 0}) {
             assertThrows(IllegalArgumentException.class, () -> state.grantSpawner(Boosters.Type.XP, spawner, value, 10));

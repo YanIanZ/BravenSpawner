@@ -200,12 +200,10 @@ public final class SpawnerManager {
         if (location == null) return;
         Settings s = settings;
         if (s == null || s.tiers.isEmpty()) return;
-        Settings.Tier tier = s.tiers.get(Math.min(Math.max(0, spawner.tier()), s.tiers.size() - 1));
         var definition = plugin.product(spawner);
-        long period = Math.max(20L, tier.intervalTicks);
-        if (definition != null && spawner.tier() == 0) {
-            period = ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
-        }
+        long productDelay = definition == null ? 0L
+                : ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
+        long period = s.productionPeriod(spawner.tier(), productDelay);
         double speed = plugin.boosters() == null ? 1.0
                 : plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.SPEED, spawner.owner(), spawner.id());
         if (Double.isFinite(speed) && speed > 0.0) period = Math.max(20L, Math.round(period / speed));
@@ -318,11 +316,6 @@ public final class SpawnerManager {
 
     private static int clamp(int value, int min, int max) {
         return value < min ? min : Math.min(value, max);
-    }
-
-    private int storageCapacity(Settings s, Spawner spawner) {
-        if (s.unlimitedStorage || s.tiers.isEmpty()) return 0;
-        return s.tiers.get(Math.min(Math.max(0, spawner.tier()), s.tiers.size() - 1)).capacity;
     }
 
     /**

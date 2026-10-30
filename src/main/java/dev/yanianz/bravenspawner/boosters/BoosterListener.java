@@ -59,7 +59,10 @@ final class BoosterListener implements Listener {
         }
         var hand = player.getInventory().getItemInMainHand();
         if (!definition.equals(boosters.readItem(hand)) || hand.getAmount() < 1) return;
-        boosters.grantSpawner(definition.type(), spawner.id(), definition.multiplier(), definition.seconds());
+        if (!boosters.grantSpawner(definition.type(), spawner.id(), definition.multiplier(), definition.seconds())) {
+            player.sendMessage(Text.of("&cAn equal or stronger booster of this type is already active on this spawner."));
+            return;
+        }
         // The event and inventory are on this entity's thread; consume exactly one.
         hand.setAmount(hand.getAmount() - 1);
         player.getInventory().setItemInMainHand(hand);

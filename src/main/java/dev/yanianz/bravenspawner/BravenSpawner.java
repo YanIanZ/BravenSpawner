@@ -98,7 +98,10 @@ public final class BravenSpawner extends JavaPlugin {
     }
     public int maximumItems(Spawner spawner) {
         ProductDefinition product = product(spawner);
-        return product == null || settings.unlimitedStorage ? 0 : scaledLimit(product.maxStoredItems(), spawner.stack());
+        if (product == null || settings.unlimitedStorage) return 0;
+        int scaled = scaledLimit(product.maxStoredItems(), spawner.stack());
+        double tierScale = settings.capacityScale(spawner.tier());
+        return scaled <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.floor(scaled * tierScale));
     }
     public int maximumXp(Spawner spawner) {
         ProductDefinition product = product(spawner);

@@ -43,19 +43,25 @@ public final class BoosterState {
 
     public BoosterState(LongSupplier clock) { this.clock = Objects.requireNonNull(clock); }
 
-    public void grantPlayer(Boosters.Type type, UUID player, double multiplier, long seconds) {
-        grant(type, player, true, multiplier, seconds);
+    public boolean grantPlayer(Boosters.Type type, UUID player, double multiplier, long seconds) {
+        return grant(type, player, true, multiplier, seconds);
     }
 
-    public void grantSpawner(Boosters.Type type, UUID spawner, double multiplier, long seconds) {
-        grant(type, spawner, false, multiplier, seconds);
+    public boolean grantSpawner(Boosters.Type type, UUID spawner, double multiplier, long seconds) {
+        return grant(type, spawner, false, multiplier, seconds);
     }
 
-    public void grantLegacyPlayer(UUID player, double multiplier, long seconds) {
-        grantPlayer(Boosters.Type.LEGACY, player, multiplier, seconds);
+    public boolean grantLegacyPlayer(UUID player, double multiplier, long seconds) {
+        return grantPlayer(Boosters.Type.LEGACY, player, multiplier, seconds);
     }
 
-    private void grant(Boosters.Type type, UUID subject, boolean player, double multiplier, long seconds) {
+    /**
+     * Applies a booster without ever weakening an active one of the same type and
+     * subject. A stronger grant replaces the active effect; an equal grant keeps the
+     * later deadline; a weaker grant is refused and returns false so the caller can
+     * keep the item instead of consuming it for nothing.
+     */
+    private boolean grant(Boosters.Type type, UUID subject, boolean player, double multiplier, long seconds) {
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(subject, "subject");
         if (!Double.isFinite(multiplier) || (type == Boosters.Type.AUTOSELL ? multiplier < 0 : multiplier <= 0)) {
@@ -65,7 +71,22 @@ public final class BoosterState {
         long expiresAt;
         try { expiresAt = seconds == -1 ? Long.MAX_VALUE : Math.addExact(clock.getAsLong(), Math.multiplyExact(seconds, 1000L)); }
         catch (ArithmeticException exception) { throw new IllegalArgumentException("booster duration overflow", exception); }
-        timed.put(new Key(type, subject, player), new Active(multiplier, expiresAt));
+        boolean[] applied = {true};
+        Key key = new Key(type, subject, player);
+        long now = clock.getAsLong();
+        timed.compute(key, (k, current) -> {
+            if (current == null || (current.expiresAt() != Long.MAX_VALUE && current.expiresAt() <= now)) {
+                return new Active(multiplier, expiresAt);
+            }
+            if (multiplier > current.multiplier()) return new Active(multiplier, expiresAt);
+            if (multiplier == current.multiplier()) {
+                applied[0] = expiresAt > current.expiresAt();
+                return applied[0] ? new Active(multiplier, expiresAt) : current;
+            }
+            applied[0] = false;
+            return current;
+        });
+        return applied[0];
     }
 
     public double multiplier(Boosters.Type type, UUID owner, UUID spawner) {

@@ -55,7 +55,6 @@ public final class Settings {
 
     public final boolean enableBoosters;
     public final long boosterSeconds;
-    public final java.util.Map<String, Double> boosterItems;
     public final boolean disableAutosellNotifications;
     public final boolean disableItemStock;
     public final boolean disableSellFeature;
@@ -122,7 +121,6 @@ public final class Settings {
         this.stackLimit = b.stackLimit;
         this.enableBoosters = b.enableBoosters;
         this.boosterSeconds = b.boosterSeconds;
-        this.boosterItems = Map.copyOf(b.boosterItems);
         this.disableAutosellNotifications = b.disableAutosellNotifications;
         this.disableItemStock = b.disableItemStock;
         this.disableSellFeature = b.disableSellFeature;
@@ -203,12 +201,6 @@ public final class Settings {
         // 5..86400 second window instead of trusting the file.
         long boosterSeconds = root.getLong("boosters.duration-seconds", 600L);
         b.boosterSeconds = Math.max(5L, Math.min(86_400L, boosterSeconds));
-        ConfigurationSection boostItems = root.getConfigurationSection("boosters.items");
-        if (boostItems != null) {
-            for (String key : boostItems.getKeys(false)) {
-                b.boosterItems.put(key.toUpperCase(Locale.ROOT), boostItems.getDouble(key));
-            }
-        }
         b.disableAutosellNotifications = root.getBoolean("disable-autosell-notifications", false);
         b.disableItemStock = root.getBoolean("disable-item-stock", false);
         b.disableSellFeature = root.getBoolean("disable-sell-feature", false);
@@ -264,7 +256,7 @@ public final class Settings {
         for (Map<?, ?> raw : root.getMapList("upgrades.tiers")) {
             Object name = raw.get("name");
             if (name == null) continue;
-            tiers.add(new Tier(
+            tiers.add(Tier.validated(
                     String.valueOf(name),
                     raw.get("cost") instanceof Number n ? n.doubleValue() : 0.0,
                     raw.get("interval-ticks") instanceof Number n ? n.longValue() : 1200L,
@@ -321,14 +313,34 @@ public final class Settings {
 
     public java.util.Map<String, Product> items() { return items; }
 
+    /**
+     * Factor by which a tier raises the product's {@code maximum-items}: the tier's
+     * {@code capacity} relative to the first tier's, never below 1 (an upgrade never
+     * shrinks storage).
+     */
+    public double capacityScale(int tierIndex) {
+        if (tiers.isEmpty()) return 1.0;
+        Tier base = tiers.get(0);
+        Tier tier = tiers.get(Math.min(Math.max(0, tierIndex), tiers.size() - 1));
+        return Math.max(1.0, tier.capacity / (double) Math.max(1, base.capacity));
+    }
+
+    /**
+     * Production period in ticks for a spawner at {@code tierIndex}. The base tier
+     * uses the product delay; an upgraded tier uses {@code min(product, tier)}, so an
+     * upgrade can only make production faster, never slower.
+     */
+    public long productionPeriod(int tierIndex, long productDelayTicks) {
+        long product = productDelayTicks > 0 ? productDelayTicks : Long.MAX_VALUE;
+        if (tiers.isEmpty()) return Math.max(20L, product == Long.MAX_VALUE ? 1200L : product);
+        int index = Math.min(Math.max(0, tierIndex), tiers.size() - 1);
+        long tier = tiers.get(index).intervalTicks;
+        long period = index == 0 && product != Long.MAX_VALUE ? product : Math.min(product, tier);
+        return Math.max(20L, period);
+    }
+
     /** Configured booster duration in seconds, already clamped to 5..86400 while loading. */
     public long boosterSeconds() { return boosterSeconds; }
-
-    /** Multiplier for a booster item, or null when the material is not one. */
-    public Double boosterItem(org.bukkit.Material material) {
-        if (material == null || boosterItems == null) return null;
-        return boosterItems.get(material.name());
-    }
 
     public Product mob(String id) {
         return id == null ? null : mobs.get(id.toUpperCase(Locale.ROOT));
@@ -412,6 +424,29 @@ public final class Settings {
             this.intervalTicks = intervalTicks;
             this.capacity = capacity;
         }
+
+        /**
+         * Builds a tier from config, repairing values that would break the economy or
+         * the scheduler: a negative or non-finite cost becomes 0 (a negative withdraw
+         * "succeeds" and would make the upgrade free), interval-ticks is at least 20 and
+         * capacity at least 1. Each repair is logged.
+         */
+        public static Tier validated(String name, double cost, long intervalTicks, int capacity) {
+            java.util.logging.Logger log = java.util.logging.Logger.getLogger("BravenSpawner");
+            if (!Double.isFinite(cost) || cost < 0.0) {
+                log.warning("upgrades.tiers '" + name + "': cost " + cost + " is invalid; using 0");
+                cost = 0.0;
+            }
+            if (intervalTicks < 20L) {
+                log.warning("upgrades.tiers '" + name + "': interval-ticks " + intervalTicks + " is below 20; using 20");
+                intervalTicks = 20L;
+            }
+            if (capacity < 1) {
+                log.warning("upgrades.tiers '" + name + "': capacity " + capacity + " is below 1; using 1");
+                capacity = 1;
+            }
+            return new Tier(name, cost, intervalTicks, capacity);
+        }
     }
 
     public static final class EconomySection {
@@ -446,7 +481,6 @@ public final class Settings {
         boolean noActivationRange;
         int activationRadius;
         long boosterSeconds;
-        Map<String, Double> boosterItems = new LinkedHashMap<>();
         boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, fullStack, allowHoppers,
                 enableMending, dropXpAsOrbs, placeholdersInGui, removeDurabilityOnBreak, silkTouchOnly,
                 disableExplosionDamage, multipleDrop, enableBoosters, disableAutosellNotifications,

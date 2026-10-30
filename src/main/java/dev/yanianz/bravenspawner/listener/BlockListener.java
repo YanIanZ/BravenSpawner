@@ -51,6 +51,8 @@ public final class BlockListener implements Listener {
     private final Ninja ninja;
     private final HopperLink hopperLink;
     private final StackService stackService;
+    private final ActionCooldowns breakCooldowns = new ActionCooldowns();
+    private final ActionCooldowns stackCooldowns = new ActionCooldowns();
 
     public BlockListener(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -178,6 +180,9 @@ public final class BlockListener implements Listener {
         }
         Spawner spawner = plugin.manager().at(event.getBlock().getLocation());
         if (spawner == null) return;
+        // Banked XP is paid out explicitly below; the vanilla spawner orb drop
+        // (15-43 XP) would otherwise be farmable by placing and breaking.
+        event.setExpToDrop(0);
 
         Player player = event.getPlayer();
         Settings s = plugin.settings();
@@ -211,6 +216,12 @@ public final class BlockListener implements Listener {
         if (!plugin.ready() || spawner.storedCount() > 0) {
             event.setCancelled(true);
             player.sendMessage(Text.of("&cCollect the stored items before breaking this spawner."));
+            return;
+        }
+        long wait = breakCooldowns.acquire(player.getUniqueId(), s.cooldownBreakMs, System.currentTimeMillis());
+        if (wait > 0) {
+            event.setCancelled(true);
+            player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore breaking another spawner."));
             return;
         }
 
@@ -274,18 +285,12 @@ public final class BlockListener implements Listener {
 
         if (plugin.manager().guiThrottled(player.getUniqueId(), s.cooldownGuiMs)) return;
 
-        ItemStack hand = event.getItem();
-        if (hand != null && s.enableBoosters) {
-            Double multiplier = s.boosterItem(hand.getType());
-            if (multiplier != null) {
-                plugin.boosters().grantSpawner(spawner.id(), multiplier, s.boosterSeconds);
-                hand.setAmount(hand.getAmount() - 1);
-                player.sendMessage(Text.of("&aBooster &f" + multiplier + "x&a applied."));
+        if (player.isSneaking()) {
+            long wait = stackCooldowns.acquire(player.getUniqueId(), s.cooldownStackMs, System.currentTimeMillis());
+            if (wait > 0) {
+                player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore stacking again."));
                 return;
             }
-        }
-
-        if (player.isSneaking()) {
             report(player, stackService.stack(player, spawner, event.getItem()), spawner);
             return;
         }
@@ -361,6 +366,12 @@ public final class BlockListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         ninja.forget(event.getPlayer());
+        breakCooldowns.forget(event.getPlayer().getUniqueId());
+        stackCooldowns.forget(event.getPlayer().getUniqueId());
+    }
+
+    private static String seconds(long millis) {
+        return String.format(java.util.Locale.ROOT, "%.1f", Math.max(0.1, millis / 1000.0));
     }
 
     @EventHandler

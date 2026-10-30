@@ -24,6 +24,8 @@ chest_gui:
     spawner_lock_timeout: 5000
     max_teleport_distance: 100.0
 
+# Per-player cooldowns in milliseconds. 0 disables one.
+#   break: between two spawner breaks   stack: between two shift-right-click merges
 cooldowns:
   break: 300
   stack: 150
@@ -100,6 +102,14 @@ sell:
   # Values below 5 are raised to 5 so a misconfiguration cannot spin the pass.
   autosell-interval-seconds: 60
 
+# Upgrade tiers, cheapest first. The first tier is the base every spawner starts at.
+#   cost            money for this tier (negative values are treated as 0)
+#   interval-ticks  production delay cap: an upgraded spawner uses the FASTER of the
+#                   product's spawn delay and this value, so upgrading never slows it
+#                   (minimum 20)
+#   capacity        storage size relative to the first tier: maximum-items is
+#                   multiplied by capacity / first-tier capacity (never below 1x;
+#                   minimum 1)
 upgrades:
   tiers:
     - name: base
@@ -120,13 +130,13 @@ upgrades:
       capacity: 180
 
 boosters:
-  # Duration granted by /bspawner booster and by consumable booster items, in
-  # seconds. Values outside 5..86400 are clamped when the config is loaded.
+  # Duration granted by /bspawner booster, in seconds. Values outside 5..86400 are
+  # clamped when the config is loaded.
+  # Booster items are defined in boosters/*.yml and handed out with
+  # /bspawner boosteritem; only those tagged items work (plain materials such as
+  # SUGAR do nothing). A booster never replaces a stronger active one of the same
+  # type; an equal one only extends the deadline.
   duration-seconds: 600
-  items:
-    SUGAR: 1.5
-    BLAZE_POWDER: 2.0
-    NETHER_STAR: 4.0
 
 hologram:
   enabled: true
