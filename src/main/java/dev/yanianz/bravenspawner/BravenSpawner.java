@@ -145,11 +145,17 @@ public final class BravenSpawner extends JavaPlugin {
         products = new ProductRegistry(new ProductLoader(this, existingConfig));
         settings = Settings.load(getConfig(), databases, null, products);
         storage = buildStorage();
-        try { storage.init(); }
-        catch (RuntimeException error) {
-            getLogger().severe("storage init failed: " + error.getMessage());
-            getServer().getPluginManager().disablePlugin(this);
-            return;
+        try {
+            storage.init();
+        } catch (Throwable error) {
+            // A broken database must not take the whole plugin down: the feature the
+            // operator asked for still works with flat-file storage, and the reason is
+            // logged once so it can be fixed before the next restart.
+            getLogger().severe("storage init failed (" + settings.storageType + "): " + error);
+            getLogger().severe("falling back to YAML storage for this run; fix databases.yml to use "
+                    + settings.storageType + " again");
+            storage = new YamlStorage(this);
+            storage.init();
         }
         economy = new Economy();
         if (settings.economy.enabled) economy.hook();

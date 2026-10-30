@@ -1,6 +1,6 @@
 # BravenSpawner
 
-> **Development status (2026-10-30):** v1.0.1 builds, but an audit identified unresolved integrity, scheduling and Folia-safety concerns. Do not assume crash-safe persistence or production readiness. Read [the audit](docs/AUDIT.md), [roadmap](docs/ROADMAP.md) and [migration plan](docs/MIGRATION.md) before deploying to a public server.
+> **Development status (2026-10-30):** `1.2.0-dev` integrates the REA continuation and timed-booster persistence. See the current [feature parity inventory](docs/FEATURE_PARITY.md) for implemented paths and remaining gaps. Paper/Folia and third-party integrations still require live-server qualification; earlier audit/roadmap documents record historical findings.
 
 Virtual spawners for **Paper** and **Folia** — stacking, chest-GUI storage, upgrades,
 boosters, corruption and multi-backend persistence.
@@ -13,9 +13,9 @@ boosters, corruption and multi-backend persistence.
 
 ## What it does
 
-A spawner block becomes a self-contained production unit. It spawns mobs or
+A spawner block becomes a self-contained production unit. It produces virtual mob loot or
 generates items on a timer, banks the output in its own storage, and hands it back
-through a paged chest GUI. The current implementation keeps generated output in memory and stores it using the selected backend; periodic crash-durable checkpoints and full Folia thread-ownership verification are **planned**, not yet verified.
+through a paged chest GUI. The current implementation keeps generated output in memory and stores it using the selected backend; periodic spawner checkpoints and a separate active-booster ledger are implemented. Full Folia thread-ownership behavior still needs live-server verification.
 
 ```
 place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
@@ -31,13 +31,13 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 | **Production** | mob spawners and item generators, per-tier interval, stack multiplier |
 | **Storage** | per-spawner inventory with capacity tiers, unlimited mode, paged GUI |
 | **Stacking** | shift-right-click to merge up to `stack-limit`, per-chunk cap |
-| **Economy** | Vault sell/autosell and upgrades; payment-result validation and atomic stock settlement need fixes |
+| **Economy** | Vault sell/autosell and upgrades, validated deposits, guarded stock settlement, and typed shop price adapters |
 | **Corruption** | random corruption countdown, repair radius, production halt |
-| **Protection** | ownership/trust, reconnect cooldown, lock timeout and teleport guard; some input paths require security fixes |
+| **Protection** | ownership/trust, reconnect cooldown, lock timeout, teleport guard, and WorldGuard access checks |
 | **World rules** | blacklist, activation radius, silk-touch, explosion guard and durability settings |
 | **Visuals** | TextDisplay holograms with live stored count (no external plugin) |
-| **Persistence** | YAML, SQLite or MySQL; crash durability and safe failure recovery need hardening |
-| **Scheduling** | Paper region API is used in core paths, but some legacy/global usages still need Folia safety fixes |
+| **Persistence** | YAML, SQLite, MySQL or MongoDB (Braven schema); startup readiness gates and periodic checkpoints |
+| **Scheduling** | Paper region/entity APIs for production and player/entity work; live Folia qualification pending |
 
 ## Compatibility
 
@@ -45,7 +45,7 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 |---|---|
 | Server | Built against Paper API 1.21.1; other versions/Folia require runtime validation |
 | Java | 21 for current build; newer Paper API versions may require Java 25 |
-| Optional | Vault (economy), PlaceholderAPI, WorldGuard, Lands, Towny (claimed-land checks) |
+| Optional | Vault, PlaceholderAPI, Floodgate, WorldGuard; EssentialsX, ShopGUI+ and EconomyShopGUI pricing |
 
 ## Install
 
@@ -73,12 +73,14 @@ then `/vspawner give ZOMBIE`.
 
 ## Configuration
 
-Three files, created on first run:
+Core settings and definition files are created on first run:
 
 ```
 config.yml      production, stacking, economy, corruption, holograms, mobs, items
-databases.yml   YAML | SQLITE | MYSQL, pool size, credentials
+databases.yml   YAML | SQLITE | MYSQL | MONGODB, connection settings
 hooks.yml       currency and shop integration selection
+mobs/, itemspawners/, gui/, boosters/, other/   product and feature definitions
+active-boosters.properties   runtime timed-effect ledger (generated on save)
 ```
 
 Every switch in `config.yml` is documented inline. The full surface is large by
@@ -101,7 +103,7 @@ sell/               valuation, autosell, shop hooks
 util/               Schedulers (Paper region API), Text/money formatter
 ```
 
-Target design principles (not all guaranteed by current v1.0.1):
+Target design principles (runtime qualification pending):
 
 1. **Thread ownership.** All world/entity operations must obey Paper/Folia scheduler rules.
 2. **Fail closed.** Failed loads, invalid items and rejected transactions cannot mutate authoritative stock.

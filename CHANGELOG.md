@@ -5,6 +5,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-30
+
+### Fixed
+- `UnsatisfiedLinkError: NativeDB._open_utf8` on first SQLite connection. Shadow
+  relocated `org.sqlite` while the native `.so` resources kept their original
+  path, so the loader looked in a package that no longer existed. The driver is
+  no longer relocated; Hikari, MySQL, MongoDB and BSON still are.
+- A storage init failure no longer disables the plugin. It logs the cause and
+  falls back to YAML for that run, so spawners keep working while the database
+  configuration is repaired.
+
+### Added (1.2.0-dev continuation)
+- Integrated verified REA reconstruction: typed booster items/effects, native events,
+  restriction gates, WorldGuard checks, MongoDB Braven-schema storage and typed
+  EssentialsX/ShopGUI+/EconomyShopGUI price adapters.
+- Active timed-booster persistence with absolute expiry, five-second async
+  checkpoints, shutdown saves and corruption preservation. Personal carried-item
+  effects are rebuilt from inventories. Hard crashes may lose changes since the
+  last checkpoint; reference database migration is not implemented.
+- Integrated configured storage withdrawal/corruption paths and lifecycle,
+  sale-settlement and Folia scheduling corrections. See FEATURE_PARITY.md for
+  exact coverage and integration-test limitations.
+
 ## [1.1.2] - 2026-10-30
 
 ### Added
@@ -98,7 +121,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Persistence: YAML, SQLite (WAL), MySQL — one interface, transactional flush.
 - Paper region scheduler throughout; Folia supported.
 
-[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/YanIanZ/BravenSpawner/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.3
 [1.1.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.2
 [1.1.1]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.1.1
 [1.0.2]: https://github.com/YanIanZ/BravenSpawner/releases/tag/v1.0.2

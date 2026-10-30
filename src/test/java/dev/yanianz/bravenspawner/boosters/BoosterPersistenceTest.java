@@ -58,6 +58,20 @@ class BoosterPersistenceTest {
                 Boosters.Type.XP, player, true, Double.NaN, 10_000));
     }
 
+    @Test void invalidScopeAndNonfiniteMultiplierRejectWholeLedger() throws Exception {
+        Path file = directory.resolve("active.properties");
+        String base = "version=1\ncount=1\n0.type=XP\n0.subject=" + player
+                + "\n0.expiresAt=10000\n";
+        for (String fields : List.of("0.scope=unknown\n0.multiplier=2\n",
+                "0.scope=player\n0.multiplier=NaN\n")) {
+            Files.writeString(file, base + fields);
+            BoosterStore store = new BoosterStore(file);
+            assertThrows(java.io.IOException.class, store::load);
+            assertThrows(java.io.IOException.class, () -> store.save(List.of()));
+            assertEquals(base + fields, Files.readString(file));
+        }
+    }
+
     @Test void savingEmptySnapshotRemovesPreviouslySavedEffects() throws Exception {
         Path file = directory.resolve("active.properties");
         BoosterStore store = new BoosterStore(file);

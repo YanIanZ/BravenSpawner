@@ -105,7 +105,7 @@ public final class Boosters {
 
     /** Legacy grants preserve the old XP/loot effect rather than speeding production. */
     public void grantPlayer(UUID player, double multiplier, long seconds) {
-        if (enabled) state.grantLegacyPlayer(player, multiplier, seconds);
+        grantPlayer(Type.LEGACY, player, multiplier, seconds);
     }
 
     public void grantSpawner(UUID spawner, double multiplier, long seconds) {
@@ -113,16 +113,20 @@ public final class Boosters {
     }
 
     public void grantPlayer(Type type, UUID player, double multiplier, long seconds) {
-        if (!enabled) return;
-        state.grantPlayer(type, player, multiplier, seconds);
+        synchronized (persistenceLock) {
+            if (!enabled) return;
+            state.grantPlayer(type, player, multiplier, seconds);
+        }
         if (type == Type.SPEED && plugin instanceof BravenSpawner host && host.manager() != null) {
             host.manager().ownedBy(player).forEach(host.manager()::reschedule);
         }
     }
 
     public void grantSpawner(Type type, UUID spawner, double multiplier, long seconds) {
-        if (!enabled) return;
-        state.grantSpawner(type, spawner, multiplier, seconds);
+        synchronized (persistenceLock) {
+            if (!enabled) return;
+            state.grantSpawner(type, spawner, multiplier, seconds);
+        }
         if (type == Type.SPEED && plugin instanceof BravenSpawner host && host.manager() != null) {
             // Install against the already-updated multiplier instead of leaving
             // the old, potentially much longer interval queued until its next tick.

@@ -72,7 +72,10 @@ tasks.shadowJar {
     relocate("com.mongodb", "dev.yanianz.bravenspawner.libs.mongodb")
     relocate("org.bson", "dev.yanianz.bravenspawner.libs.bson")
     relocate("com.zaxxer.hikari", "dev.yanianz.bravenspawner.libs.hikari")
-    relocate("org.sqlite", "dev.yanianz.bravenspawner.libs.sqlite")
+    // sqlite-jdbc loads its native library from a resource path derived from its own
+    // package. Relocating the classes does not rename the .so resources, so the
+    // lookup fails with UnsatisfiedLinkError at the first connection. The package
+    // stays untouched; only the pool and the MySQL driver are relocated.
     relocate("com.mysql", "dev.yanianz.bravenspawner.libs.mysql")
 }
 

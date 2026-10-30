@@ -21,10 +21,12 @@ final class BoosterStore {
 
     synchronized List<BoosterState.SavedEffect> load() throws IOException {
         writable = false;
-        if (!Files.exists(file)) { writable = true; return List.of(); }
         Properties data = new Properties();
         try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             data.load(reader);
+        } catch (java.nio.file.NoSuchFileException exception) {
+            writable = true;
+            return List.of();
         } catch (IllegalArgumentException exception) {
             throw new IOException("Malformed booster ledger", exception);
         }
