@@ -908,21 +908,15 @@ public final class SpawnerGui implements Listener {
         Inventory clicked = event.getClickedInventory();
         if (clicked == null || clicked != event.getView().getTopInventory()) return;
 
-        if (plugin.manager() == null) {
-            player.closeInventory();
-            return;
-        }
-        Spawner spawner = plugin.manager().byId(current.spawnerId());
-        if (spawner == null) {
-            player.closeInventory();
-            return;
-        }
-        if (!authorized(player, spawner)) { player.closeInventory(); return; }
         int slot = event.getSlot();
         ClickType click = event.getClick() == null ? ClickType.LEFT : event.getClick();
-        if (current.menu()) handleMenu(player, spawner, slot, click);
-        else if (current.contentSlots.contains(slot)) cellClick(player, spawner, current, slot, click);
-        else handleStorage(player, spawner, current.page(), slot, click);
+        dispatch(player, current, () -> {
+            Spawner spawner = liveSession(player, current);
+            if (spawner == null) return;
+            if (current.menu()) handleMenu(player, spawner, slot, click);
+            else if (current.contentSlots.contains(slot)) cellClick(player, spawner, current, slot, click);
+            else handleStorage(player, spawner, current.page(), slot, click);
+        });
     }
 
     private void onConfiguredDataClick(InventoryClickEvent event) {
@@ -932,26 +926,37 @@ public final class SpawnerGui implements Listener {
         Inventory top = event.getView().getTopInventory();
         if (current == null || current.getInventory() != top
                 || event.getClickedInventory() != top) return;
-        if (current.view == View.PUZZLE) {
-            Spawner spawner = plugin.manager() == null ? null : plugin.manager().byId(current.spawnerId());
-            if (spawner == null || !authorized(player, spawner)
-                    || !spawner.id().equals(locks.sessionSpawner(player.getUniqueId()))) {
-                player.closeInventory();
-                return;
+        int slot = event.getSlot();
+        if (current.view != View.PUZZLE
+                && (current.view != View.STORAGE || !current.contentSlots.contains(slot))) return;
+        ClickType click = event.getClick() == null ? ClickType.LEFT : event.getClick();
+        dispatch(player, current, () -> {
+            Spawner spawner = liveSession(player, current);
+            if (spawner == null) return;
+            if (current.view == View.PUZZLE) puzzleClick(player, spawner, current, slot);
+            else cellClick(player, spawner, current, slot, click);
+        });
+    }
+
+    /** A queued click cannot reopen a closed window or mutate a replacement session. */
+    private void dispatch(Player player, GuiHolder holder, Runnable action) {
+        dev.yanianz.bravenspawner.util.Schedulers.onEntity(plugin, player, () -> {
+            if (player.isOnline() && session(player) == holder
+                    && player.getOpenInventory().getTopInventory() == holder.getInventory()) {
+                action.run();
             }
-            puzzleClick(player, spawner, current, event.getSlot());
-            return;
-        }
-        if (current.view != View.STORAGE) return;
-        if (!current.contentSlots.contains(event.getSlot())) return;
-        Spawner spawner = plugin.manager() == null ? null : plugin.manager().byId(current.spawnerId());
+        }, null);
+    }
+
+    /** Resolve authorization and the live model after the scheduler boundary. */
+    private Spawner liveSession(Player player, GuiHolder holder) {
+        Spawner spawner = plugin.manager() == null ? null : plugin.manager().byId(holder.spawnerId());
         if (spawner == null || !authorized(player, spawner)
                 || !spawner.id().equals(locks.sessionSpawner(player.getUniqueId()))) {
             player.closeInventory();
-            return;
+            return null;
         }
-        cellClick(player, spawner, current, event.getSlot(),
-                event.getClick() == null ? ClickType.LEFT : event.getClick());
+        return spawner;
     }
 
     /** Amount a click on a storage cell takes: left = take mode (1 by default), right = 64, shift = one stack. */

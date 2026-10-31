@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.yanianz"
-version = "1.3.0"
+version = "1.3.1-dev"
 
 repositories {
     mavenCentral()
@@ -56,8 +56,9 @@ tasks.withType<JavaCompile> {
 }
 
 tasks.processResources {
-    inputs.property("pluginVersion", project.version)
-    filesMatching("plugin.yml") { expand("version" to project.version) }
+    val pluginVersion = project.version.toString()
+    inputs.property("pluginVersion", pluginVersion)
+    filesMatching("plugin.yml") { expand("version" to pluginVersion) }
 }
 
 tasks.shadowJar {

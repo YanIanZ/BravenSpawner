@@ -2,11 +2,14 @@
 
 **State:** Preparatory plan for future releases; **not** an executable migration guide for unreleased features.
 
-## 1. Current deployment baseline
+## 1. Current deployment baseline (1.3.0 / 1.3.1-dev)
 
-- Current source compiles for Java 21 against `paper-api:1.21.1-R0.1-SNAPSHOT`; this does **not** prove every 1.20+/Folia version works.
-- Current storage choices: YAML, SQLite, MySQL in `databases.yml`. The database schema is created in `SqlStorage.init()`.
-- Current bootstrap loads database asynchronously and may proceed with an empty list following a read failure. `SqlStorage.flushAll()` replaces the table contents. Do not test upgrade paths on your only copy of production data.
+- Build target: Java 21 and Paper API 1.21.1. Prior Paper 1.21.1/26.2 smoke results are recorded in the checkpoint; full version/Folia qualification remains open.
+- YAML, SQLite, MySQL and MongoDB use Braven-owned schemas. SQL schema v2 adds corruption timestamps; SQL checkpoints batch dirty rows.
+- Storage initialization/load failures fail closed by default. Explicit `fallback-to-yaml` is an opt-in behavior, not the default recovery path.
+- Item codec BSC2 v2 writes logical amounts separately from amount-one Paper byte templates. Legacy streams are readable; older plugin versions must not be assumed to read newly saved v2 blobs. Rollback requires a compatible backup, including server-version-compatible item data.
+- 1.3.1-dev changes GUI scheduling and build configuration without introducing a storage format migration. The unused `instant_page_navigation` key is removed from bundled defaults; old copies are ignored, and GUI actions always use the next player tick.
+- Exact-count Virtual Vault is proposed for 1.4.0 and requires its own format/schema migration. Do not confuse SQL schema v2, BSC2 codec v2 and that future migration.
 
 ## 2. Pre-upgrade checklist
 
@@ -18,7 +21,7 @@
 6. Test the proposed JAR against identical data in staging before production.
 7. Confirm that all dependent plugins and server variants support the new Java/API target.
 
-## 3. Proposed schema transition
+## 3. Future vault schema transition (proposed)
 
 **Stage A:** Add schema version and new columns/tables without destroying old rows; preserve UUID and world/coordinates.
 
@@ -32,11 +35,7 @@ If validation fails, remain offline/read-only, restore backup and investigate. D
 
 ## 4. Java/server compatibility strategy
 
-The Dependabot API upgrade from Paper 1.21.1 to `26.3.build.224-stable` cannot compile using the existing Java 21 toolchain (see [CI failure](https://github.com/YanIanZ/BravenSpawner/actions/runs/40949237419)). Before shipping v1.1.0, choose **one**:
-- Publish a Java 25 + selected newer Paper/Folia artifact, with an explicitly supported build matrix.
-- Maintain a separate compatible `1.21.x` line if legacy users are still supported.
-
-Do not publish a single universal-compatibility claim without runtime evidence, and never silently raise minimum Java in a patch release.
+Keep the Java 21/Paper 1.21.1 compile baseline for this maintenance pass. A future API/JDK upgrade needs a separate tested server matrix and explicit minimum runtime per artifact. Do not equate a 90-mob catalogue or a successful newer-Paper boot with complete gameplay compatibility.
 
 ## 5. Rollback and recovery
 

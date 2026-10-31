@@ -1,39 +1,30 @@
-# BravenSpawner Documentation Hub
+# BravenSpawner documentation
 
-> **Status (2026-10-30):** Planning and source-audit documents, based on `main` commit [`90b39fce`](https://github.com/YanIanZ/BravenSpawner/commit/90b39fce6326e50b45f77121c65b3efc0ae89e7d). **This documentation does not implement the described fixes.** Production compatibility, concurrency safety and crash durability remain unverified until the relevant acceptance gates pass.
+Updated 2026-11-01. Published **1.3.0**; working tree **1.3.1-dev**. Implementation, historical audit evidence and future designs are separated below.
 
-## Start here
+| Document | Purpose |
+| --- | --- |
+| [Changelog](../CHANGELOG.md) | Actual release scope and unreleased changes |
+| [Verification](VERIFICATION.md) | Current build/tests and runtime limitations |
+| [Code review](CODE_REVIEW.md) | Confirmed findings, changes and remaining risks |
+| [Continuation checkpoint](CONTINUATION_CHECKPOINT.md) | Handoff and prior smoke-test record |
+| [Architecture](ARCHITECTURE.md) | Current source map and future invariants |
+| [Roadmap](ROADMAP.md) | Proposed order and acceptance gates |
+| [Feature specifications](features/README.md) | Vault, ledger, production, UX and public API designs |
+| [Parked proposals](features/proposals/README.md) | Unscheduled advanced gameplay modules |
+| [Migration](MIGRATION.md) | Current persistence format and staging/rollback requirements |
+| [Owner testing](TESTER_OWNER.md) | Manual acceptance record; unexecuted cases remain NOT RUN |
+| [Shop integrations](SHOP_INTEGRATIONS.md) | Current optional pricing adapters |
 
-| Document | Purpose | Intended reader |
-| --- | --- | --- |
-| [AUDIT.md](AUDIT.md) | Evidence-backed weaknesses, impact, priority, and fix criteria | Maintainers / security reviewers |
-| [PRD.md](PRD.md) | Product goals, user stories, in/out-of-scope capabilities and release requirements | Product / developers |
-| [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md) | Target modules, scheduling ownership, persistence, atomic operations and APIs | Implementers |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | **Current** architecture versus **proposed** target; invariants and data flows | Implementers |
-| [ROADMAP.md](ROADMAP.md) | Ordered releases, dependencies, work packages and definition of done | Maintainers |
-| [MIGRATION.md](MIGRATION.md) | Backups, schema transitions, version support and rollback plan | Server administrators |
-| [TESTER_OWNER.md](TESTER_OWNER.md) | Manual verification matrix, performance protocol and release sign-off | Owner / QA |
+## Historical evidence
+
+[AUDIT](AUDIT.md) describes v1.0.1; [GAP_AUDIT](GAP_AUDIT.md) describes v1.2.0; [FEATURE_PARITY](FEATURE_PARITY.md) records the 1.2.0-dev reference audit. Their original findings/test counts are not the current status. [PRD](PRD.md) and [TECHNICAL_SPEC](TECHNICAL_SPEC.md) retain proposed requirements.
 
 ## Reading rules
 
-- **CURRENT:** Confirmed from source inspection; not necessarily tested or safe.
-- **DEFECT:** A concrete code path with a known failure mode or insufficient guard. Severity reflects impact if exercised.
-- **PROPOSED:** Desired behavior; no implication it exists in the current JAR.
-- **TARGET:** A release acceptance criterion, **not** a measured result.
-- **VERIFIED:** Reserved for cases with recorded CI/manual evidence and version information.
+- **Implemented:** identifiable source path, not automatic runtime certification.
+- **Verified:** named test/run and explicit limits in the verification record.
+- **Historical:** valid only for the recorded source baseline.
+- **Proposed:** future behavior, not available in the published JAR.
 
-This project currently has a successful build on `main`, but compiling is not the same as passing a test suite or being Folia-safe.
-
-## Development policy
-
-1. Stabilize `1.0.x` before invasive changes.
-2. Prefer additive schema migrations; never silently destroy data on failed load or partial decode.
-3. Do not merge features without evidence for authorization, item/economy integrity, region ownership and restart behavior.
-4. Maintain one pull request per coherent work package, update corresponding docs and changelog, and publish migration notes for behavior changes.
-5. Do not disclose exploitable security reproduction steps in public documentation. Use [private GitHub security advisories](../SECURITY.md) for confidential reports.
-
-## Release sequence
-
-`1.0.2` data/safety hotfix → `1.1.0` compatibility and scheduling → `1.2.0` performance engine → `2.0.0` product experience and integrations.
-
-See [ROADMAP.md](ROADMAP.md) for exact gates.
+Use the wrapper for builds. Preserve fail-closed persistence, session/authorization checks and stock/payment conservation. Record schema changes, migration and owner runtime evidence before release.

@@ -1,14 +1,14 @@
 # BravenSpawner
 
-> **Development status (2026-10-30):** `1.2.0-dev` integrates the REA continuation and timed-booster persistence. See the current [feature parity inventory](docs/FEATURE_PARITY.md) for implemented paths and remaining gaps. Paper/Folia and third-party integrations still require live-server qualification; earlier audit/roadmap documents record historical findings.
+> **Development status (2026-11-01):** Latest published release: **1.3.0**. The **1.3.1-dev** working tree adds GUI scheduling and build maintenance fixes; see [code review](docs/CODE_REVIEW.md), [verification](docs/VERIFICATION.md), and the synchronized [roadmap](docs/ROADMAP.md). Exact-count Virtual Vault and stacking-ledger designs are proposals. Paper smoke evidence is recorded separately from pending player/Folia/provider qualification.
 
 Virtual spawners for **Paper** and **Folia** — stacking, chest-GUI storage, upgrades,
 boosters, corruption and multi-backend persistence.
 
 [![Build](https://github.com/YanIanZ/BravenSpawner/actions/workflows/build.yml/badge.svg)](https://github.com/YanIanZ/BravenSpawner/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Paper](https://img.shields.io/badge/Paper-1.20%E2%80%931.21-blue)](https://papermc.io)
-[![Folia](https://img.shields.io/badge/Folia-supported-brightgreen)](https://papermc.io/software/folia)
+[![Paper](https://img.shields.io/badge/Paper-1.21.1_API-blue)](https://papermc.io)
+[![Folia](https://img.shields.io/badge/Folia-qualification_pending-yellow)](https://papermc.io/software/folia)
 [![Java](https://img.shields.io/badge/Java-21-orange)](https://adoptium.net)
 
 ## What it does
@@ -68,7 +68,7 @@ then `/vspawner give ZOMBIE`.
 | `/vspawner doctor` | `bravenspawner.admin` | storage, catalogue and currency health |
 | `/vspawner economy` | `bravenspawner.admin` | currency per action, every detected currency, active shop |
 | `/vspawner booster <player> <mult> [sec]` | `bravenspawner.admin` | grant a production multiplier |
-| `/vspawner menu` | `bravenspawner.admin` | open the GUI for your nearest spawner |
+| `/vspawner menu` | `bravenspawner.admin` | open the GUI for the targeted managed spawner |
 | `/vspawner corrupt\|repair` | `bravenspawner.admin` | drive the corruption system |
 | `/vmodify <player>` | `bravenspawner.use` | toggle trust on the spawner you look at |
 | `/shtoggle` | `bravenspawner.use` | toggle holograms on your spawners |
@@ -144,12 +144,12 @@ values are escaped before formatting, so they cannot inject colours or tags.
 
 ## Architecture and upgrade documentation
 
-The [architecture guide](docs/ARCHITECTURE.md) distinguishes implemented code from the target design. The [documentation hub](docs/README.md) links the [source audit](docs/AUDIT.md), [PRD](docs/PRD.md), [technical specification](docs/TECHNICAL_SPEC.md), [roadmap](docs/ROADMAP.md), [migration guide](docs/MIGRATION.md), and [owner test plan](docs/TESTER_OWNER.md). These describe **proposed** work, not shipped features.
+The [architecture guide](docs/ARCHITECTURE.md) distinguishes implemented code from the target design. The [documentation hub](docs/README.md) links the [source audit](docs/AUDIT.md), [PRD](docs/PRD.md), [technical specification](docs/TECHNICAL_SPEC.md), [roadmap](docs/ROADMAP.md), [migration guide](docs/MIGRATION.md), and [owner test plan](docs/TESTER_OWNER.md). Each document labels current implementation, historical evidence, and **proposed** work. The [feature specifications](docs/features/README.md) and [parked proposals](docs/features/proposals/README.md) are not shipped capabilities.
 
 ```
 BravenSpawner       boot order: config → storage → manager → subsystems → load
 manager/            one tick pass, per-spawner region schedule
-storage/            interface + YAML / SQLite / MySQL, Codec for items
+storage/            YAML / SQLite / MySQL / Mongo, BSC2 item codec v2
 gui/                sessions, click-cancel by construction
 listener/           block lifecycle, death routing, guards
 mechanics/          ninja invisibility, hoppers, mending, restore-missing
@@ -167,8 +167,7 @@ Target design principles (runtime qualification pending):
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Issues and pull requests are welcome;
-`main` has a CI build; no automated test sources were found at the audited commit.
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI builds and runs the automated suite, including a SQLite probe against the shaded JAR. See [verification](docs/VERIFICATION.md) for the current test count and runtime limits.
 
 ## Security
 

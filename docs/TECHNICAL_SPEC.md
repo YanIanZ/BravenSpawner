@@ -1,5 +1,7 @@
 # Technical Specification — Proposed BravenSpawner Engine
 
+> **Status update (2026-11-01):** Target design based on the historical audit. For implemented behavior use [architecture](ARCHITECTURE.md), [code review](CODE_REVIEW.md) and [verification](VERIFICATION.md); the current [roadmap](ROADMAP.md) supersedes old milestone numbers.
+
 **Status:** Design proposal, **not implemented** · **Baseline:** 2026-10-30 commit `90b39fce`.
 
 ## 1. System boundaries

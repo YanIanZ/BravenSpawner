@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -22,13 +23,28 @@ class StorageWithdrawalTest {
     @Test void shiftClickIsCappedAtOneVanillaStack() throws Exception { withdraw(ClickType.SHIFT_LEFT, 500, 16, 16); }
     @Test void rightClickTakesSixtyFourAsTheShippedLoreSays() throws Exception { withdraw(ClickType.RIGHT, 500, 16, 64); }
 
+    @Test void closedInventoryDiscardsQueuedWithdrawal() throws Exception { withdraw(ClickType.LEFT, 20, 16, 1, "closed"); }
+    @Test void disconnectedPlayerDiscardsQueuedWithdrawal() throws Exception { withdraw(ClickType.LEFT, 20, 16, 1, "offline"); }
+    @Test void revokedAccessDiscardsQueuedWithdrawal() throws Exception { withdraw(ClickType.LEFT, 20, 16, 1, "revoked"); }
+    @Test void removedSpawnerDiscardsQueuedWithdrawal() throws Exception { withdraw(ClickType.LEFT, 20, 16, 1, "removed"); }
+
     private void withdraw(ClickType click, int stored, int maxStack, int amount) throws Exception {
+        withdraw(click, stored, maxStack, amount, "");
+    }
+
+    private void withdraw(ClickType click, int stored, int maxStack, int amount, String invalidation) throws Exception {
         BravenSpawner plugin = mock(BravenSpawner.class, RETURNS_DEEP_STUBS);
         org.mockito.Mockito.when(plugin.mayUse(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
         when(plugin.restrictions()).thenReturn(null);
         when(plugin.protection()).thenReturn(null);
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class, RETURNS_DEEP_STUBS);
+        Queue<Runnable> tasks = new ArrayDeque<>();
+        when(player.isOnline()).thenReturn(true);
+        when(player.getScheduler().execute(any(), any(), nullable(Runnable.class), eq(1L))).thenAnswer(call -> {
+            tasks.add(call.getArgument(1));
+            return true;
+        });
         UUID viewer = UUID.randomUUID();
         UUID id = UUID.randomUUID();
         when(player.getUniqueId()).thenReturn(viewer);
@@ -60,6 +76,7 @@ class StorageWithdrawalTest {
             gui.openStorage(player, spawner, 0);
             InventoryView view = mock(InventoryView.class);
             when(view.getTopInventory()).thenReturn(inventory);
+            when(player.getOpenInventory()).thenReturn(view);
             InventoryClickEvent event = mock(InventoryClickEvent.class);
             when(event.getView()).thenReturn(view);
             when(event.getWhoClicked()).thenReturn(player);
@@ -67,7 +84,18 @@ class StorageWithdrawalTest {
             when(event.getSlot()).thenReturn(0);
             when(event.getClick()).thenReturn(click);
             gui.onClick(event);
-            verify(spawner).drainSlotIfSimilar(eq(0), same(template), eq(amount));
+            verify(spawner, never()).drainSlotIfSimilar(anyInt(), any(), anyInt());
+            assertEquals(1, tasks.size());
+            switch (invalidation) {
+                case "closed" -> when(view.getTopInventory()).thenReturn(mock(Inventory.class));
+                case "offline" -> when(player.isOnline()).thenReturn(false);
+                case "revoked" -> when(spawner.canUse(viewer)).thenReturn(false);
+                case "removed" -> when(plugin.manager().byId(id)).thenReturn(null);
+                default -> { }
+            }
+            tasks.remove().run();
+            if (invalidation.isEmpty()) verify(spawner).drainSlotIfSimilar(eq(0), same(template), eq(amount));
+            else verify(spawner, never()).drainSlotIfSimilar(anyInt(), any(), anyInt());
             verify(event).setCancelled(true);
         }
     }

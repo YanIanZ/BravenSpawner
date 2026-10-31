@@ -63,11 +63,12 @@ public final class MenuListener implements Listener {
         int slot = event.getSlot();
         MenuClick action = holder.action(slot);
         if (action != null) {
-            action.click(player, event.getClick() == null ? org.bukkit.event.inventory.ClickType.LEFT : event.getClick());
+            var click = event.getClick() == null ? org.bukkit.event.inventory.ClickType.LEFT : event.getClick();
+            service.dispatch(player, holder, () -> action.click(player, click));
             return;
         }
         MenuAction fallback = fallback(holder.menu(), symbol(holder, slot));
-        if (fallback != null) fallback.run(player, holder);
+        if (fallback != null) service.dispatch(player, holder, () -> fallback.run(player, holder));
     }
 
     private static char symbol(MenuHolder holder, int slot) {

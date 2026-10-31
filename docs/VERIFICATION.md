@@ -1,11 +1,26 @@
-# Verification — 2026-10-30
+# Verification — 2026-11-01
 
-Current source: main checkout, `1.2.0-dev`. Latest `./gradlew build --console=plain` succeeded with **82 tests, zero failures, zero errors, zero skipped**. An earlier clean build also succeeded. `git diff --check` passed. Gradle reports deprecated API/features; these are not compilation failures.
+Source: local **1.3.1-dev** maintenance changes on top of `e620f4e` (published 1.3.0). This is an uncommitted working-tree verification, not a new GitHub release.
 
-Artifact: `build/libs/BravenSpawner.jar`, also copied to `artifacts/integrated-20261030/BravenSpawner.jar`.
+## Automated validation
 
-SHA-256: `23ef521890d925bd8855fa9f26f17336216e5f0f4d2f03139dea8fae8e7aa7e7`.
+- Baseline: 209 tests passed before edits.
+- Regression red phase: five GUI cases failed on the synchronous implementation because actions ran before the scheduled tick. After the fix those cases pass; four additional storage invalidation cases cover close, disconnect, revoked access and removed spawner.
+- `./gradlew clean build --no-build-cache --configuration-cache --warning-mode all --console=plain`: **BUILD SUCCESSFUL**, all seven tasks executed; **213 tests, zero failures, zero errors, zero skipped**. Configuration cache stored.
+- Repeated the same command to verify serialization/reuse: **BUILD SUCCESSFUL**, all seven tasks executed and **configuration cache reused**. No compiler or Gradle deprecation warnings appeared in these clean runs.
+- CI-equivalent command `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain` passed locally (tasks up to date after the clean runs). Workflow YAML parsed successfully; GitHub Actions has not run these unpushed edits.
+- Relative Markdown file links checked across README, CONTRIBUTING and docs; no missing targets. `git diff --check` passed.
 
-The descriptor contains version `1.2.0-dev`. The ledger implementation is packaged. No original VirtualSpawner package classes are bundled. Machine-readable source hashes and test totals are in `artifacts/integrated-20261030/verification.json`.
+## Artifact
 
-Five new booster persistence tests exercise restart deadlines/scopes, permanent autosell, personal-effect exclusion, invalid/corrupt ledger rejection and preservation, empty snapshot replacement, and nonfinite multiplier/invalid scope rejection. Existing tests cover isolated rules and mocked integration boundaries. They do not exercise a live game server, database or provider. Read FEATURE_PARITY.md for scope and known gaps.
+- Path: `build/libs/BravenSpawner.jar`.
+- Packaged descriptor version: `1.3.1-dev`; API declaration `1.21`.
+- SHA-256: `f727882514b534c47578a35ba0cd9d700069fdde2720be0b2137639bfc33c75c`.
+- Build includes `ShadedSqliteTest`, which opens SQLite through the shipped shaded JAR.
+- Build baseline remains Java 21 / Paper API 1.21.1. No dependency-version upgrade or storage-format migration is included in this maintenance pass.
+
+## Runtime evidence and limits
+
+The previous [checkpoint](CONTINUATION_CHECKPOINT.md) records 1.3.0 boot smoke on Paper 1.21.1-133 and 26.2-135, and codec probes. Those runs were **not repeated** for this working tree. No live server, live economy/provider, MySQL/Mongo or Folia qualification was performed in this pass.
+
+The regression tests use mocked schedulers and explicitly execute queued callbacks; they establish dispatch/session behavior, not actual server threading. [CODE_REVIEW.md](CODE_REVIEW.md) records the unresolved autosell ownership risk and other follow-up work. Owner/player acceptance cases remain NOT RUN in [TESTER_OWNER.md](TESTER_OWNER.md).
