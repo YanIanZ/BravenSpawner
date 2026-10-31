@@ -28,3 +28,6 @@ logs/
 
 # Build outputs are produced by CI/gradle, never committed
 artifacts/**/*.jar
+
+# Local agent instructions
+AGENTS.md
