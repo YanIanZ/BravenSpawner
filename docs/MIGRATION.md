@@ -9,6 +9,7 @@
 - Storage initialization/load failures fail closed by default. Explicit `fallback-to-yaml` is an opt-in behavior, not the default recovery path.
 - Item codec BSC2 v2 writes logical amounts separately from amount-one Paper byte templates. Legacy streams are readable; older plugin versions must not be assumed to read newly saved v2 blobs. Rollback requires a compatible backup, including server-version-compatible item data.
 - 1.3.1-dev changes GUI scheduling and build configuration without introducing a storage format migration. The unused `instant_page_navigation` key is removed from bundled defaults; old copies are ignored, and GUI actions always use the next player tick.
+- Autosell on Folia now requires an online owner. Stock is retained while offline; Paper continues offline-capable payouts. Online pricing and payout use the owner entity scheduler. Validate your selected economy/shop plugins on Folia before production use. No data migration is needed.
 - Exact-count Virtual Vault is proposed for 1.4.0 and requires its own format/schema migration. Do not confuse SQL schema v2, BSC2 codec v2 and that future migration.
 
 ## 2. Pre-upgrade checklist

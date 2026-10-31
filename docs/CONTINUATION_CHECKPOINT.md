@@ -1,3 +1,15 @@
+# Autosell continuation — 2026-11-01 (1.3.1-dev)
+
+- Baseline main: 2cfdbb0, after merged PR11 modernization and PR12 local-only AGENTS correction.
+- Implements REV-05 dispatch fix: global enumeration, entity-owned online pricing/payout, one outstanding ticket per spawner, fresh readiness/identity/eligibility/currency checks, cleanup on rejected/retired/failed tasks.
+- BravenSpawner.onDisable stops the existing SellService without installing one. Queued work is invalidated.
+- Offline Folia retains stock without provider calls; offline-capable Paper behavior remains. Existing autosell pricing/personal-boost semantics preserved.
+- Clean build with configuration cache and warning-mode=fail:236tests pass,0fail/error/skip; artifact SHA in VERIFICATION.md.
+- AGENTS.md remains ignored and local-only. User authorized PR creation and merge after checks.
+- Next: live Paper/Folia disconnect/region-transfer/XP/item/provider tests; then P2 performance/lifecycle/permission findings. Third-party Folia API compatibility remains unqualified.
+
+## Prior preparation record
+
 # Continuation checkpoint — 2026-11-01 (1.3.1-dev, local)
 
 Goal: synchronize code/docs/PR designs and modernize the maintenance baseline.

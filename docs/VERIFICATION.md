@@ -1,3 +1,18 @@
+# Autosell verification — 2026-11-01
+
+Build: **1.3.1-dev**, autosell ownership changes on baseline `2cfdbb0` (after merged PR11/12).
+
+- `./gradlew clean build --no-build-cache --configuration-cache --warning-mode=fail --console=plain`: **BUILD SUCCESSFUL**, all seven tasks executed, configuration cache reused; **236 tests, zero failures/errors/skips**.
+- 23 new `AutosellSchedulingTest` cases. Covers real XP and item currencies (mocked server inventory), owner scheduler execution, one ticket per spawner, disconnect/session replacement, removed/replaced model, changed ownership/currency/config, readiness, shutdown, scheduler rejection/retirement/exception and provider failure. Offline Paper behavior retained; offline Folia makes no provider calls.
+- Regression proof: after correcting the serverless Material fixture, 16/17 initial cases failed against the old synchronous implementation. The item-inventory fixture was subsequently corrected to return Bukkit's declared HashMap type. Final targeted and full suites pass.
+- Artifact: `build/libs/BravenSpawner.jar`, descriptor version `1.3.1-dev`.
+- SHA-256: `faabe4c2c071bc0c8fb003d88e10c5715376b4007609465ca392df70c845d5e3`.
+- No schema migration, dependency upgrade or Java/Paper baseline change. AGENTS.md is ignored and absent from Git.
+
+Tests explicitly execute mocked scheduler callbacks and do not prove live region-transfer behavior or third-party API safety. Paper/Folia player/provider/database qualification remains pending. Offline Folia settlement is deliberately deferred until the owner is online. The prior runtime smoke evidence below applies to the older artifact only.
+
+## Previous GUI/build maintenance verification (historical)
+
 # Verification — 2026-11-01
 
 Source: local **1.3.1-dev** maintenance changes on top of `e620f4e` (published 1.3.0). This is an uncommitted working-tree verification, not a new GitHub release.
