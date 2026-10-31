@@ -10,7 +10,7 @@ Targets below are proposed milestones, not delivery promises. Source, tests and 
 | 1.1.x–1.2.0 | Product definitions, YAML menus, virtual loot, stacking, wands, boosters, events, protection and persistence integrations |
 | 1.2.1 | Fail-closed storage, exploit fixes, dirty SQL batches/schema v2, menu coverage, messages, confirmations, text formatting and shaded SQLite regression |
 | 1.3.0 | BSC2 item codec v2, amount lore/head textures, 90 mob definitions, particles, per-action currencies and additional shop pricing adapters |
-| 1.3.1-dev (unreleased) | Deferred GUI callbacks with stale-session checks, Gradle execution-time API cleanup, synchronized docs/specifications and regression tests |
+| 1.3.1-dev (unreleased) | Deferred GUI callbacks, entity-owned autosell with lifecycle checks and offline Folia retention, Gradle execution-time API cleanup, synchronized docs/specifications and regression tests |
 
 The BSC2 codec carries logical amounts separately from item templates. **It is not the proposed `ItemKey → long` vault**: the current model still uses logical `ItemStack` entries with int counts.
 
@@ -28,7 +28,7 @@ Earlier documents assigned the vault to 1.3.0 and ledger to 1.4.0. Those assignm
 ## Open review and qualification work
 
 - Recheck historical P2s against current code before implementation: hopper/Ninja scans, production task churn, trusted-sell payout policy, per-action permissions, restoration and booster feedback.
-- Review all cross-region interactions and optional provider thread requirements. Entity-scheduled GUI callbacks alone do not establish full Folia safety.
+- Qualify all cross-region interactions and optional provider thread requirements. GUI and online autosell now use entity scheduling; offline Folia autosell retains stock. This does not establish full Folia or third-party API safety.
 - Exercise player interaction on Paper and Folia; SQLite restart, live MySQL/Mongo, unavailable providers and transaction failure paths.
 - Measure production at 100/1,000/10,000 virtual units before making throughput or latency claims.
 - Offline catch-up, physical-mob mode and multi-server federation remain design-only.

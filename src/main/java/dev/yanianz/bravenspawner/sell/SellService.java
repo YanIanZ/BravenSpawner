@@ -3,6 +3,7 @@ package dev.yanianz.bravenspawner.sell;
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
 import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.util.Schedulers;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import dev.yanianz.bravenspawner.econ.Currency;
 import dev.yanianz.bravenspawner.econ.CurrencyAction;
@@ -39,7 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>The service is a per-plugin singleton installed from the GUI constructor,
  * which is the only subsystem the bootstrap creates during onEnable; that keeps
  * autosell scheduled at boot without wiring changes elsewhere. The repeating pass
- * uses the global region scheduler so it runs on Folia as well as Paper.
+ * uses the global region scheduler only to dispatch. Online owners are quoted and
+ * paid on their entity scheduler; offline settlement is restricted to Paper.
  *
  * <p>Sales are serialised per spawner (its monitor), not by one service-wide lock,
  * so a slow shop or Vault provider on one spawner never stalls sales of every
@@ -157,6 +159,9 @@ public final class SellService {
     /** Paid-but-uncleared attempts, keyed by spawner; each entry is guarded by its spawner's monitor. */
     private final Map<UUID, SaleAttempt> pendingPayouts = new java.util.concurrent.ConcurrentHashMap<>();
 
+    /** One queued or running autosale per spawner, released even when an entity retires. */
+    private final Map<UUID, Object> queuedAutosells = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile boolean stopped;
     private volatile ScheduledTask autosellTask;
 
     private SellService(BravenSpawner plugin) {
@@ -176,9 +181,9 @@ public final class SellService {
     public static SellService install(BravenSpawner plugin) {
         if (plugin == null) throw new IllegalArgumentException("plugin");
         SellService local = instance;
-        if (local != null && local.plugin == plugin) return local;
+        if (local != null && local.plugin == plugin && !local.stopped) return local;
         synchronized (SellService.class) {
-            if (instance == null || instance.plugin != plugin) {
+            if (instance == null || instance.plugin != plugin || instance.stopped) {
                 instance = new SellService(plugin);
             }
             return instance;
@@ -266,8 +271,16 @@ public final class SellService {
         return CurrencyRegistry.select(plugin, CurrencyAction.SELL);
     }
 
-    /** Cancels the autosell pass when a host wires plugin shutdown explicitly. */
+    /** Stop only an existing service; shutdown must not install a new singleton. */
+    public static void stop(BravenSpawner plugin) {
+        SellService current = instance;
+        if (current != null && current.plugin == plugin) current.shutdown();
+    }
+
+    /** Cancels dispatch and invalidates queued callbacks before storage shuts down. */
     public void shutdown() {
+        stopped = true;
+        queuedAutosells.clear();
         ScheduledTask task = autosellTask;
         autosellTask = null;
         if (task != null && !task.isCancelled()) task.cancel();
@@ -293,37 +306,88 @@ public final class SellService {
         try {
             autosellTask = Bukkit.getGlobalRegionScheduler()
                     .runAtFixedRate(plugin, task -> autosellPass(), ticks, ticks);
-            plugin.getLogger().info("Autosell enabled — every " + seconds + "s; payouts go through "
-                    + currency().id()
-                    + (shop.available() ? " (shop hook: " + shop.detectedPlugin() + ")" : "") + ".");
+            plugin.getLogger().info("Autosell enabled — every " + seconds
+                    + "s; online owners settle on their entity scheduler; offline settlement is Paper-only.");
         } catch (RuntimeException e) {
             plugin.getLogger().warning("could not schedule autosell: " + e.getMessage());
         }
     }
 
     private void autosellPass() {
-        if (!plugin.isEnabled() || !enabled()) return;
+        if (stopped || !plugin.isEnabled() || !plugin.ready() || !enabled()) return;
         var manager = plugin.manager();
         if (manager == null) return;
-        if (!economyReady(currency())) return;
-
         for (Spawner spawner : manager.all()) {
             if (spawner == null) continue;
             try {
-                autosellSpawner(spawner);
+                dispatchAutosell(spawner);
             } catch (RuntimeException e) {
-                plugin.getLogger().warning("autosell failed for " + spawner.id() + ": " + e.getMessage());
+                logAutosellFailure(spawner, e);
             }
         }
     }
 
-    private void autosellSpawner(Spawner spawner) {
+    private boolean eligible(Spawner spawner, UUID owner) {
+        if (stopped || !plugin.isEnabled() || !plugin.ready() || !enabled()) return false;
+        var manager = plugin.manager();
+        if (manager == null || manager.byId(spawner.id()) != spawner || !owner.equals(spawner.owner())) return false;
         if (!plugin.getConfig().getBoolean("economy.autosell", false)
-                && (plugin.boosters() == null || !plugin.boosters().autosell(spawner.owner(), spawner.id()))) return;
-        if (plugin.restrictions() != null && !plugin.restrictions().rules().canOpen(spawner.product(), false)) return;
+                && (plugin.boosters() == null || !plugin.boosters().autosell(owner, spawner.id()))) return false;
+        return plugin.restrictions() == null || plugin.restrictions().rules().canOpen(spawner.product(), false);
+    }
+
+    private void dispatchAutosell(Spawner spawner) {
+        UUID ownerId = spawner.owner();
+        if (ownerId == null || !eligible(spawner, ownerId)) return;
+        Object ticket = new Object();
+        if (queuedAutosells.putIfAbsent(spawner.id(), ticket) != null) return;
+        Runnable release = () -> queuedAutosells.remove(spawner.id(), ticket);
+        try {
+            Player owner = Bukkit.getPlayer(ownerId);
+            if (owner == null) {
+                try {
+                    // Folia has no universal thread on which arbitrary offline providers are safe.
+                    // Keep the stock until the owner returns instead of guessing a provider context.
+                    if (!Schedulers.isFolia()) autosellSpawner(spawner, ownerId, null);
+                } finally {
+                    release.run();
+                }
+                return;
+            }
+            boolean accepted = owner.getScheduler().execute(plugin, () -> {
+                try {
+                    if (queuedAutosells.get(spawner.id()) == ticket) autosellSpawner(spawner, ownerId, owner);
+                } catch (RuntimeException failure) {
+                    logAutosellFailure(spawner, failure);
+                } finally {
+                    release.run();
+                }
+            }, release, 1L);
+            // A retired scheduler returns false without invoking either callback.
+            if (!accepted) release.run();
+        } catch (RuntimeException failure) {
+            release.run();
+            throw failure;
+        }
+    }
+
+    private void logAutosellFailure(Spawner spawner, RuntimeException failure) {
+        plugin.getLogger().warning("autosell failed for " + spawner.id() + ": " + failure.getMessage());
+    }
+
+    private void autosellSpawner(Spawner spawner, UUID ownerId, Player online) {
+        if (!eligible(spawner, ownerId)) return;
+        if (online != null && (!online.isOnline() || Bukkit.getPlayer(ownerId) != online)) return;
+        Currency currency = currency();
+        if (online == null && currency.requiresOnline()) return;
+        if (!economyReady(currency)) return;
+        OfflinePlayer owner = online == null ? Bukkit.getOfflinePlayer(ownerId) : online;
+        // Preserve existing autosell prices (no manual-sale personal boost), but query shops
+        // only after dispatch to the owner's thread. Offline Paper still uses the main thread.
+        PriceTable table = prices(spawner, null, currency);
         Sale sale;
-        PriceTable table = prices(spawner);
         synchronized (spawner) {
+            if (!eligible(spawner, ownerId) || (online != null && !online.isOnline())) return;
             Sale outstanding = settleOutstanding(spawner);
             if (outstanding != null) {
                 if (outstanding.status() == Status.PENDING) {
@@ -332,10 +396,6 @@ public final class SellService {
                 }
                 return;
             }
-            OfflinePlayer owner = Bukkit.getOfflinePlayer(spawner.owner());
-            // Experience and item currencies live on the player: an offline owner
-            // simply keeps their stock until they are back.
-            if (table.currency().requiresOnline() && !owner.isOnline()) return;
             sale = attemptSale(spawner, owner, table, null);
         }
         if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
@@ -344,9 +404,9 @@ public final class SellService {
     /**
      * Tells the owner only when they asked for it and are online.
      *
-     * <p>The message is dispatched through the entity scheduler: on Folia the
-     * autosell pass runs on the global region thread, which does not own the
-     * player and must not talk to the connection directly.
+     * <p>The message is dispatched through the entity scheduler because
+     * offline Paper and online entity dispatch use different entry points; keeping
+     * notification entity-owned also handles a player moving between regions.
      */
     private void notifyOwner(Spawner spawner, int items, double value) {
         if (plugin.getConfig().getBoolean("disable-autosell-notifications", false)) return;

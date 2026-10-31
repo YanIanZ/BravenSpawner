@@ -234,6 +234,7 @@ public final class BravenSpawner extends JavaPlugin {
 
     @Override public void onDisable() {
         ready = false;
+        dev.yanianz.bravenspawner.sell.SellService.stop(this);
         if (wands != null) wands.shutdown();
         if (boosters != null) boosters.shutdown();
         if (events != null) events.close();

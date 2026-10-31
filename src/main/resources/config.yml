@@ -149,6 +149,8 @@ economy:
   enabled: false
   purchase-price: 2500.0
   sell-multiplier: 1.0
+  # Online owners are quoted/paid on their entity scheduler.
+  # Folia: offline owners keep stock until online; Paper retains offline-capable payouts.
   autosell: false
   # Decimal places sale payouts are rounded to (HALF_UP). 0..6, default 2.
   # Whole-unit currencies (points, levels, items) then round payouts DOWN and
@@ -197,7 +199,7 @@ economy:
     custom-model-data: 0
 
 sell:
-  # Seconds between autosell passes; only used when economy.autosell is true.
+  # Seconds between autosell passes (global autosell or an active autosell booster).
   # Values below 5 are raised to 5 so a misconfiguration cannot spin the pass.
   autosell-interval-seconds: 60
 

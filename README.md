@@ -119,6 +119,12 @@ economy:
 Whole-unit currencies round payouts down and prices up. An unknown, missing or
 disabled currency refuses the action with a message (logged once) — nothing is
 ever free. `hooks.yml: currency` is the default for any action left unset.
+Autosell quotes and pays online owners on their entity scheduler. Queued work is
+rechecked for disconnects, spawner removal/ownership changes, disabled selling and
+storage readiness. Folia keeps an offline owner's stock until they return; Paper
+still pays offline-capable currencies while the owner is offline. Use Folia-compatible
+provider plugins: entity dispatch does not establish third-party API thread safety.
+
 SuperMobCoins is not supported: it has no public API. Messages can use
 `%currency%` and `%currency_symbol%`; formatted amounts already carry the
 configured symbol/suffix. Shop pricing is described in

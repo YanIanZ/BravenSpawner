@@ -6,6 +6,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased] — 1.3.1-dev
 
 ### Fixed
+- Autosell dispatches online owners to their entity scheduler before resolving the
+  currency, fetching shop quotes or depositing. One queued sale per spawner prevents
+  duplicate work; retired/rejected tasks release their slot. Queued work rechecks
+  storage readiness, live spawner/owner identity, player session, toggles and currency.
+- Plugin shutdown now stops the existing sell service and invalidates queued sales.
+- Folia offline autosell preserves stock until the owner returns; Paper retains
+  offline-capable payouts. Third-party provider Folia qualification remains separate.
 - Menu actions, storage-cell clicks and corruption puzzle clicks now execute on the
   next player/entity tick rather than inside `InventoryClickEvent`. A queued action
   verifies the original session/window and current access; closing, replacing,
