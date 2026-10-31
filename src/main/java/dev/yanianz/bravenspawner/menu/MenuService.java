@@ -107,6 +107,16 @@ public final class MenuService {
         return holder;
     }
 
+    /** Dispatch outside InventoryClickEvent, only while the original window is still active. */
+    void dispatch(Player player, MenuHolder holder, Runnable action) {
+        dev.yanianz.bravenspawner.util.Schedulers.onEntity(plugin, player, () -> {
+            if (player.isOnline() && session(player) == holder
+                    && player.getOpenInventory().getTopInventory() == holder.getInventory()) {
+                action.run();
+            }
+        }, null);
+    }
+
     /** Loaded definition by name, or null when the file is absent or malformed. */
     public MenuDefinition definition(String menu) {
         return loader.get(menu);

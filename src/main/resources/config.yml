@@ -9,7 +9,7 @@
 #   Item names and lore are not italic unless you add &o or <italic>.
 # ---------------------------------------------------------------------------
 use_item_spawners: true
-instant_page_navigation: true
+# Inventory actions run on the player scheduler next tick; stale windows are ignored.
 skip-menu: false
 bedrock: false
 enable-logger: false

@@ -5,12 +5,8 @@ often more valuable than a patch — start there if anything is unclear.
 
 ## Ground rules
 
-1. **No reflection.** Paper ships the region scheduler API; use it directly.
-   A reflective call is a compile-time error we cannot see, so it lands as a
-   runtime failure on someone else's server.
-2. **Folia is not optional.** Every task goes through
-   `Bukkit.getRegionScheduler()`, `entity.getScheduler()` or the async scheduler.
-   `Bukkit.getScheduler()` is acceptable only on the global path.
+1. **Use direct platform APIs.** Scheduling uses the Paper region/entity APIs. Reflection is limited to optional integrations with isolated adapters, explicit availability checks and fail-closed outcomes; keep it out of core scheduling and storage.
+2. **Respect thread ownership.** World/block work belongs to its region, player/entity work to its entity scheduler, global work to the global scheduler and I/O to async tasks. Menu callbacks run after the inventory click event and revalidate the original session before acting. A Folia declaration is not runtime qualification.
 3. **Fail closed.** A missing world, an unloaded chunk, an offline owner — skip the
    tick. Never spawn half a cycle, never write half a record.
 4. **One owner per invariant.** Persistence belongs to `storage/`, scheduling to
@@ -21,7 +17,7 @@ often more valuable than a patch — start there if anything is unclear.
 ```bash
 git switch -c feat/short-name
 # ... edits ...
-JAVA_HOME=/path/to/jdk21 gradle --no-daemon build
+./gradlew --no-daemon build --console=plain
 git commit -m "feat(scope): what changed and why"
 git push -u origin feat/short-name
 ```
@@ -53,7 +49,7 @@ Body explains **why**, not what — the diff already shows what.
 ## Testing
 
 ```bash
-gradle --no-daemon build          # compile + unit tests
+./gradlew --no-daemon build --console=plain  # compile, tests and shaded JAR
 ```
 
 Manual checklist before a PR that touches runtime behaviour:

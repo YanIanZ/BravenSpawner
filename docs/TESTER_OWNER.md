@@ -1,6 +1,6 @@
 # Owner Test Plan & Release Sign-off
 
-**Baseline:** v1.0.1 examined on 2026-10-30. **Status:** Empty test record; no cases marked passed. This checklist is for the **owner/manual tester**, supported by CI tests from implementers.
+**Target:** current maintenance build after published 1.3.0. **Status (2026-11-01):** Player acceptance cases below remain NOT RUN; prior boot-only smoke and automated tests are recorded separately in VERIFICATION.md. This checklist is for the **owner/manual tester**, supported by CI tests from implementers.
 
 ## 1. Test environment record
 
@@ -52,7 +52,7 @@ Fill before each campaign:
 - **DUR-06:** Backup + staging restore; confirm row/slot/XP counts before deployment.
 - **DUR-07:** Failed schema migration and old-plugin rollback; verify recoverable backup and no split version writes.
 
-Record actual outcomes as **PASS / FAIL / BLOCKED / NOT RUN** with logs and repeatable steps. A baseline run of v1.0.1 may intentionally expose failures; don't certify it.
+Record actual outcomes as **PASS / FAIL / BLOCKED / NOT RUN** with logs and repeatable steps. Do not mark a player acceptance case passed from a boot-only smoke test.
 
 ## 4. Folia/Paper runtime
 

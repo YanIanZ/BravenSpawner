@@ -1,5 +1,7 @@
 # Product Requirements Document — BravenSpawner 2.0
 
+> **Status update (2026-11-01):** Historical/proposed product requirements. Release numbering is governed by the current [roadmap](ROADMAP.md), not the original sequence below.
+
 **Status:** Proposed · **Baseline:** v1.0.1 source (2026-10-30) · **Owner:** repository maintainers · **Deployment:** Paper/Folia Minecraft servers.
 
 ## 1. Product vision

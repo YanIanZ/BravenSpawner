@@ -19,7 +19,6 @@ import java.util.Map;
 public final class Settings {
 
     public final boolean useItemSpawners;
-    public final boolean instantPageNavigation;
     public final boolean skipMenu;
     public final boolean bedrock;
     public final boolean enableLogger;
@@ -93,7 +92,6 @@ public final class Settings {
 
     private Settings(Builder b) {
         this.useItemSpawners = b.useItemSpawners;
-        this.instantPageNavigation = b.instantPageNavigation;
         this.skipMenu = b.skipMenu;
         this.bedrock = b.bedrock;
         this.enableLogger = b.enableLogger;
@@ -159,7 +157,6 @@ public final class Settings {
                                 dev.yanianz.bravenspawner.product.ProductRegistry catalogue) {
         Builder b = new Builder();
         b.useItemSpawners = root.getBoolean("use_item_spawners", false);
-        b.instantPageNavigation = root.getBoolean("instant_page_navigation", true);
         b.skipMenu = root.getBoolean("skip-menu", false);
         b.bedrock = root.getBoolean("bedrock", false);
         b.enableLogger = root.getBoolean("enable-logger", false);
@@ -483,7 +480,7 @@ public final class Settings {
     }
 
     private static final class Builder {
-        boolean useItemSpawners, instantPageNavigation,
+        boolean useItemSpawners,
                 skipMenu, bedrock, enableLogger, debug, restoreMissingSpawners;
         long cooldownBreakMs, cooldownStackMs, cooldownGuiMs, guiReconnectCooldownMs, guiLockTimeoutMs;
         double guiMaxTeleportDistance;

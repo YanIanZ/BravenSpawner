@@ -1,5 +1,7 @@
 # Source Audit — 2026-10-30
 
+> **Status update (2026-11-01):** Historical v1.0.1 audit. Many paths changed in 1.2.1/1.3.0; do not treat the original findings as current defects without rechecking. See [current review](CODE_REVIEW.md) and [verification](VERIFICATION.md).
+
 **Repository:** `YanIanZ/BravenSpawner` · **Branch:** `main` · **Examined commit:** `90b39fce6326e50b45f77121c65b3efc0ae89e7d` · **Code version:** `1.0.1`.
 
 ## Scope, severity, and evidence

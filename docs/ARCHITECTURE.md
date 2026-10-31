@@ -1,39 +1,36 @@
-# Architecture — Current State and Target Design
+# Architecture — current state and target design
 
-**Source baseline:** `main` commit `90b39fce` (2026-10-30). This document explicitly separates **implemented code** from **target architecture**; statements in older revisions claiming universal Folia safety, immutable storage consistency and restart durability were not verified.
+Reviewed against 1.3.0 (`e620f4e`) with 1.3.1-dev maintenance changes on 2026-11-01. Future invariants below are acceptance goals, not universal runtime guarantees.
 
 ## Current source layout
 
-| Module | Current responsibility | Observed gap |
+| Module | Implemented responsibility | Remaining boundary |
 | --- | --- | --- |
-| `BravenSpawner.java` | Boot, storage selection, event/command registration, async load, shutdown flush | Load failure can fall back to empty list; no scheduled durable checkpoint |
-| `manager/SpawnerManager.java` | Maps spawners and schedules per block | `register` and `startAll` both schedule; stack-sized production loop |
-| `model/Spawner.java` | Identity, owner, trust, stored items, tier, XP | Some fields/collections synchronized, but multi-step workflows are not atomic |
-| `storage/*` | YAML and SQL persistence, item codecs | SQL whole-table flush; write failure swallowed; silent corrupt decode |
-| `gui/*` | Menu, paged inventory, lock timers | Session keyed by player, not proven inventory identity; external mutation races |
-| `listener/*` | Placement, break, interaction, entity death, GUI guards | Incomplete authorization and PDC/stack invariants |
-| `boosters/*` | Temporary multiplier maps | Legacy Bukkit scheduler in Folia-declared plugin |
-| `sell/*` and `econ/*` | Pricing, autosell, Vault bridge, shop detection | Payout result unchecked; shop detection is informational |
-| `mechanics/*`, `holo/*` | Hoppers, invisibility, mending, restoration, holograms | Several world/entity touchpoints need Folia ownership audit |
+| `BravenSpawner.java` | Startup readiness, storage selection, async load, checkpoints and shutdown/reload | Live recovery and backend qualification |
+| `manager/` | Per-spawner region schedules, authorized stacking, aggregated product output | Schedule churn, cross-region lifecycle and workload benchmarks |
+| `model/Spawner.java` | Synchronized logical item entries, stack/tier, XP and revisions | Int counts; no exact-count vault or durable issuance ledger |
+| `storage/` | YAML/SQLite/MySQL/Mongo, strict codecs, dirty SQL batches and schema v2 | Live MySQL/Mongo; cross-version migration qualification |
+| `gui/`, `menu/` | Typed inventory sessions, authorization, confirmations; next-tick entity dispatch with session revalidation | Full player/Folia qualification |
+| `boosters/`, `events/` | Typed timed effects, local booster ledger, calendar/weighted boost events | Timed gameplay events are not a public plugin event API |
+| `econ/`, `sell/`, `commerce/` | Per-action currency providers, guarded settlement, optional shop adapters | Live provider outcomes and threading contracts |
+| `mechanics/`, `holo/`, `listener/` | World/player interactions, hoppers, restoration and visuals | Remaining ownership/performance review |
 
-## Current data and scheduling flow
+## Current data flow
 
 ```mermaid
 flowchart TD
-  B[onEnable] --> C[Settings + Storage.init]
-  C --> M[SpawnerManager and services]
-  M --> L[Async Storage.loadAll]
-  L --> R[register each spawner]
-  R --> A[startAll]
-  R -. schedules .-> S[Region task]
-  A -. schedules again .-> S
-  S --> T[tick per virtual unit]
-  T --> I[In-memory inventory]
-  I --> F[flush on reload/disable]
-  F --> DB[(YAML / SQLite / MySQL)]
+  B[Enable and initialize selected storage] --> L[Async load and readiness gate]
+  L --> R[Register spawners and region schedules]
+  R --> P[Aggregate product rolls]
+  P --> I[Logical ItemStack entries and XP]
+  I --> C[Periodic checkpoint and shutdown flush]
+  C --> DB[(YAML / SQLite / MySQL / Mongo)]
+  U[Cancelled inventory click] --> Q[Next tick on player scheduler]
+  Q --> V[Recheck window, session and authorization]
+  V --> I
 ```
 
-The double scheduling and lack of periodic checkpoint are **current defects**, not intentional design. See [AUDIT.md](AUDIT.md).
+The shipped BSC2 item codec v2 stores an amount separately from an amount-one Paper item template and reads legacy streams. It does not replace the in-memory model with a `long` vault. GUI scheduling does not establish complete Folia ownership across all services.
 
 ## Proposed core invariants
 

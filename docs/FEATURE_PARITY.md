@@ -1,5 +1,7 @@
 # VirtualSpawner reference parity audit
 
+> **Status update (2026-11-01):** Historical 1.2.0-dev evidence, including the 82-test count and artifact hashes. For the current release and validation see [CHANGELOG](../CHANGELOG.md) and [VERIFICATION](VERIFICATION.md). This audit is retained for reference provenance, not a current compatibility claim.
+
 Static audit dated 2026-10-30. This is an evidence inventory, not a claim of runtime equivalence. “Implemented” below means an identifiable source path exists and is called; it does not mean tested on Paper, Folia, or with third-party plugins. The previously isolated continuation has now been integrated into the main BravemSpawner checkout after its tracked working tree became clean; existing files were backed up before integration. Source lifecycle review and its regression fixes were completed for this pass; runtime qualification is separate.
 
 ## Verified scope of the continuation

@@ -1,5 +1,7 @@
 # Gap Audit — 2026-10-30
 
+> **Status update (2026-11-01):** Historical v1.2.0 audit. The in-flight worktree note and release targets below are archival; the active worktree and [roadmap](ROADMAP.md) supersede them. TH-03 is addressed in the 1.3.1-dev working tree; see [current review](CODE_REVIEW.md).
+
 Read-only static review of `main` @ `7ed949e` (version `1.2.0`, Java 21, Paper API 1.21.1). This audit did not run Gradle or a server. Every finding below was checked against the cited source line. Line numbers are from `7ed949e`; the two newest commits (`b6922f8`, `7ed949e`) do not touch any cited file.
 
 Severity: **P0** means loss or duplication of assets or data, or a silent integrity break. **P1** means a player-visible broken feature, an exploit, a Folia ownership risk, or money charged for no effect. **P2** means a correctness, UX or maintenance issue.

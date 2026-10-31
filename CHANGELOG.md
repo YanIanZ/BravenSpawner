@@ -3,7 +3,25 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — 1.3.1-dev
+
+### Fixed
+- Menu actions, storage-cell clicks and corruption puzzle clicks now execute on the
+  next player/entity tick rather than inside `InventoryClickEvent`. A queued action
+  verifies the original session/window and current access; closing, replacing,
+  disconnecting, revoking access or removing the spawner cannot replay that action.
+- Resource expansion captures the version during configuration, avoiding Gradle's
+  deprecated execution-time `Task.project` access and enabling configuration-cache use.
+
+### Changed
+- Removed the unused `instant_page_navigation` option from bundled config; old copies
+  are ignored. Inventory actions always use the next player tick.
+- CI uses configuration cache and fails on Gradle deprecations, limits token permissions
+  to read-only contents, cancels superseded runs and retains test reports on failure.
+- Synchronized documentation to actual 1.3.0 scope; incorporated the split core specs
+  and parked proposals locally. Proposed targets: 1.4.0 vault, 1.5.0 ledger/UX/API.
+- Contributor guidance permits guarded reflection only for optional integrations.
+
 
 ## [1.3.0] - 2026-10-30
 

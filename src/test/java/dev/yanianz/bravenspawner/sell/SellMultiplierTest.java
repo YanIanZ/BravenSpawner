@@ -162,7 +162,7 @@ class SellMultiplierTest {
 
     @Test void recordsPendingSettlementOnlyAfterReconciliationWithoutPayingAgain() {
         ItemStack stock = spawner.contents().getFirst();
-        when(spawner.contents()).thenReturn(List.of(stock), List.of(stock), List.of(stock), List.of());
+        when(spawner.contents()).thenReturn(List.of(stock)).thenReturn(List.of(stock)).thenReturn(List.of(stock)).thenReturn(List.of());
         when(spawner.drainSlot(0, 4)).thenReturn(null, stock);
         when(economy.deposit(player, 16.0)).thenReturn(true);
         assertEquals(SellService.Status.PENDING, service.sell(player, spawner).status());
