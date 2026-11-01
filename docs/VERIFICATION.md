@@ -1,3 +1,13 @@
+# Island worlds and SuperiorSkyblock2 verification — 2026-11-01
+
+Build: **1.3.1-dev**, branch `feat/island-worlds-ssb` stacked on `feat/vault-escrow` (PR #17).
+
+- `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain` after `clean`: **BUILD SUCCESSFUL**; **299 tests, zero failures/errors/skips**.
+- New: `SuperiorSkyblockHookTest` (9), `IslandDisbandCleanupTest` (2), `WorldLifecycleTest` (4), `ProductionChainTest` pause/resume and island spawn-rate cases (2).
+- Dependency: `com.bgsoftware:SuperiorSkyblockAPI:2026.3` compileOnly (Java 8 class files) from repo.bg-software.com; the shaded JAR contains no `com.bgsoftware` classes. AWF, ASP and Aurora MultiProfile use no compile dependency.
+- Artifact SHA-256: `155049b7cf21f1b25d4715088c645857ff65447e732b018ce13f3dd6a641ff5a`.
+- Live SourbyCraft/ASP/SSB2 servers were not run: owner cases OWN-24 to OWN-26.
+
 # Escrowed sale settlement verification — 2026-11-01
 
 Build: **1.3.1-dev**, branch `feat/vault-escrow` stacked on `feat/vault-exact-long` (PR #16).

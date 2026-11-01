@@ -43,6 +43,31 @@ unlimited-storage: false
 storage-limits:
   max-distinct-items: 0
   max-per-item: 0
+
+# SuperiorSkyblock2 integration (used only when SuperiorSkyblock2 is installed).
+# Works with SourbyCraft Aurora World Fabric and AdvancedSlimePaper island worlds, and with
+# Aurora MultiProfile (membership follows the active profile when SSB2 has profile support).
+superiorskyblock:
+  enabled: true
+  # Island privileges gate using, placing and breaking spawners on an island.
+  island-permissions: true
+  # Members holding the "use" privilege may use every spawner of their island,
+  # not only the ones they placed. Breaking stays with the spawner's owner.
+  members-share-spawners: true
+  # Apply the island's spawner-rates (speed) and mob-drops (loot) upgrade multipliers.
+  multipliers: true
+  max-multiplier: 100.0
+  # Remove the spawner records of a disbanded island (its blocks or worlds are gone).
+  remove-spawners-on-disband: true
+  # Autosell pays an owner only while they are a member of the spawner's island
+  # (with Aurora MultiProfile: while that island's profile is active).
+  autosell-requires-membership: true
+  # SSB2 privilege names. Names starting with BRAVENSPAWNER_ are registered as new
+  # island privileges (then grant them per role in SSB2's permission menu).
+  privileges:
+    use: CHEST_ACCESS
+    place: BUILD
+    break: SPAWNER_BREAK
 # Maximum spawners per chunk (0 = no limit). By default this counts spawner BLOCKS,
 # so stacking onto an existing spawner is never refused by it. Set
 # spawner-limit-in-chunk-mode: stacks to count stack units instead (then a chunk

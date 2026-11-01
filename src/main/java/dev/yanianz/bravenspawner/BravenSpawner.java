@@ -58,6 +58,7 @@ public final class BravenSpawner extends JavaPlugin {
     private Placeholders placeholders;
     private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
     private dev.yanianz.bravenspawner.protection.ProtectionService protection;
+    private volatile dev.yanianz.bravenspawner.hook.IslandHook islands = dev.yanianz.bravenspawner.hook.IslandHook.NONE;
     private dev.yanianz.bravenspawner.restrictions.RestrictedSpawners restrictions;
     private dev.yanianz.bravenspawner.events.SpawnerEvents events;
     private NamespacedKey spawnerIdKey, itemKindKey, itemProductKey, itemStackKey;
@@ -85,6 +86,11 @@ public final class BravenSpawner extends JavaPlugin {
     public Placeholders placeholders() { return placeholders; }
     public dev.yanianz.bravenspawner.commerce.ShopBridge shops() { return shops; }
     public dev.yanianz.bravenspawner.protection.ProtectionService protection() { return protection; }
+    /** Island plugin integration; {@link dev.yanianz.bravenspawner.hook.IslandHook#NONE} when none is installed. */
+    public dev.yanianz.bravenspawner.hook.IslandHook islands() {
+        var current = islands;
+        return current == null ? dev.yanianz.bravenspawner.hook.IslandHook.NONE : current;
+    }
     public dev.yanianz.bravenspawner.restrictions.RestrictedSpawners restrictions() { return restrictions; }
     public dev.yanianz.bravenspawner.events.SpawnerEvents events() { return events; }
     public NamespacedKey spawnerIdKey() { return spawnerIdKey; }
@@ -135,8 +141,12 @@ public final class BravenSpawner extends JavaPlugin {
     /** Owner, trusted, admin, or anyone when {@code ownership.enabled: false}. */
     public boolean mayUse(Player player, Spawner spawner) {
         if (player == null || spawner == null) return false;
-        return player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
-                || spawner.canUse(player.getUniqueId());
+        if (player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
+                || spawner.canUse(player.getUniqueId())) return true;
+        // SuperiorSkyblock2: island members holding the use privilege share the island's spawners.
+        var hook = dev.yanianz.bravenspawner.hook.IslandHook.of(islands());
+        return hook.sharesSpawners() && hook.check(player, spawner.blockLocation(),
+                dev.yanianz.bravenspawner.hook.IslandHook.Action.USE) == dev.yanianz.bravenspawner.hook.IslandHook.Verdict.ALLOW;
     }
 
     /** Owner or admin, or anyone when {@code ownership.enabled: false}. */
@@ -164,6 +174,11 @@ public final class BravenSpawner extends JavaPlugin {
     public void record(Spawner spawner, AuditEvent.Action action, Player actor, long amount, String detail) {
         if (audit != null) audit.record(AuditEvent.of(spawner, action,
                 actor == null ? null : actor.getUniqueId(), actor == null ? "Console" : actor.getName(), amount, detail));
+    }
+
+    /** Island privileges must exist before SuperiorSkyblock2 loads its island data. */
+    @Override public void onLoad() {
+        dev.yanianz.bravenspawner.hook.IslandHooks.registerPrivileges(this);
     }
 
     @Override public void onEnable() {
@@ -206,12 +221,18 @@ public final class BravenSpawner extends JavaPlugin {
         placeholders = new Placeholders();
         shops = new dev.yanianz.bravenspawner.commerce.ShopBridge(this);
         protection = new dev.yanianz.bravenspawner.protection.ProtectionService(this);
+        islands = dev.yanianz.bravenspawner.hook.IslandHooks.create(this);
+        if (islands.name().equals("superiorskyblock2")
+                && dev.yanianz.bravenspawner.hook.IslandHooks.Settings.load(getConfig()).removeOnDisband()) {
+            getServer().getPluginManager().registerEvents(new dev.yanianz.bravenspawner.hook.IslandDisbandCleanup(this), this);
+        }
         restrictions = new dev.yanianz.bravenspawner.restrictions.RestrictedSpawners(this);
         events = new dev.yanianz.bravenspawner.events.SpawnerEvents(this);
         holograms = new Holograms(this);
         particles = new dev.yanianz.bravenspawner.particles.SpawnerParticles(this);
         gui = new SpawnerGui(this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
+        new dev.yanianz.bravenspawner.platform.WorldLifecycle(this).register();
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         getServer().getPluginManager().registerEvents(gui, this);
         getServer().getPluginManager().registerEvents(new dev.yanianz.bravenspawner.listener.GuiGuardListener(this), this);

@@ -235,6 +235,43 @@ public final class SpawnerManager {
         }
     }
 
+    /** Spawners recorded in one world, loaded or not. */
+    public List<Spawner> inWorld(String world) {
+        Set<Spawner> set = world == null ? null : byWorld.get(world);
+        return set == null ? List.of() : List.copyOf(set);
+    }
+
+    /**
+     * Stops production for every spawner of a world that is unloading.
+     *
+     * <p>Per-island worlds (SourbyCraft Aurora World Fabric, AdvancedSlimePaper)
+     * unload when idle. A delayed task bound to an unloaded region may never run,
+     * so the leases are cancelled here and re-installed by {@link #resumeWorld}.
+     *
+     * @return how many spawners were paused
+     */
+    public int pauseWorld(String world) {
+        List<Spawner> spawners = inWorld(world);
+        synchronized (scheduleLock) {
+            for (Spawner spawner : spawners) cancelLocked(spawner.id());
+        }
+        return spawners.size();
+    }
+
+    /**
+     * Re-arms production for every spawner of a world that just loaded, replacing any
+     * lease that survived the unload.
+     *
+     * @return how many spawners were resumed
+     */
+    public int resumeWorld(String world) {
+        List<Spawner> spawners = inWorld(world);
+        for (Spawner spawner : spawners) {
+            if (byId.get(spawner.id()) == spawner) reschedule(spawner);
+        }
+        return spawners.size();
+    }
+
     /** Replaces the task for one spawner; used after a tier change or a reload. */
     public void reschedule(Spawner spawner) {
         if (spawner == null) return;
@@ -316,6 +353,8 @@ public final class SpawnerManager {
         long period = s.productionPeriod(spawner.tier(), productDelay);
         double speed = plugin.boosters() == null ? 1.0
                 : plugin.boosters().multiplier(Boosters.Type.SPEED, spawner.owner(), spawner.id());
+        // SuperiorSkyblock2 island "spawner-rates" upgrade; 1.0 off an island.
+        speed *= dev.yanianz.bravenspawner.hook.IslandHook.of(plugin.islands()).spawnRateMultiplier(spawner.blockLocation());
         if (Double.isFinite(speed) && speed > 0.0) period = Math.max(20L, Math.round(period / speed));
         return Math.max(1L, period);
     }
@@ -414,7 +453,8 @@ public final class SpawnerManager {
         var product = plugin.product(spawner);
         if (product == null) return;
         double multiplier = plugin.boosters().multiplier(Boosters.Type.LOOT,
-                spawner.owner(), spawner.id());
+                spawner.owner(), spawner.id())
+                * dev.yanianz.bravenspawner.hook.IslandHook.of(plugin.islands()).dropMultiplier(spawner.blockLocation());
         int credits = (int) Math.min(Integer.MAX_VALUE,
                 Math.max(1.0, Math.floor(Math.max(1, spawner.stack()) * multiplier)));
         Random random = ThreadLocalRandom.current();

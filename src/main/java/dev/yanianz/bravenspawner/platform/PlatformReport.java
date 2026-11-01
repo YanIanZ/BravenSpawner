@@ -36,6 +36,11 @@ public final class PlatformReport {
         facts.add("sourbyapi=" + pluginPresent("sourbyapi"));
         facts.add("sourbycraft=" + pluginPresent("SourbyCraft"));
         facts.add("aurora-bridge=" + pluginPresent("AuroraBridge"));
+        facts.add("aurora-world-fabric=" + present("dev.iyanz.sourbycraft.api.world.AuroraWorlds"));
+        facts.add("aurora-multiprofile=" + present("dev.iyanz.sourbycraft.api.profile.AuroraProfiles"));
+        facts.add("advanced-slime-paper=" + (present("com.infernalsuite.asp.api.AdvancedSlimePaperAPI").equals("yes")
+                || present("com.infernalsuite.aswm.api.AdvancedSlimePaperAPI").equals("yes") ? "yes" : "no"));
+        facts.add("superiorskyblock2=" + pluginPresent("SuperiorSkyblock2"));
 
         plugin.getLogger().info("platform: " + String.join(" ", facts));
     }
