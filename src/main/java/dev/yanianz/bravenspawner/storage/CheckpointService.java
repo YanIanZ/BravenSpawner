@@ -76,6 +76,8 @@ public final class CheckpointService implements AutoCloseable {
         this.intervalSeconds = intervalSeconds > 0
                 ? Math.max(MIN_INTERVAL_SECONDS, intervalSeconds)
                 : configuredInterval(plugin);
+        this.persistIntervalMillis = Math.max(0L, Math.min(5_000L,
+                plugin.getConfig().getLong("storage.sale-save-interval-ms", 250L)));
         start();
     }
 
@@ -133,14 +135,21 @@ public final class CheckpointService implements AutoCloseable {
     private final Object pendingLock = new Object();
     private List<CompletableFuture<Boolean>> pending = new ArrayList<>();
     private boolean persistScheduled;
+    /** When the last sale-driven flush finished; spaces flushes on file-rewriting backends. */
+    private volatile long lastPersistMillis;
+    /** Minimum spacing of sale-driven flushes ({@code storage.sale-save-interval-ms}, default 250). */
+    private final long persistIntervalMillis;
 
     /**
      * Makes everything marked dirty so far durable, soon, off the calling thread.
      *
      * <p>The future completes {@code true} only after a flush that started after this
      * call has been accepted by the backend; {@code false} when storage is unhealthy,
-     * the flush failed or the service is closed. Concurrent requests share one flush.
-     * Sales use this to save their escrow before asking the economy to pay.
+     * the flush failed or the service is closed. Concurrent requests share one flush,
+     * and flushes are at least {@code storage.sale-save-interval-ms} apart, so a burst
+     * of sales on a file backend (YAML rewrites the whole file) costs a few writes per
+     * second rather than one per click. Sales use this to save their escrow before
+     * asking the economy to pay.
      */
     public CompletableFuture<Boolean> persistSoon() {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
@@ -155,8 +164,14 @@ public final class CheckpointService implements AutoCloseable {
             persistScheduled = true;
         }
         if (schedule) {
+            long wait = lastPersistMillis + persistIntervalMillis - System.currentTimeMillis();
             try {
-                Bukkit.getAsyncScheduler().runNow(plugin, t -> persistPending());
+                if (wait > 0) {
+                    Bukkit.getAsyncScheduler().runDelayed(plugin, t -> persistPending(), wait,
+                            java.util.concurrent.TimeUnit.MILLISECONDS);
+                } else {
+                    Bukkit.getAsyncScheduler().runNow(plugin, t -> persistPending());
+                }
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("could not schedule a durable save: " + e.getMessage());
                 persistPending();
@@ -179,6 +194,7 @@ public final class CheckpointService implements AutoCloseable {
         } catch (RuntimeException e) {
             saved = false;
         }
+        lastPersistMillis = System.currentTimeMillis();
         for (CompletableFuture<Boolean> future : batch) future.complete(saved);
     }
 

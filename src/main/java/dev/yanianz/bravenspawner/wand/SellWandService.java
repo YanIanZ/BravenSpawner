@@ -211,15 +211,15 @@ public final class SellWandService {
      * matching the reference behaviour where a wand then only works on the spawner
      * that was clicked (the listener's single-spawner path).
      */
-    public void sellArea(Player player, Wand wand, java.util.function.Consumer<Report> done) {
-        if (!enabled() || player == null || wand == null || !usable(player, wand)) { done.accept(Report.NONE); return; }
+    /** @return true when at least one sale started, so the click must cost a wand use */
+    public boolean sellArea(Player player, Wand wand) {
+        if (!enabled() || player == null || wand == null || !usable(player, wand)) return false;
         if (!beginCooldown(player)) {
             player.sendMessage(Text.of(definition.messageCooldown()));
             sounds.play(player, SoundFeedback.Cue.COOLDOWN);
-            done.accept(Report.NONE);
-            return;
+            return false;
         }
-        sellAll(player, wand, nearby(player, wand), done);
+        return sellAll(player, wand, nearby(player, wand));
     }
 
     /**
@@ -228,18 +228,15 @@ public final class SellWandService {
      * <p>This path works even with {@code within-radius: false}: the reference
      * wand's "clicked only" mode is exactly this call.
      */
-    public void sell(Player player, Wand wand, Spawner spawner, java.util.function.Consumer<Report> done) {
-        if (!enabled() || player == null || wand == null || spawner == null || !usable(player, wand)) {
-            done.accept(Report.NONE);
-            return;
-        }
+    /** @return true when the sale started, so the click must cost a wand use */
+    public boolean sell(Player player, Wand wand, Spawner spawner) {
+        if (!enabled() || player == null || wand == null || spawner == null || !usable(player, wand)) return false;
         if (!beginCooldown(player)) {
             player.sendMessage(Text.of(definition.messageCooldown()));
             sounds.play(player, SoundFeedback.Cue.COOLDOWN);
-            done.accept(Report.NONE);
-            return;
+            return false;
         }
-        sellAll(player, wand, List.of(spawner), done);
+        return sellAll(player, wand, List.of(spawner));
     }
 
     /**
@@ -402,16 +399,24 @@ public final class SellWandService {
      * by the sell service keeps its own status so the player sees "disabled" or
      * "no economy" instead of a generic "nothing to sell".
      */
-    private void sellAll(Player player, Wand wand, List<Spawner> spawners, java.util.function.Consumer<Report> done) {
+    /**
+     * Starts one sale per spawner and reports the summary once all have settled.
+     *
+     * <p>Escrowed sales settle after their save, a tick or more later, so the wand
+     * use is charged now (by the caller, while the wand is certainly in hand) when
+     * any sale started; charging in the settlement callback would let a player
+     * switch slots and keep the use.
+     *
+     * @return true when at least one sale was sold or is settling
+     */
+    private boolean sellAll(Player player, Wand wand, List<Spawner> spawners) {
         if (spawners.isEmpty()) {
             player.sendMessage(Text.of(definition.messageNothing()));
             sounds.play(player, SoundFeedback.Cue.FAILURE);
-            done.accept(new Report(0, 0, 0, 0.0, 0));
-            return;
+            return false;
         }
-        // Escrowed sales settle after their save; the summary is sent once every
-        // spawner reported, on the player's thread.
-        Tally tally = new Tally(player, spawners.size(), done);
+        Tally tally = new Tally(player, spawners.size());
+        boolean started = false;
         for (Spawner spawner : spawners) {
             try {
                 if (!canSell(player, spawner)) {
@@ -420,19 +425,20 @@ public final class SellWandService {
                 }
                 SellService.Sale sale = sellService.sell(player, spawner, wand.priceMultiplier(),
                         settled -> tally.add(spawner, settled));
+                if (sale.status() == SellService.Status.SOLD || sale.status() == SellService.Status.SETTLING) started = true;
                 if (sale.status() != SellService.Status.SETTLING) tally.add(spawner, sale);
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("sell wand sale failed for " + spawner.id() + ": " + e.getMessage());
                 tally.add(spawner, null);
             }
         }
+        return started;
     }
 
     /** Collects one outcome per spawner and reports once all have arrived. */
     private final class Tally {
         private final Player player;
         private final int expected;
-        private final java.util.function.Consumer<Report> done;
         private int received;
         private int sold;
         private long items;
@@ -441,15 +447,13 @@ public final class SellWandService {
         private SellService.Status blocked;
         private final List<org.bukkit.Location> soldAt = new ArrayList<>();
 
-        Tally(Player player, int expected, java.util.function.Consumer<Report> done) {
+        Tally(Player player, int expected) {
             this.player = player;
             this.expected = expected;
-            this.done = done;
         }
 
         /** A null sale counts as a failure (no access or an exception). */
         void add(Spawner spawner, SellService.Sale sale) {
-            Report report;
             synchronized (this) {
                 if (sale == null) {
                     failed++;
@@ -469,9 +473,8 @@ public final class SellWandService {
                     }
                 }
                 if (++received < expected) return;
-                report = finish();
+                finish();
             }
-            done.accept(report);
         }
 
         private Report finish() {

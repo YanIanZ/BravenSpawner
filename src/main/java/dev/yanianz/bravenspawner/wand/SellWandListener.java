@@ -61,20 +61,21 @@ public final class SellWandListener implements Listener {
         if (clicked != null && plugin.manager() != null) {
             Spawner spawner = plugin.manager().at(clicked.getLocation());
             if (spawner != null) {
-                service.sell(player, wand, spawner, report -> consumeUse(player, wand, report));
+                if (service.sell(player, wand, spawner)) consumeUse(player, wand);
                 return;
             }
         }
 
         if (wand.definition().withinRadius()) {
-            service.sellArea(player, wand, report -> consumeUse(player, wand, report));
+            if (service.sellArea(player, wand)) consumeUse(player, wand);
         }
         // within-radius: false and no spawner under the cursor is the reference
         // "clicked only" mode: the wand reports nothing and stays silent.
     }
 
-    private void consumeUse(Player player, Wand used, SellWandService.Report report) {
-        if (!report.soldAnything() || used.lifetime().uses() < 0) return;
+    /** Charged in the click event itself, while the clicked wand is still in hand. */
+    private void consumeUse(Player player, Wand used) {
+        if (used.lifetime().uses() < 0) return;
         ItemStack held = player.getInventory().getItemInMainHand();
         Wand current = service.read(held);
         if (current == null || !current.id().equals(used.id())) return;

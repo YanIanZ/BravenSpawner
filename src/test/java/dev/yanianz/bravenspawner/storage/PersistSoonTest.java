@@ -23,6 +23,7 @@ import static org.mockito.Mockito.*;
 /** VSS-05: sales wait for a durable save; concurrent requests share one flush and failures are reported. */
 class PersistSoonTest {
     final List<Consumer<ScheduledTask>> queued = new ArrayList<>();
+    final List<Long> delayed = new ArrayList<>();
     final Plugin plugin = mock(Plugin.class);
     final Storage storage = mock(Storage.class);
     MockedStatic<Bukkit> bukkit;
@@ -35,6 +36,11 @@ class PersistSoonTest {
         AsyncScheduler async = mock(AsyncScheduler.class);
         bukkit.when(Bukkit::getAsyncScheduler).thenReturn(async);
         when(async.runNow(any(), any())).thenAnswer(call -> {
+            queued.add(call.getArgument(1));
+            return mock(ScheduledTask.class);
+        });
+        when(async.runDelayed(any(), any(), anyLong(), any())).thenAnswer(call -> {
+            delayed.add(call.getArgument(2));
             queued.add(call.getArgument(1));
             return mock(ScheduledTask.class);
         });
@@ -71,6 +77,8 @@ class PersistSoonTest {
         runQueued();
         var second = service.persistSoon();
         assertEquals(1, queued.size());
+        assertEquals(1, delayed.size(), "a request right after a flush waits for the spacing");
+        assertTrue(delayed.getFirst() > 0 && delayed.getFirst() <= 250);
         runQueued();
         assertTrue(first.join() && second.join());
         verify(storage, times(2)).flushAll(anyList(), eq(false));

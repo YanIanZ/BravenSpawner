@@ -265,6 +265,8 @@ public final class SellService {
         if (task != null && !task.isCancelled()) task.cancel();
         // Sales still waiting for their save were never paid: return their units so
         // the final drain stores them. A payment already in progress stays escrowed.
+        // Their callbacks are not invoked: during disable they would message players
+        // and play sounds off the owning threads. Wand uses were charged at the click.
         int returned = 0;
         for (InFlight flight : List.copyOf(inFlight.values())) {
             if (!flight.state().compareAndSet(WAITING, DONE)) continue;

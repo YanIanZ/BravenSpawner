@@ -315,7 +315,7 @@ public final class SpawnerManager {
     private void install(Spawner spawner) {
         TaskLease lease = new TaskLease();
         tasks.put(spawner.id(), lease);
-        if (!arm(spawner, lease)) {
+        if (!arm(spawner, lease, -1L)) {
             // Not schedulable now (world unloaded, no tiers): leave a gap that
             // startAll() or the next reschedule fills.
             tasks.remove(spawner.id(), lease);
@@ -326,14 +326,16 @@ public final class SpawnerManager {
     /**
      * Schedules the next cycle of {@code lease}. Caller must hold {@link #scheduleLock}.
      *
+     * @param precomputed the delay, computed outside the lock by the hot cycle path;
+     *                    negative computes it here (rare install/reschedule paths)
      * @return false when no task could be scheduled
      */
-    private boolean arm(Spawner spawner, TaskLease lease) {
+    private boolean arm(Spawner spawner, TaskLease lease, long precomputed) {
         Location location = spawner.location();
         if (location == null) return false;
         Settings s = settings;
         if (s == null || s.tiers.isEmpty()) return false;
-        long period = nextPeriod(spawner, s);
+        long period = precomputed > 0 ? precomputed : nextPeriod(spawner, s);
         try {
             lease.handle(Schedulers.atLater(plugin, location, period, () -> cycle(spawner, location, lease)));
             return true;
@@ -378,8 +380,17 @@ public final class SpawnerManager {
         try {
             if (!spawner.corrupted()) produce(spawner, location);
         } finally {
+            // Booster and island lookups run before the lock: region threads only
+            // serialise on the brief lease check and handle swap.
+            long period = -1L;
+            Settings s = settings;
+            try {
+                if (s != null && !s.tiers.isEmpty() && current(spawner, lease)) period = nextPeriod(spawner, s);
+            } catch (RuntimeException e) {
+                plugin.getLogger().warning("could not compute the next cycle of " + spawner.id() + ": " + e.getMessage());
+            }
             synchronized (scheduleLock) {
-                if (current(spawner, lease) && !arm(spawner, lease)) {
+                if (current(spawner, lease) && !arm(spawner, lease, period)) {
                     tasks.remove(spawner.id(), lease);
                     lease.cancel();
                 }

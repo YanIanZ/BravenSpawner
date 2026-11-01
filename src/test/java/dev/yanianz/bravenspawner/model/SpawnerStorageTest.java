@@ -75,7 +75,7 @@ class SpawnerStorageTest {
         assertEquals(StockLimits.HARD_MAX_DISTINCT, StockLimits.UNLIMITED.effectiveDistinct());
         assertEquals(StockLimits.HARD_MAX_DISTINCT, new StockLimits(0, 1_000_000, 0).effectiveDistinct());
         assertEquals(7, new StockLimits(0, 7, 0).effectiveDistinct());
-        assertEquals(4096, StockLimits.HARD_MAX_DISTINCT, "must match ItemCodec.MAX_ITEMS");
+        assertEquals(4096, StockLimits.HARD_MAX_DISTINCT);
     }
 
     /** Restoring undelivered stock ignores gameplay caps: conservation over capacity. */
@@ -154,6 +154,21 @@ class SpawnerStorageTest {
         assertNull(model.hold(UUID.randomUUID(), UUID.randomUUID(), "V", 1.0,
                 java.util.List.of(new StockEntry(item(a, 1), 1))));
         assertEquals(1_000 - Escrow.MAX_PER_SPAWNER, model.storedCount());
+    }
+
+    /** Review finding: a refund must always fit, so escrowed identities count toward the distinct cap. */
+    @Test void escrowedIdentitiesCountTowardTheDistinctCap() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class), c = mock(Material.class);
+        StockLimits two = new StockLimits(0, 2, 0);
+        model.deposit(item(a, 1), 5, two);
+        model.deposit(item(b, 1), 5, two);
+        UUID sale = UUID.randomUUID();
+        assertNotNull(model.hold(sale, UUID.randomUUID(), "V", 1.0, java.util.List.of(new StockEntry(item(a, 1), 5))));
+        assertEquals(1, model.distinctSlots());
+        assertEquals(0, model.deposit(item(c, 1), 5, two), "a's slot is reserved by the escrow");
+        assertTrue(model.refund(sale));
+        assertEquals(2, model.distinctSlots());
     }
 
     @Test void replaceStoreRestoresEscrowsWithStock() {
