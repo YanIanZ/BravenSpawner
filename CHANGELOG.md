@@ -6,6 +6,20 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased] — 1.3.1-dev
 
 ### Fixed
+- Production now runs as one delayed-task chain per spawner instead of a repeating
+  task that was cancelled and reinstalled after every cycle (TH-04). Each cycle samples
+  a fresh interval and speed booster; replaced, unregistered or stopped chains end, and
+  skipped or failed cycles keep the chain alive.
+- Hopper transfer no longer dispatches a region task every 8 ticks for each stocked
+  spawner without a hopper (TH-02). A probe that finds no hopper (or an unloaded chunk)
+  backs off for 16 passes (~6.4 s); placing a hopper under a spawner wakes it at once.
+- Ninja invisibility only considers spawners within the player's send view distance
+  (+1 chunk) through a per-world/per-chunk index, instead of every spawner and an AIR
+  packet per distant spawner per player each refresh (TH-02).
+- A managed spawner whose block disappeared without a break event (explosion with
+  damage enabled, WorldEdit, `/setblock`) pauses production with one warning instead of
+  producing for an invisible record. Stock and XP are kept.
+- `restore-missing-spawners` logs what it replaced and writes a `RESTORE` audit event.
 - Autosell dispatches online owners to their entity scheduler before resolving the
   currency, fetching shop quotes or depositing. One queued sale per spawner prevents
   duplicate work; retired/rejected tasks release their slot. Queued work rechecks
@@ -20,7 +34,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Resource expansion captures the version during configuration, avoiding Gradle's
   deprecated execution-time `Task.project` access and enabling configuration-cache use.
 
+### Added
+- Per-action menu permissions (PM-01): `bravenspawner.action.sell`, `.xp`, `.upgrade`,
+  `.buy`, plus `bravenspawner.action.*`. All default to `true`, so existing servers keep
+  their behaviour; negating a node blocks that action for everyone (including admins),
+  and never grants access to a spawner. Collect-all performs only the permitted halves.
+
 ### Changed
+- `StackService.canonicalCount` documentation now matches the code: oversized counts
+  are rejected by place/merge, not clamped (EX-10).
 - Removed the unused `instant_page_navigation` option from bundled config; old copies
   are ignored. Inventory actions always use the next player tick.
 - CI uses configuration cache and fails on Gradle deprecations, limits token permissions

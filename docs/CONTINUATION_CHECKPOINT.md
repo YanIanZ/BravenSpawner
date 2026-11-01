@@ -1,3 +1,13 @@
+# P2 follow-up — 2026-11-01 (1.3.1-dev)
+
+- Branch `fix/p2-scans-scheduling-permissions` from `main` f32c41f. Addresses REV-06 (hopper back-off, Ninja view-distance index), REV-07 (delayed-task production chain), REV-08 (per-action nodes `bravenspawner.action.*`, default true) and REV-10 (missing-block pause, RESTORE audit). EX-10 doc fixed; PM-05 already fixed in source.
+- 256 tests pass; CI-equivalent build passes. See VERIFICATION.md.
+- Not done by agent: merging PR14 (dependabot) and closing superseded doc PRs #7-#10 were blocked by the permission classifier; owner to action.
+- Live testing is owned by the user: OWN-13 and OWN-17 to OWN-20.
+- Remaining: REV-09 exact-long vault (1.4.0 design work), EX-05 pay-owner policy, autosell/sell-wand not gated by action nodes.
+
+## Prior autosell record
+
 # Autosell continuation — 2026-11-01 (1.3.1-dev)
 
 - Baseline main: 2cfdbb0, after merged PR11 modernization and PR12 local-only AGENTS correction.

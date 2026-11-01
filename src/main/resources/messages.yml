@@ -133,6 +133,7 @@ lock:
 gui:
   not-yours: "{error}That spawner is not yours."
   extract-denied: "{error}You cannot take items out of spawners."
+  action-denied: "{error}You don't have permission to do that here."
   log-denied: "{error}Only the owner can view this spawner's history."
   corruption-unavailable: "{error}The repair puzzle is unavailable; ask an administrator to check gui/corruption.yml."
   trusted-hint: "{info}Look at the spawner and type {usage}/bmodify <player>{info} to trust someone."

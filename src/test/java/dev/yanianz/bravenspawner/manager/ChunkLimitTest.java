@@ -58,4 +58,27 @@ class ChunkLimitTest {
             assertFalse(manager.chunkAllowsNewSpawner(world, 0, 0, 41));
         }
     }
+
+    /** REV-06: nearChunk returns the same set through both lookup strategies. */
+    @Test void nearChunkMatchesBothStrategiesAndIgnoresOtherWorlds() {
+        try (var bukkit = mockStatic(Bukkit.class)) {
+            SpawnerManager manager = new SpawnerManager(mock(BravenSpawner.class), settings(0, null));
+            Spawner origin = spawner(0, 1);          // chunk 0
+            Spawner edge = spawner(16 * 3 + 5, 1);   // chunk 3
+            Spawner far = spawner(16 * 9, 1);        // chunk 9
+            Spawner nether = new Spawner(UUID.randomUUID(), UUID.randomUUID(), "nether", 0, 64, 0,
+                    Spawner.Kind.MOB, "ZOMBIE", 1, 0, true);
+            for (Spawner s : new Spawner[] {origin, edge, far, nether}) manager.register(s);
+
+            // 3 world spawners < 7x7 square: filtered world walk.
+            assertEquals(java.util.Set.of(origin, edge), java.util.Set.copyOf(manager.nearChunk("world", 0, 0, 3)));
+            // 3 world spawners >= 1x1 square: per-chunk lookup.
+            assertEquals(java.util.List.of(origin), manager.nearChunk("world", 0, 0, 0));
+            assertEquals(java.util.List.of(far), manager.nearChunk("world", 9, 0, 0));
+            assertTrue(manager.nearChunk("missing", 0, 0, 5).isEmpty());
+
+            manager.unregister(edge);
+            assertEquals(java.util.List.of(origin), manager.nearChunk("world", 0, 0, 3));
+        }
+    }
 }

@@ -102,7 +102,7 @@ public final class BlockListener implements Listener {
         }
 
         // The virtual count is the canonical value; the physical amount is always
-        // one. Clamping keeps a hand-edited item inside the configured cap.
+        // one. An oversized (hand-edited) count is rejected below, never clamped.
         int stack = StackService.canonicalCount(plugin, item, s.stackLimit);
         int productLimit = definition.maxStack() <= 0 ? s.stackLimit : Math.min(s.stackLimit, definition.maxStack());
         if (stack > productLimit) {
@@ -399,6 +399,14 @@ public final class BlockListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
         ninja.forget(event.getPlayer());
+    }
+
+    /** A hopper placed under a spawner ends that spawner's hopper idle back-off. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onHopperPlace(BlockPlaceEvent event) {
+        if (event.getBlockPlaced().getType() == Material.HOPPER) {
+            hopperLink.wake(event.getBlockPlaced().getLocation());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

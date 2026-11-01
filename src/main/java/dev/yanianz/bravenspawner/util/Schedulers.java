@@ -40,18 +40,14 @@ public final class Schedulers {
         Bukkit.getRegionScheduler().execute(plugin, location, task);
     }
 
-    public static void atLater(Plugin plugin, Location location, long delayTicks, Runnable task) {
-        Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> task.run(), Math.max(1L, delayTicks));
+    public static Cancelable atLater(Plugin plugin, Location location, long delayTicks, Runnable task) {
+        ScheduledTask handle = Bukkit.getRegionScheduler()
+                .runDelayed(plugin, location, t -> task.run(), Math.max(1L, delayTicks));
+        return handle == null ? () -> {} : handle::cancel;
     }
 
     public static void onEntity(Plugin plugin, Entity entity, Runnable task, Runnable retired) {
         entity.getScheduler().execute(plugin, task, retired, 1L);
-    }
-
-    public static Cancelable repeating(Plugin plugin, Location location, long periodTicks, Runnable task) {
-        ScheduledTask handle = Bukkit.getRegionScheduler()
-                .runAtFixedRate(plugin, location, t -> task.run(), periodTicks, periodTicks);
-        return () -> handle.cancel();
     }
 
     public static void later(Plugin plugin, long delayTicks, Runnable task) {

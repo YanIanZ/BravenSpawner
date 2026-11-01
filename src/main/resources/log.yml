@@ -11,7 +11,7 @@
 # Placeholders available inside this file (case-sensitive, lowercase):
 #   %time%     event time, formatted with menu.time-format
 #   %actor%    player name captured when the action happened
-#   %action%   PLACE, BREAK, STACK, WITHDRAW, SELL, UPGRADE, ADMIN_GIVE, CORRUPT, REPAIR
+#   %action%   PLACE, BREAK, STACK, WITHDRAW, SELL, UPGRADE, ADMIN_GIVE, CORRUPT, REPAIR, RESTORE
 #   %amount%   whole units involved (stacks, items or currency)
 #   %spawner%  spawner UUID
 #   %world%    world name, or "-" when the event has no location

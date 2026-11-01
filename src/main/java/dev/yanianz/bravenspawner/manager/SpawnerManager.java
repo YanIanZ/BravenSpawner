@@ -21,15 +21,19 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Owns every spawner and the tick pass.
  *
- * <p>Each spawner owns exactly one cancellable region task. The lifecycle is
- * idempotent: {@link #register(Spawner)} installs the task, {@link #startAll()}
- * only fills gaps, and {@link #reschedule(Spawner)} replaces the task under a
- * lock so two production cycles can never run for the same block.
+ * <p>Each spawner owns exactly one lease: a chain of delayed region tasks, one per
+ * production cycle. Every cycle samples a fresh interval and arms the next task
+ * itself, so no repeating task is cancelled and reinstalled per cycle. The
+ * lifecycle is idempotent: {@link #register(Spawner)} installs the lease,
+ * {@link #startAll()} only fills gaps, and {@link #reschedule(Spawner)} replaces
+ * the lease under a lock. A cycle continues its chain only while its lease is
+ * still the live, current lease of a registered spawner, so a replaced or
+ * unregistered chain stops and two chains can never run for the same block.
  *
  * <p>Every world read inside a cycle happens on the region scheduler that owns the
- * spawner block: the tick callback re-dispatches before it touches the world, and
- * the activation scan stays inside that dispatch. A failure in one
- * spawner is logged and does not stop the pass.
+ * spawner block: the delayed task is bound to the block location and the
+ * activation scan runs inside it. A failure in one spawner is logged, does not stop
+ * the pass and does not break that spawner's chain.
  *
  * <p>Production is bounded independently of the virtual stack. Item yield is
  * aggregated in closed form, so a stack of 200 000 costs the same as a stack of
@@ -48,8 +52,12 @@ public final class SpawnerManager {
     private final Map<UUID, Spawner> byId = new ConcurrentHashMap<>();
     /** Per-chunk index ({@code world:cx:cz}) so the chunk caps never scan every spawner. */
     private final Map<String, java.util.Set<Spawner>> byChunk = new ConcurrentHashMap<>();
+    /** Per-world index so per-player passes never visit other worlds. */
+    private final Map<String, java.util.Set<Spawner>> byWorld = new ConcurrentHashMap<>();
     private final Map<UUID, TaskLease> tasks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGuiOpen = new ConcurrentHashMap<>();
+    /** Spawners already reported as missing their block, so the log is not flooded. */
+    private final java.util.Set<UUID> reportedMissing = ConcurrentHashMap.newKeySet();
 
     /**
      * Guards task installation. Cancelling and installing must be one step: a
@@ -107,6 +115,36 @@ public final class SpawnerManager {
         return byChunk.getOrDefault(chunkKey(world.getName(), chunkX, chunkZ), java.util.Set.of());
     }
 
+    /**
+     * Spawners whose chunk is within {@code radius} chunks (Chebyshev distance) of
+     * {@code (chunkX, chunkZ)} in {@code world}.
+     *
+     * <p>Reads only the in-memory indexes, so any thread may call it. The cheaper
+     * of two strategies is used: a lookup per chunk of the square, or a filtered
+     * walk of the world's spawners when the world holds fewer spawners than the
+     * square has chunks.
+     */
+    public List<Spawner> nearChunk(String world, int chunkX, int chunkZ, int radius) {
+        List<Spawner> out = new ArrayList<>();
+        if (world == null || radius < 0) return out;
+        java.util.Set<Spawner> inWorld = byWorld.get(world);
+        if (inWorld == null || inWorld.isEmpty()) return out;
+        long side = 2L * radius + 1L;
+        if (side * side < inWorld.size()) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    java.util.Set<Spawner> set = byChunk.get(chunkKey(world, chunkX + dx, chunkZ + dz));
+                    if (set != null) out.addAll(set);
+                }
+            }
+            return out;
+        }
+        for (Spawner s : inWorld) {
+            if (Math.abs((s.x() >> 4) - chunkX) <= radius && Math.abs((s.z() >> 4) - chunkZ) <= radius) out.add(s);
+        }
+        return out;
+    }
+
     /** Sum of virtual stack units recorded in one chunk (per-chunk index, no full scan). */
     public int stackedInChunk(World world, int chunkX, int chunkZ) {
         long total = 0;
@@ -148,6 +186,7 @@ public final class SpawnerManager {
         if (byBlock.putIfAbsent(key, spawner) != null) return false;
         byId.put(spawner.id(), spawner);
         byChunk.computeIfAbsent(chunkKey(spawner), k -> ConcurrentHashMap.newKeySet()).add(spawner);
+        byWorld.computeIfAbsent(spawner.world(), k -> ConcurrentHashMap.newKeySet()).add(spawner);
         schedule(spawner);
         plugin.markDirty(spawner);
         return true;
@@ -160,7 +199,12 @@ public final class SpawnerManager {
             set.remove(spawner);
             return set.isEmpty() ? null : set;
         });
+        byWorld.computeIfPresent(spawner.world(), (k, set) -> {
+            set.remove(spawner);
+            return set.isEmpty() ? null : set;
+        });
         if (byId.remove(spawner.id(), spawner)) plugin.markDeleted(spawner.id());
+        reportedMissing.remove(spawner.id());
         synchronized (scheduleLock) {
             cancelLocked(spawner.id());
         }
@@ -223,7 +267,7 @@ public final class SpawnerManager {
         return false;
     }
 
-    /** Installs the production task, cancelling whatever the id held before. */
+    /** Installs the production lease, cancelling whatever the id held before. */
     private void schedule(Spawner spawner) {
         synchronized (scheduleLock) {
             cancelLocked(spawner.id());
@@ -233,10 +277,40 @@ public final class SpawnerManager {
 
     /** Caller must hold {@link #scheduleLock}. */
     private void install(Spawner spawner) {
+        TaskLease lease = new TaskLease();
+        tasks.put(spawner.id(), lease);
+        if (!arm(spawner, lease)) {
+            // Not schedulable now (world unloaded, no tiers): leave a gap that
+            // startAll() or the next reschedule fills.
+            tasks.remove(spawner.id(), lease);
+            lease.cancel();
+        }
+    }
+
+    /**
+     * Schedules the next cycle of {@code lease}. Caller must hold {@link #scheduleLock}.
+     *
+     * @return false when no task could be scheduled
+     */
+    private boolean arm(Spawner spawner, TaskLease lease) {
         Location location = spawner.location();
-        if (location == null) return;
+        if (location == null) return false;
         Settings s = settings;
-        if (s == null || s.tiers.isEmpty()) return;
+        if (s == null || s.tiers.isEmpty()) return false;
+        long period = nextPeriod(spawner, s);
+        try {
+            lease.handle(Schedulers.atLater(plugin, location, period, () -> cycle(spawner, location, lease)));
+            return true;
+        } catch (RuntimeException e) {
+            // A world that unloads between lookup and install must not abort the
+            // caller: the spawner simply stays unscheduled until the next pass.
+            plugin.getLogger().warning("could not schedule " + spawner.id() + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Production delay for the next cycle, re-sampled every cycle. */
+    private long nextPeriod(Spawner spawner, Settings s) {
         var definition = plugin.product(spawner);
         long productDelay = definition == null ? 0L
                 : ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
@@ -244,14 +318,7 @@ public final class SpawnerManager {
         double speed = plugin.boosters() == null ? 1.0
                 : plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.SPEED, spawner.owner(), spawner.id());
         if (Double.isFinite(speed) && speed > 0.0) period = Math.max(20L, Math.round(period / speed));
-        try {
-            Schedulers.Cancelable handle = Schedulers.repeating(plugin, location, period, () -> tick(spawner));
-            tasks.put(spawner.id(), new TaskLease(handle));
-        } catch (RuntimeException e) {
-            // A world that unloads between lookup and install must not abort the
-            // caller: the spawner simply stays unscheduled until the next pass.
-            plugin.getLogger().warning("could not schedule " + spawner.id() + ": " + e.getMessage());
-        }
+        return Math.max(1L, period);
     }
 
     /** Caller must hold {@link #scheduleLock}. */
@@ -261,23 +328,29 @@ public final class SpawnerManager {
     }
 
     /**
-     * Region callback entry point.
+     * One link of the chain; runs on the region that owns {@code location}.
      *
-     * <p>The repeating task is registered against the spawner's location, but the
-     * actual production pass is dispatched again on purpose: this method is also
-     * reachable from diagnostics and tests, and a single dispatch point guarantees
-     * no world method is ever called from a foreign region thread.
+     * <p>A stale link (its lease was replaced or cancelled) neither produces nor
+     * re-arms. A current link always re-arms, whether production ran, was skipped
+     * or failed, so an unloaded chunk or a corrupted spawner pauses output without
+     * ending the chain.
      */
-    private void tick(Spawner spawner) {
-        if (spawner == null || spawner.corrupted()) return;
-        Location location = spawner.location();
-        if (location == null) return;
+    private void cycle(Spawner spawner, Location location, TaskLease lease) {
+        if (!current(spawner, lease)) return;
         try {
-            Schedulers.at(plugin, location, () -> produce(spawner, location));
-        } catch (RuntimeException e) {
-            plugin.getLogger().warning("could not dispatch production for "
-                    + spawner.id() + ": " + e.getMessage());
+            if (!spawner.corrupted()) produce(spawner, location);
+        } finally {
+            synchronized (scheduleLock) {
+                if (current(spawner, lease) && !arm(spawner, lease)) {
+                    tasks.remove(spawner.id(), lease);
+                    lease.cancel();
+                }
+            }
         }
+    }
+
+    private boolean current(Spawner spawner, TaskLease lease) {
+        return lease.live() && tasks.get(spawner.id()) == lease && byId.get(spawner.id()) == spawner;
     }
 
     /** Runs on the region that owns the spawner block; all world access lives here. */
@@ -292,18 +365,36 @@ public final class SpawnerManager {
             if (!activated(world, location, s)) return;
 
             if (byId.get(spawner.id()) != spawner || spawner.corrupted()) return;
+            if (!blockPresent(world, spawner, s)) return;
             if (spawner.kind() == Spawner.Kind.ITEM && !s.useItemSpawners) return;
             produceVirtual(spawner, s);
             if (plugin.particles() != null) plugin.particles().cycle(location);
 
             plugin.holograms().update(spawner);
-            var definition = plugin.product(spawner);
-            if (definition != null) reschedule(spawner);
         } catch (RuntimeException e) {
-            // A thrown exception would cancel the repeating task on Folia, which
-            // would silently stop the spawner for the rest of the session.
+            // Logged and contained; cycle() re-arms the chain regardless.
             plugin.getLogger().warning("production failed for " + spawner.id() + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Whether the managed block still exists. A block removed without a break event
+     * (explosion with damage enabled, WorldEdit, {@code /setblock}) pauses output
+     * instead of producing for an invisible record; stock and XP stay intact and
+     * {@code restore-missing-spawners} can recreate the block on the next start.
+     */
+    private boolean blockPresent(World world, Spawner spawner, Settings s) {
+        org.bukkit.Material type = world.getBlockAt(spawner.x(), spawner.y(), spawner.z()).getType();
+        if (type == org.bukkit.Material.SPAWNER || type == s.spawnerMaterial) {
+            reportedMissing.remove(spawner.id());
+            return true;
+        }
+        if (reportedMissing.add(spawner.id())) {
+            plugin.getLogger().warning("spawner " + spawner.id() + " at " + spawner.world() + " "
+                    + spawner.x() + "," + spawner.y() + "," + spawner.z() + " has no block (found " + type
+                    + "); production paused. Enable restore-missing-spawners or remove the record.");
+        }
+        return false;
     }
 
     /** Activation check; an empty nearby-player set means nobody is close enough. */
@@ -405,28 +496,34 @@ public final class SpawnerManager {
     }
 
     /**
-     * One task handle plus its liveness flag.
+     * One spawner's chain: the handle of its pending delayed task plus a liveness
+     * flag.
      *
-     * <p>The flag matters for the lifecycle: a cancelled handle stays in the map
-     * only long enough for the next install to replace it, and {@link #startAll()}
-     * uses liveness rather than presence to decide whether a spawner is already
-     * scheduled.
+     * <p>{@link #startAll()} uses liveness rather than presence to decide whether a
+     * spawner is already scheduled. Handles are replaced and the lease is cancelled
+     * only under {@link #scheduleLock}.
      */
     private static final class TaskLease {
 
-        private final Schedulers.Cancelable handle;
         private final AtomicBoolean live = new AtomicBoolean(true);
-
-        TaskLease(Schedulers.Cancelable handle) {
-            this.handle = handle;
-        }
+        private volatile Schedulers.Cancelable handle;
 
         boolean live() { return live.get(); }
 
+        void handle(Schedulers.Cancelable next) {
+            this.handle = next;
+            if (!live.get()) cancelQuietly(next);
+        }
+
         void cancel() {
             if (!live.compareAndSet(true, false)) return;
+            cancelQuietly(handle);
+        }
+
+        private static void cancelQuietly(Schedulers.Cancelable target) {
+            if (target == null) return;
             try {
-                handle.cancel();
+                target.cancel();
             } catch (RuntimeException ignored) {
                 // the scheduler already dropped the task
             }

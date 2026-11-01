@@ -286,6 +286,13 @@ public final class SpawnerGui implements Listener {
         locks.markOpened(viewer, spawner.id());
     }
 
+    /** True when no node gates the action or the player holds it; otherwise tells them. */
+    private boolean permitted(Player player, ActionPermissions permission) {
+        if (permission == null || permission.allows(player)) return true;
+        fail(player, "gui.action-denied");
+        return false;
+    }
+
     private boolean authorized(Player player, Spawner spawner) {
         if (player == null || spawner == null) return false;
         if (plugin.restrictions() != null && !plugin.restrictions().canOpen(player, spawner)) return false;
@@ -692,6 +699,7 @@ public final class SpawnerGui implements Listener {
     }
 
     private void buyStack(Player player, Spawner spawner, int requested) {
+        if (!permitted(player, ActionPermissions.BUY_STACK)) return;
         if (!authorized(player, spawner)) return;
         var product = plugin.product(spawner);
         double price = product == null ? 0.0 : product.spawnerPrice();
@@ -796,11 +804,13 @@ public final class SpawnerGui implements Listener {
 
     private void perform(Player player, Spawner spawner, String menu, GuiAction action, int page, ClickType click) {
         play(player, SoundFeedback.Cue.UI_CLICK);
+        if (!permitted(player, ActionPermissions.of(action))) return;
         switch (action) {
             case STORAGE -> {
                 MenuDefinition definition = menus.definition("spawner");
                 boolean sellOnRight = definition == null || definition.flag("special.allow_sell_with_storage", true);
                 if (click.isRightClick() && sellOnRight) {
+                    if (!permitted(player, ActionPermissions.SELL)) return;
                     sellWithConfirmation(player, spawner, menu, page, GuiAction.STORAGE);
                 } else {
                     openStorage(player, spawner, 0);
@@ -816,11 +826,20 @@ public final class SpawnerGui implements Listener {
             }
             case SELL_ALL -> sellWithConfirmation(player, spawner, menu, page, GuiAction.SELL_ALL);
             case COLLECT_ALL -> {
-                boolean anything = sellService.sellableItems(player, spawner) > 0 || spawner.storedXp() > 0;
+                // Each half needs its own node; a player holding neither is told so
+                // instead of being asked to confirm a collection that does nothing.
+                boolean maySell = ActionPermissions.SELL.allows(player);
+                boolean mayXp = ActionPermissions.COLLECT_XP.allows(player);
+                if (!maySell && !mayXp) {
+                    fail(player, "gui.action-denied");
+                    return;
+                }
+                boolean anything = (maySell && sellService.sellableItems(player, spawner) > 0)
+                        || (mayXp && spawner.storedXp() > 0);
                 if (anything && !confirmed(player, spawner, GuiAction.COLLECT_ALL,
                         sellDescription(player, spawner, "gui.confirm-collect"))) return;
-                if (sellService.sellableItems(player, spawner) > 0) sellAll(player, spawner);
-                if (spawner.storedXp() > 0) collectXp(player, spawner);
+                if (maySell && sellService.sellableItems(player, spawner) > 0) sellAll(player, spawner);
+                if (mayXp && spawner.storedXp() > 0) collectXp(player, spawner);
                 if (!anything) messages().send(player, "gui.take.nothing");
                 reopen(player, spawner, menu, page);
             }
@@ -1040,6 +1059,7 @@ public final class SpawnerGui implements Listener {
     }
 
     private void collectXp(Player player, Spawner spawner) {
+        if (!permitted(player, ActionPermissions.COLLECT_XP)) return;
         synchronized (spawner) {
         var product = plugin.product(spawner);
         double eventMultiplier = plugin.events() == null ? 1.0 : plugin.events().xpMultiplier();
@@ -1129,6 +1149,7 @@ public final class SpawnerGui implements Listener {
     }
 
     private void sellAll(Player player, Spawner spawner) {
+        if (!permitted(player, ActionPermissions.SELL)) return;
         var product = plugin.product(spawner);
         if (product != null && product.mustBeFullToCollect()
                 && spawner.storedCount() < plugin.maximumItems(spawner)) {
@@ -1166,6 +1187,7 @@ public final class SpawnerGui implements Listener {
     }
 
     private void upgrade(Player player, Spawner spawner) {
+        if (!permitted(player, ActionPermissions.UPGRADE)) return;
         Settings s = plugin.settings();
         int next = spawner.tier() + 1;
         if (next >= s.tiers.size()) {

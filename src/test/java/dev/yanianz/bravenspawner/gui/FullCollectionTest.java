@@ -68,6 +68,8 @@ class FullCollectionTest {
     }
 
     private void invoke(BravenSpawner plugin, String method, Player player, Spawner spawner) throws Exception {
+        // Real players hold the per-action nodes by default (plugin.yml default: true).
+        when(player.hasPermission(anyString())).thenReturn(true);
         SellService seller = mock(SellService.class);
         when(seller.sell(any(), any())).thenReturn(new SellService.Sale(SellService.Status.DISABLED, 0, 0, ""));
         try (var selling = mockStatic(SellService.class); var menus = mockConstruction(MenuService.class)) {
