@@ -12,7 +12,7 @@
 - **Commands/permissions:** `/bspawner give|list|doctor|reload|booster|boosteritem|sellwand|modifier|menu|corrupt|repair`, `/bmodify`, `/bhtoggle`. Permission nodes: `bravenspawner.use`, `.admin`, `.item.extract`, `.restrictions.bypass`, and the per-action menu nodes `bravenspawner.action.sell|xp|upgrade|buy` (`bravenspawner.action.*`, all default `true`; PM-01). `menu`/`corrupt`/`repair` use `CommandHandler.targeted` to resolve the targeted managed block (the old PM-03 finding is addressed).
 - Not present: search/sort/filter, withdraw-amount picker, stack/split views, roles beyond owner/trusted, admin control centre, locale files beyond `messages.yml`.
 
-The 1.3.1-dev maintenance tree additionally dispatches inventory callbacks on the next player tick and rejects stale windows before resolving live authorization.
+Since 1.4.0 the GUI additionally dispatches inventory callbacks on the next player tick and rejects stale windows before resolving live authorization.
 
 ## 1. Navigation structure
 

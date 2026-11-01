@@ -1,6 +1,6 @@
 # Island worlds and SuperiorSkyblock2
 
-Status: implemented on branch `feat/island-worlds-ssb` (unreleased). Mocked tests only; live qualification is owner case OWN-24 to OWN-26 in [TESTER_OWNER.md](TESTER_OWNER.md).
+Status: shipped in 1.4.0. Mocked tests only; live qualification is owner case OWN-24 to OWN-26 in [TESTER_OWNER.md](TESTER_OWNER.md).
 
 ## Per-island worlds: SourbyCraft Aurora World Fabric (AWF) and AdvancedSlimePaper (ASP)
 
