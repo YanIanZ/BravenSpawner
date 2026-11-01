@@ -30,8 +30,12 @@ class SuperiorSkyblockHookTest {
     final IslandPrivilege chest = mock(IslandPrivilege.class);
     final IslandPrivilege build = mock(IslandPrivilege.class);
     final IslandPrivilege spawnerBreak = mock(IslandPrivilege.class);
-    final Location onIsland = new Location(mock(World.class), 0, 64, 0);
-    final Location offIsland = new Location(mock(World.class), 5000, 64, 0);
+    // Location keeps its World in a WeakReference: hold the mocks strongly, or GC
+    // can clear them mid-test and turn an island location into "no world".
+    final World islandWorld = mock(World.class);
+    final World otherWorld = mock(World.class);
+    final Location onIsland = new Location(islandWorld, 0, 64, 0);
+    final Location offIsland = new Location(otherWorld, 5000, 64, 0);
     MockedStatic<SuperiorSkyblockAPI> api;
     MockedStatic<IslandPrivilege> privileges;
 
