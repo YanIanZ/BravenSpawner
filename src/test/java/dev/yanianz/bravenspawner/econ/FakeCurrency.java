@@ -12,6 +12,7 @@ public final class FakeCurrency implements Currency {
     public boolean whole;
     public boolean acceptDeposits = true;
     public boolean acceptWithdrawals = true;
+    public boolean online;
     public double balance;
     public final List<Double> deposits = new ArrayList<>();
     public final List<Double> withdrawals = new ArrayList<>();
@@ -24,6 +25,7 @@ public final class FakeCurrency implements Currency {
     @Override public boolean available() { return available; }
     @Override public String unavailableReason() { return available ? "" : "fake is offline"; }
     @Override public boolean wholeUnits() { return whole; }
+    @Override public boolean requiresOnline() { return online; }
     @Override public double balance(OfflinePlayer player) { return balance; }
 
     @Override public Result withdraw(OfflinePlayer player, double amount) {

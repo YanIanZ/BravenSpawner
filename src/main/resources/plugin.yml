@@ -51,8 +51,10 @@ permissions:
   bravenspawner.item.extract:
     default: true
   bravenspawner.action.*:
+    # Grant explicitly to give every action node. Not a default: with default true its
+    # children would override a single node set to false in permissions.yml.
     description: Every per-action spawner menu node. Each narrows access; none grants it.
-    default: true
+    default: false
     children:
       bravenspawner.action.sell: true
       bravenspawner.action.xp: true

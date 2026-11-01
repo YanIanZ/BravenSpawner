@@ -1,3 +1,19 @@
+# Live qualification, phase 1 — 2026-11-01
+
+Server: Paper 1.21.1-133, Java 21, SQLite, the disposable `bspawner-smoke` server. Player: a Mineflayer bot (offline mode, op). Plugin data was backed up before the tests.
+
+| Test | Result |
+| --- | --- |
+| Upgrade 1.3.0 → 1.4.0 | PASS: 1 spawner, 2 entries, 1,064 items, XP 3,000 identical (read from the DB with a BSC2 decoder) |
+| Boot 1.4.0 | PASS: no BravenSpawner WARN/SEVERE/exception apart from the expected "VAULT for buy-stack unavailable"; platform line printed |
+| GUI sell (EXP_LEVELS) | PASS: confirmation shown, "Sold 966 item(s) for 483 levels", level 0 → 483, no escrow left |
+| Crash before the escrow save | PASS: items of the unsaved sale intact (136), nothing paid, no escrow, earlier sale exactly conserved (273 − 159 = 114) |
+| Crash after payment | FAIL on 1.4.0 (payout lost with unsaved player data); PASS with the fix: level kept (619 + 202 = 821), escrow held as v3, startup warning, `escrow confirm` resolved once, record back to v2 |
+| `permissions.yml` negation of `action.sell` | FAIL on 1.4.0 (wildcard default re-granted it); PASS with the fix: "You don't have permission…", nothing sold |
+| Hopper placed by `/setblock` | PASS after back-off; hopper filled, no errors |
+
+Not run in this phase: Folia/SourbyCraft, SuperiorSkyblock2, AWF/ASP worlds, Vault/shop providers, MySQL/Mongo, Paper 26.2 players (Mineflayer has no 26.2 support).
+
 # Stack review fixes verification — 2026-11-01
 
 Branches `fix/p2-scans-scheduling-permissions`, `feat/vault-escrow` and `feat/island-worlds-ssb` (PR #15, #17, #18); `main` (with #14) merged into the stack and cascaded.

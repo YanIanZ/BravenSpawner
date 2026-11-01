@@ -664,7 +664,30 @@ public final class SellService {
             return;
         }
         recordSettlement(spawner, escrow, actor);
+        persistPayee(currency, target);
         finish.accept(new Sale(Status.SOLD, escrow.value(), escrow.quantity(), ""));
+    }
+
+    /**
+     * Saves the payee's player data after a confirmed payout in a currency that
+     * lives in it (EXP levels/points, items).
+     *
+     * <p>Live finding (1.4.0, OWN-23): the escrow release is saved within the next
+     * sale flush, but player data is only saved by autosave or on quit. After a
+     * crash, the store was already reduced and the payout gone from the player.
+     * Saving here, on the payee's own thread, makes the payout as durable as the
+     * stock change. Provider-backed currencies (Vault, PlayerPoints, CoinsEngine)
+     * persist on their own and are not touched.
+     */
+    private void persistPayee(Currency currency, OfflinePlayer target) {
+        if (currency == null || !currency.requiresOnline() || !(target instanceof Player player) || !player.isOnline()) {
+            return;
+        }
+        try {
+            player.saveData();
+        } catch (RuntimeException e) {
+            plugin.getLogger().warning("could not save " + player.getName() + "'s data after a payout: " + e.getMessage());
+        }
     }
 
     /** Returns a never-paid escrow to storage; a no-op once payment was claimed. */

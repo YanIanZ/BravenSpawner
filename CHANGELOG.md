@@ -5,6 +5,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Sales paid in a currency held in player data (EXP levels/points, items) now save the
+  payee's player data right after the confirmed payment. Found by live crash testing:
+  after a `kill -9`, the store was reduced but the payout was lost with the unsaved
+  player data. Provider-backed currencies are unchanged.
+- `bravenspawner.action.*` now defaults to `false`. With `true`, its children re-granted
+  every action node, so a single node defaulted to `false` in `permissions.yml` never took
+  effect. The individual nodes still default to `true`; grant the wildcard explicitly.
+
 ## [1.4.0] - 2026-11-01
 
 ### Fixed
