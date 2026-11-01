@@ -1,6 +1,6 @@
 # BravenSpawner Roadmap
 
-Updated 2026-11-01. Latest published release: **1.3.0**. Working tree: **1.3.1-dev**.
+Updated 2026-11-01. Latest published release: **1.4.0**.
 Targets below are proposed milestones, not delivery promises. Source, tests and owner qualification determine completion.
 
 ## Shipped and in progress
@@ -10,16 +10,16 @@ Targets below are proposed milestones, not delivery promises. Source, tests and 
 | 1.1.x–1.2.0 | Product definitions, YAML menus, virtual loot, stacking, wands, boosters, events, protection and persistence integrations |
 | 1.2.1 | Fail-closed storage, exploit fixes, dirty SQL batches/schema v2, menu coverage, messages, confirmations, text formatting and shaded SQLite regression |
 | 1.3.0 | BSC2 item codec v2, amount lore/head textures, 90 mob definitions, particles, per-action currencies and additional shop pricing adapters |
-| 1.3.1-dev (unreleased) | Deferred GUI callbacks, entity-owned autosell with lifecycle checks and offline Folia retention, Gradle execution-time API cleanup, synchronized docs/specifications and regression tests |
+| 1.4.0 | Exact-count vault (STOR-01 local: `long` stock, capacity limits, escrowed crash-safe sales, `/bspawner escrow`), SuperiorSkyblock2 and island worlds (AWF, ASP, Aurora MultiProfile), per-action permissions, production delay chain, hopper/Ninja scan bounds, deferred GUI callbacks, entity-owned autosell |
 
-The BSC2 codec carries logical amounts separately from item templates. Branch `feat/vault-exact-long` (unreleased) replaces the int `ItemStack` entries with exact `long` `StockEntry` quantities and the three capacity limits; durable reservations, a versioned `ItemKey` and overflow policies remain open (see [STOR-01](features/VIRTUAL_STORAGE.md) status).
+1.4.0 ships the local STOR-01 vault ([status](features/VIRTUAL_STORAGE.md)): exact `long` quantities, total/distinct/per-item limits and escrowed sales. The GUI search/sort and withdraw picker move to 1.5.0; the network vault stays a proposal.
 
 ## Proposed implementation order
 
 | Milestone | Scope | Acceptance gate |
 | --- | --- | --- |
 | 1.3.x maintenance | Remaining audit findings and runtime qualification | Evidence-backed fixes; Paper/Folia player flows, live providers and databases, restart/failure scenarios |
-| 1.4.0 Virtual Vault | [STOR-01](features/VIRTUAL_STORAGE.md): exact counts, checked arithmetic, explicit overflow, shared reservations | VSS-01/03/04/08/09; separate versioned vault migration, backup and quantity reconciliation |
+| 1.4.x maintenance | Live qualification of 1.4.0 (OWN-13, OWN-17..26) and any fixes it finds | Recorded runtime evidence on Paper, Folia/SourbyCraft, SSB2 and each storage backend |
 | 1.5.0 stacking and API | [STAC-01](features/VIRTUAL_STACKING.md), [UX-01](features/GUI_UX.md), [API-01](features/API_SPEC.md) | Durable issuance/idempotency across backends, replay tests, API compile tests and per-action authorization |
 | Later, unscheduled | [Upgrade, evolution, network, automation, progression, insight and balancing proposals](features/proposals/README.md) | Stable vault/ledger and measured runtime budgets |
 

@@ -1,6 +1,6 @@
 # BravenSpawner
 
-> **Development status (2026-11-01):** Latest published release: **1.3.0**. The **1.3.1-dev** working tree adds GUI scheduling and build maintenance fixes; see [code review](docs/CODE_REVIEW.md), [verification](docs/VERIFICATION.md), and the synchronized [roadmap](docs/ROADMAP.md). Exact-count Virtual Vault and stacking-ledger designs are proposals. Paper smoke evidence is recorded separately from pending player/Folia/provider qualification.
+> **Status (2026-11-01):** Latest release: **1.4.0**: exact-count virtual storage with crash-safe escrowed sales, SuperiorSkyblock2 and island-world (SourbyCraft AWF, AdvancedSlimePaper) support, per-action permissions and production/scan performance work. See the [changelog](CHANGELOG.md), [code review](docs/CODE_REVIEW.md), [verification](docs/VERIFICATION.md), [island integrations](docs/ISLAND_INTEGRATIONS.md) and [roadmap](docs/ROADMAP.md). 1.4.0 is verified by 305 automated tests and CI; live player, Folia, provider and database qualification is still pending ([owner tests](docs/TESTER_OWNER.md)). The stacking ledger and public API remain proposals.
 
 Virtual spawners for **Paper** and **Folia** — stacking, chest-GUI storage, upgrades,
 boosters, corruption and multi-backend persistence.

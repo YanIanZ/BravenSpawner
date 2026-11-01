@@ -1,6 +1,6 @@
 # Architecture — current state and target design
 
-Reviewed against 1.3.0 (`e620f4e`) with 1.3.1-dev maintenance changes on 2026-11-01. Future invariants below are acceptance goals, not universal runtime guarantees.
+Reviewed against 1.4.0 on 2026-11-01 (storage: `StockEntry`/escrow model; see [VIRTUAL_STORAGE](features/VIRTUAL_STORAGE.md)). Future invariants below are acceptance goals, not universal runtime guarantees.
 
 ## Current source layout
 

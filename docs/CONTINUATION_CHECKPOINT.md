@@ -1,3 +1,10 @@
+# Release 1.4.0 — 2026-11-01
+
+- PRs #15 to #18 reviewed (independent review, 10 findings, 9 fixed, 1 accepted) and merged; `main` equals the tested #18 tree.
+- Released 1.4.0 from `release/1.4.0`: version bump, changelog section, docs status updates. 305 tests pass; CI green.
+- Next: owner live qualification OWN-13, OWN-17 to OWN-26; 1.4.x fixes from that; 1.5.0 per roadmap.
+- Leftover remote branches from older merged/closed PRs: chore/keep-agent-guidance-local, fix/1.3.1-maintenance-sync, fix/autosell-entity-ownership, docs/*.
+
 # Vault core — 2026-11-01 (1.3.1-dev)
 
 - PR #16 `feat/vault-exact-long`, stacked on PR #15. Exact `long` StockEntry storage, three capacity limits, identity take/restore, exact-count codec decode. 265 tests pass.

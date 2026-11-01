@@ -1,16 +1,25 @@
 # Migration, Compatibility and Recovery Guide
 
-**State:** Preparatory plan for future releases; **not** an executable migration guide for unreleased features.
+**State:** Section 1 describes the shipped 1.4.0 baseline. The later sections are a preparatory plan for future releases, not an executable migration guide for unreleased features.
 
-## 1. Current deployment baseline (1.3.0 / 1.3.1-dev)
+## 1. Current deployment baseline (1.4.0)
 
 - Build target: Java 21 and Paper API 1.21.1. Prior Paper 1.21.1/26.2 smoke results are recorded in the checkpoint; full version/Folia qualification remains open.
 - YAML, SQLite, MySQL and MongoDB use Braven-owned schemas. SQL schema v2 adds corruption timestamps; SQL checkpoints batch dirty rows.
 - Storage initialization/load failures fail closed by default. Explicit `fallback-to-yaml` is an opt-in behavior, not the default recovery path.
 - Item codec BSC2 v2 writes logical amounts separately from amount-one Paper byte templates. Legacy streams are readable; older plugin versions must not be assumed to read newly saved v2 blobs. Rollback requires a compatible backup, including server-version-compatible item data.
-- 1.3.1-dev changes GUI scheduling and build configuration without introducing a storage format migration. The unused `instant_page_navigation` key is removed from bundled defaults; old copies are ignored, and GUI actions always use the next player tick.
+- Since 1.4.0, GUI scheduling and build configuration changes need no storage format migration. The unused `instant_page_navigation` key is removed from bundled defaults; old copies are ignored, and GUI actions always use the next player tick.
 - Autosell on Folia now requires an online owner. Stock is retained while offline; Paper continues offline-capable payouts. Online pricing and payout use the owner entity scheduler. Validate your selected economy/shop plugins on Folia before production use. No data migration is needed.
-- Exact-count Virtual Vault is proposed for 1.4.0 and requires its own format/schema migration. Do not confuse SQL schema v2, BSC2 codec v2 and that future migration.
+- **Upgrading 1.3.x → 1.4.0** needs no schema migration, and stored data loads unchanged.
+  - Stock becomes exact `long` quantities; entries of the same item kind are merged on load.
+  - Records keep the BSC2 v2 bytes, except a record caught mid-sale, which is written as v3 (with its escrow).
+  - New optional keys: `storage-limits.*`, `superiorskyblock.*` and `storage.sale-save-interval-ms`.
+  - New permission nodes: `bravenspawner.action.*`, all default `true`.
+- **Downgrading 1.4.0 → 1.3.x:**
+  - 1.3.x clamps any single item kind above 2,147,483,647 on read.
+  - 1.3.x quarantines v3 records (kept, not loaded).
+  - Back up before downgrading, and resolve open escrows (`/bspawner escrow`) first.
+- **After a crash:** sales whose payment outcome is unknown are held as escrows and listed by `/bspawner escrow list`. Check the economy, then `refund` or `confirm` each one.
 
 ## 2. Pre-upgrade checklist
 
