@@ -9,6 +9,7 @@ import dev.yanianz.bravenspawner.econ.currency.ExpCurrency;
 import dev.yanianz.bravenspawner.econ.currency.ItemCurrency;
 import dev.yanianz.bravenspawner.manager.SpawnerManager;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import dev.yanianz.bravenspawner.util.Schedulers;
 import io.papermc.paper.threadedregions.scheduler.EntityScheduler;
 import io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler;
@@ -97,7 +98,6 @@ class AutosellSchedulingTest {
         when(manager.byId(spawnerId)).thenReturn(spawner);
         when(spawner.id()).thenReturn(spawnerId);
         when(spawner.owner()).thenReturn(ownerId);
-        when(spawner.contents()).thenReturn(List.of(stock));
         Material material = mock(Material.class);
         when(material.name()).thenReturn("STONE");
         when(material.isAir()).thenReturn(false);
@@ -105,7 +105,9 @@ class AutosellSchedulingTest {
         when(stock.getAmount()).thenReturn(4);
         when(stock.clone()).thenReturn(stock);
         when(stock.isSimilar(stock)).thenReturn(true);
-        when(spawner.drainSlot(0, 4)).thenReturn(stock);
+        StockEntry entry4 = new StockEntry(stock, 4);
+        when(spawner.stock()).thenReturn(List.of(entry4));
+        when(spawner.take(stock, 4L)).thenReturn(4L);
         when(currency.id()).thenReturn("TEST");
         when(currency.available()).thenReturn(true);
         when(currency.deposit(any(), anyDouble())).thenReturn(Currency.Result.ok(8));
@@ -133,7 +135,7 @@ class AutosellSchedulingTest {
     }
     void noPayment() {
         verify(currency, never()).deposit(any(), anyDouble());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
 
     @Test void quoteAndPaymentWaitForOwnerSchedulerAndRepeatedSweepsDoNotQueueTwice() {
@@ -151,7 +153,7 @@ class AutosellSchedulingTest {
         assertEquals(1, queue.size());
         tick();
         verify(currency).deposit(owner, 8.0);
-        verify(spawner).drainSlot(0, 4);
+        verify(spawner).take(any(), eq(4L));
     }
 
     @Test void realExperienceCurrencyCreditsOnlyOnOwnedThread() {
@@ -163,7 +165,7 @@ class AutosellSchedulingTest {
         assertEquals(1, queue.size());
         tick();
         verify(owner).setLevel(11);
-        verify(spawner).drainSlot(0, 4);
+        verify(spawner).take(any(), eq(4L));
     }
 
     @Test void realItemCurrencyTouchesInventoryOnlyOnOwnedThread() {
@@ -185,7 +187,7 @@ class AutosellSchedulingTest {
             ItemStack payout = items.constructed().getFirst();
             verify(payout).setAmount(8);
             verify(inventory).addItem(payout);
-            verify(spawner).drainSlot(0, 4);
+            verify(spawner).take(any(), eq(4L));
         }
     }
 
@@ -239,7 +241,7 @@ class AutosellSchedulingTest {
     @Test void offlinePaperStillPaysOfflineCapableCurrency() {
         schedulers.when(Schedulers::isFolia).thenReturn(false);
         bukkit.when(() -> Bukkit.getPlayer(ownerId)).thenReturn(null);
-        sweep(); verify(currency).deposit(offline, 8.0); verify(spawner).drainSlot(0, 4);
+        sweep(); verify(currency).deposit(offline, 8.0); verify(spawner).take(any(), eq(4L));
     }
     @Test void offlinePaperNeverQuotesOnlineOnlyCurrency() {
         schedulers.when(Schedulers::isFolia).thenReturn(false);
@@ -263,7 +265,7 @@ class AutosellSchedulingTest {
     }
     @Test void providerExceptionKeepsStockAndAllowsNextSweep() {
         when(currency.deposit(any(), anyDouble())).thenThrow(new IllegalStateException("provider failed"));
-        sweep(); tick(); verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        sweep(); tick(); verify(spawner, never()).take(any(), anyLong());
         sweep(); assertEquals(1, queue.size());
     }
     @Test void pluginDisableHookInvalidatesQueuedWork() {
@@ -279,7 +281,7 @@ class AutosellSchedulingTest {
 
     @Test void rejectedPaymentReleasesQueueAndKeepsStock() {
         when(currency.deposit(any(), anyDouble())).thenReturn(Currency.Result.fail("rejected"));
-        sweep(); tick(); verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        sweep(); tick(); verify(spawner, never()).take(any(), anyLong());
         sweep(); assertEquals(1, queue.size());
     }
 }

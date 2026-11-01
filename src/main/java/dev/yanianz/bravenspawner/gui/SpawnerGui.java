@@ -16,6 +16,7 @@ import dev.yanianz.bravenspawner.menu.MenuService;
 import dev.yanianz.bravenspawner.menu.OrderedPuzzle;
 import dev.yanianz.bravenspawner.menu.PurchaseMath;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import dev.yanianz.bravenspawner.platform.HologramConfig;
 import dev.yanianz.bravenspawner.sell.SellService;
 import dev.yanianz.bravenspawner.util.Messages;
@@ -95,7 +96,7 @@ public final class SpawnerGui implements Listener {
         private final int page;
         private Inventory inventory;
         private List<Integer> contentSlots = List.of();
-        private List<ItemStack> displayed = List.of();
+        private List<StockEntry> displayed = List.of();
         private OrderedPuzzle puzzle;
         private MenuDefinition definition;
         private ItemStack correct;
@@ -253,7 +254,7 @@ public final class SpawnerGui implements Listener {
 
         int rows = 6;
         int perPage = (rows - 1) * 9;
-        List<ItemStack> contents = spawner.contents();
+        List<StockEntry> contents = spawner.stock();
         int pages = Math.max(1, (contents.size() + perPage - 1) / perPage);
         int safePage = Math.max(0, Math.min(page, pages - 1));
 
@@ -500,7 +501,7 @@ public final class SpawnerGui implements Listener {
         if (definition == null) return false;
         List<Integer> slots = storageSlots(definition, layoutFor(player, definition));
         if (slots.isEmpty()) return false;
-        List<ItemStack> contents = spawner.contents();
+        List<StockEntry> contents = spawner.stock();
         int pages = Math.max(1, (contents.size() + slots.size() - 1) / slots.size());
         int maxPages = definition.number("max_page_amount", 0);
         if (maxPages > 0) pages = Math.min(pages, maxPages);
@@ -511,7 +512,7 @@ public final class SpawnerGui implements Listener {
         GuiHolder current = session(player);
         if (current == null || !current.spawnerId().equals(spawner.id()) || current.page() != page) return true;
         current.contentSlots = List.copyOf(slots);
-        current.displayed = contents.stream().map(ItemStack::clone).toList();
+        current.displayed = contents;
         List<String> hint = definition.flag("enable_informative_lore", false)
                 ? definition.lines("informative_lore") : List.of();
         for (int i = 0; i < slots.size(); i++) {
@@ -526,11 +527,10 @@ public final class SpawnerGui implements Listener {
      * A view-only copy (never the stored instance) capped at one vanilla stack, with the
      * true stored amount and the hint lines appended to its lore.
      */
-    private ItemStack display(ItemStack stored, List<String> hint) {
+    private ItemStack display(StockEntry stored, List<String> hint) {
         if (stored == null) return null;
-        int amount = stored.getAmount();
-        ItemStack display = stored.clone();
-        if (display == null) return null;
+        long amount = stored.quantity();
+        ItemStack display = stored.template();
         display.setAmount(StorageDisplay.visibleAmount(amount, display.getMaxStackSize()));
         ItemMeta meta = display.getItemMeta();
         if (meta != null) {
@@ -984,13 +984,14 @@ public final class SpawnerGui implements Listener {
     }
 
     /** Amount a click on a storage cell takes: left = take mode (1 by default), right = 64, shift = one stack. */
-    int cellAmount(Player player, ClickType click, ItemStack expected) {
-        int max = Math.max(1, expected.getMaxStackSize());
-        return switch (click) {
-            case LEFT -> Math.min(expected.getAmount(), takeModes.getOrDefault(player.getUniqueId(), 1));
-            case RIGHT -> Math.min(expected.getAmount(), RIGHT_CLICK_AMOUNT);
-            case SHIFT_LEFT, SHIFT_RIGHT -> Math.min(expected.getAmount(), max);
-            default -> 0;
+    int cellAmount(Player player, ClickType click, StockEntry expected) {
+        int max = expected.maxStackSize();
+        long stored = expected.quantity();
+        return (int) switch (click) {
+            case LEFT -> Math.min(stored, takeModes.getOrDefault(player.getUniqueId(), 1));
+            case RIGHT -> Math.min(stored, RIGHT_CLICK_AMOUNT);
+            case SHIFT_LEFT, SHIFT_RIGHT -> Math.min(stored, max);
+            default -> 0L;
         };
     }
 
@@ -1000,7 +1001,7 @@ public final class SpawnerGui implements Listener {
         if (spawner.corrupted()) { openCorruption(player, spawner); return; }
         int index = current.page() * current.contentSlots.size() + cell;
         if (index >= current.displayed.size()) return;
-        ItemStack expected = current.displayed.get(index);
+        StockEntry expected = current.displayed.get(index);
         int amount = cellAmount(player, click, expected);
         if (amount <= 0) return;
         if (!player.hasPermission("bravenspawner.item.extract")) {
@@ -1008,7 +1009,7 @@ public final class SpawnerGui implements Listener {
             return;
         }
         if (plugin.restrictions() != null && !plugin.restrictions().canTakeItems(player, spawner)) return;
-        ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected, amount);
+        ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected.template(), amount);
         if (withdrawn != null) {
             Withdrawals.Result result = Withdrawals.deliver(player, spawner, List.of(withdrawn));
             plugin.markDirty(spawner);
@@ -1105,12 +1106,11 @@ public final class SpawnerGui implements Listener {
             fail(player, "gui.extract-denied");
             return;
         }
-        List<ItemStack> items = spawner.drainAll();
-        if (items.isEmpty()) {
+        if (spawner.distinctSlots() == 0) {
             messages().send(player, "gui.take.nothing");
             return;
         }
-        Withdrawals.Result result = Withdrawals.deliver(player, spawner, items);
+        Withdrawals.Result result = Withdrawals.takeAll(player, spawner);
         plugin.markDirty(spawner);
         if (result.moved() > 0) {
             plugin.record(spawner, AuditEvent.Action.WITHDRAW, player, result.moved(), "take all");
@@ -1136,9 +1136,9 @@ public final class SpawnerGui implements Listener {
         long dropped = 0;
         // Descending, so a fully drained cell cannot shift the indices still to visit.
         for (int index = last; index >= first; index--) {
-            ItemStack expected = current.displayed.get(index);
-            int amount = Math.min(expected.getAmount(), Math.max(1, expected.getMaxStackSize()));
-            ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected, amount);
+            StockEntry expected = current.displayed.get(index);
+            int amount = (int) Math.min(expected.quantity(), expected.maxStackSize());
+            ItemStack withdrawn = spawner.drainSlotIfSimilar(index, expected.template(), amount);
             if (withdrawn == null || withdrawn.getAmount() <= 0) continue;
             player.getWorld().dropItemNaturally(player.getLocation(), withdrawn);
             dropped += withdrawn.getAmount();

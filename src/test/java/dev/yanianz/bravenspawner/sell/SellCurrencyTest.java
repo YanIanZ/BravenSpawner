@@ -6,6 +6,7 @@ import dev.yanianz.bravenspawner.econ.CurrencyRegistry;
 import dev.yanianz.bravenspawner.econ.Economy;
 import dev.yanianz.bravenspawner.econ.FakeCurrency;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -62,8 +63,9 @@ class SellCurrencyTest {
         when(stack.getAmount()).thenReturn(4);
         when(stack.clone()).thenReturn(stack);
         when(stack.isSimilar(stack)).thenReturn(true);
-        when(spawner.contents()).thenReturn(List.of(stack));
-        when(spawner.drainSlot(0, 4)).thenReturn(stack);
+        StockEntry entry4 = new StockEntry(stack, 4);
+        when(spawner.stock()).thenReturn(List.of(entry4));
+        when(spawner.take(stack, 4L)).thenReturn(4L);
         service = SellService.install(plugin);
     }
 
@@ -72,7 +74,7 @@ class SellCurrencyTest {
         assertEquals(SellService.Status.SOLD, sale.status());
         assertEquals(List.of(10.4), points.deposits);
         verify(economy, never()).deposit(any(), anyDouble());
-        verify(spawner).drainSlot(0, 4);
+        verify(spawner).take(any(), eq(4L));
         assertSame(points, service.currency());
         assertEquals("F10.4", service.format(10.4));
     }
@@ -82,7 +84,7 @@ class SellCurrencyTest {
         SellService.Sale sale = service.sell(player, spawner);
         assertEquals(SellService.Status.FAILED, sale.status());
         assertTrue(sale.reason().contains("fake rejected"));
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
         verify(plugin, never()).record(any(), any(), any(), anyLong(), anyString());
     }
 
@@ -92,7 +94,7 @@ class SellCurrencyTest {
         assertEquals(SellService.Status.NO_ECONOMY, sale.status());
         assertEquals("fake is offline", sale.reason());
         assertTrue(points.deposits.isEmpty());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
 
     @Test void wholeUnitCurrencyPaysTheRoundedDownAmount() {
@@ -108,7 +110,7 @@ class SellCurrencyTest {
         SellService.Sale sale = service.sell(player, spawner);
         assertEquals(SellService.Status.NOTHING_TO_SELL, sale.status());
         assertTrue(points.deposits.isEmpty());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
 
     @Test void disabledMasterSwitchRefusesTheSale() {

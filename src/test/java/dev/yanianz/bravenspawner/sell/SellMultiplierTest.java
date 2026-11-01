@@ -3,6 +3,7 @@ package dev.yanianz.bravenspawner.sell;
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.econ.Economy;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -48,8 +49,9 @@ class SellMultiplierTest {
         when(stack.getAmount()).thenReturn(4);
         when(stack.clone()).thenReturn(stack);
         when(stack.isSimilar(stack)).thenReturn(true);
-        when(spawner.contents()).thenReturn(List.of(stack));
-        when(spawner.drainSlot(0, 4)).thenReturn(stack);
+        StockEntry entry4 = new StockEntry(stack, 4);
+        when(spawner.stock()).thenReturn(List.of(entry4));
+        when(spawner.take(stack, 4L)).thenReturn(4L);
         service = SellService.install(plugin);
     }
 
@@ -60,7 +62,7 @@ class SellMultiplierTest {
         assertEquals(24.0, sale.value());
         verify(economy, times(1)).deposit(player, 24.0);
         verify(economy, times(1)).deposit(eq(player), anyDouble());
-        verify(spawner).drainSlot(0, 4);
+        verify(spawner).take(any(), eq(4L));
     }
 
     @Test void payoutIsRoundedHalfUpToConfiguredDecimals() {
@@ -82,33 +84,33 @@ class SellMultiplierTest {
     @Test void rejectedMultipliedPaymentLeavesStorageUntouched() {
         SellService.Sale sale = service.sell(player, spawner, 1.5);
         assertEquals(SellService.Status.FAILED, sale.status());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
 
     @Test void nonFiniteMultiplierCannotReachEconomy() {
         SellService.Sale sale = service.sell(player, spawner, Double.POSITIVE_INFINITY);
         assertEquals(SellService.Status.FAILED, sale.status());
         verify(economy, never()).deposit(any(), anyDouble());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
     @Test void fullCollectionGateRefusesPaymentBeforeStorageIsFull() {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
         when(product.mustBeFullToCollect()).thenReturn(true);
         when(plugin.product(spawner)).thenReturn(product);
-        when(plugin.maximumItems(spawner)).thenReturn(8);
-        when(spawner.storedCount()).thenReturn(7);
+        when(plugin.maximumItems(spawner)).thenReturn(8L);
+        when(spawner.storedCount()).thenReturn(7L);
         SellService.Sale sale = service.sell(player, spawner);
         assertEquals(SellService.Status.NOTHING_TO_SELL, sale.status());
         verify(economy, never()).deposit(any(), anyDouble());
-        verify(spawner, never()).drainSlot(anyInt(), anyInt());
+        verify(spawner, never()).take(any(), anyLong());
     }
 
     @Test void fullCollectionGateAllowsExactCapacity() {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
         when(product.mustBeFullToCollect()).thenReturn(true);
         when(plugin.product(spawner)).thenReturn(product);
-        when(plugin.maximumItems(spawner)).thenReturn(8);
-        when(spawner.storedCount()).thenReturn(8);
+        when(plugin.maximumItems(spawner)).thenReturn(8L);
+        when(spawner.storedCount()).thenReturn(8L);
         when(economy.deposit(player, 16.0)).thenReturn(true);
         assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
     }
@@ -117,8 +119,8 @@ class SellMultiplierTest {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
         when(product.mustBeFullToCollect()).thenReturn(true);
         when(plugin.product(spawner)).thenReturn(product);
-        when(plugin.maximumItems(spawner)).thenReturn(0);
-        when(spawner.storedCount()).thenReturn(4);
+        when(plugin.maximumItems(spawner)).thenReturn(0L);
+        when(spawner.storedCount()).thenReturn(4L);
         when(economy.deposit(player, 16.0)).thenReturn(true);
         assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
     }
@@ -126,7 +128,7 @@ class SellMultiplierTest {
     @Test void productDropPriceOverridesGlobalQuoteAndSettlement() {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
         var drop = mock(dev.yanianz.bravenspawner.product.ProductDefinition.Drop.class);
-        Material dropMaterial = spawner.contents().getFirst().getType();
+        Material dropMaterial = spawner.stock().getFirst().template().getType();
         when(drop.material()).thenReturn(dropMaterial);
         when(drop.sellPrice()).thenReturn(3.0);
         when(product.drops()).thenReturn(List.of(drop));
@@ -142,7 +144,7 @@ class SellMultiplierTest {
     @Test void explicitZeroProductPriceSuppressesGlobalPrice() {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
         var drop = mock(dev.yanianz.bravenspawner.product.ProductDefinition.Drop.class);
-        Material dropMaterial = spawner.contents().getFirst().getType();
+        Material dropMaterial = spawner.stock().getFirst().template().getType();
         when(drop.material()).thenReturn(dropMaterial);
         when(drop.sellPrice()).thenReturn(0.0);
         when(product.drops()).thenReturn(List.of(drop));
@@ -161,9 +163,11 @@ class SellMultiplierTest {
     }
 
     @Test void recordsPendingSettlementOnlyAfterReconciliationWithoutPayingAgain() {
-        ItemStack stock = spawner.contents().getFirst();
-        when(spawner.contents()).thenReturn(List.of(stock)).thenReturn(List.of(stock)).thenReturn(List.of(stock)).thenReturn(List.of());
-        when(spawner.drainSlot(0, 4)).thenReturn(null, stock);
+        StockEntry stock = spawner.stock().getFirst();
+        java.util.concurrent.atomic.AtomicBoolean drained = new java.util.concurrent.atomic.AtomicBoolean();
+        when(spawner.stock()).thenAnswer(call -> drained.get() ? List.of() : List.of(stock));
+        // First drain finds nothing (stock withdrawn elsewhere), the retry succeeds.
+        when(spawner.take(any(), eq(4L))).thenReturn(0L).thenAnswer(call -> { drained.set(true); return 4L; });
         when(economy.deposit(player, 16.0)).thenReturn(true);
         assertEquals(SellService.Status.PENDING, service.sell(player, spawner).status());
         verify(plugin, never()).record(any(), any(), any(), anyLong(), anyString());

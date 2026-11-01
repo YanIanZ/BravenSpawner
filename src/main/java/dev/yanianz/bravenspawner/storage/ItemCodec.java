@@ -1,6 +1,7 @@
 package dev.yanianz.bravenspawner.storage;
 
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
 
@@ -143,6 +144,48 @@ final class ItemCodec {
             throw new IllegalStateException("item #" + index + " " + describe(item) + " could not be serialized: "
                     + rootMessage(e), e);
         }
+    }
+
+    /** Exact-count adapter: quantities are written as stored, never narrowed to int. */
+    static byte[] encodeStock(List<StockEntry> stock) {
+        List<Entry> entries = new ArrayList<>(stock.size());
+        for (int i = 0; i < stock.size(); i++) {
+            StockEntry entry = stock.get(i);
+            if (entry == null) throw new IllegalArgumentException("entry #" + i + " is null");
+            entries.add(new Entry(entry.quantity(), template(entry.template(), i)));
+        }
+        return write(entries);
+    }
+
+    /** Exact-count decode of format v2; no amount is clamped. */
+    static List<StockEntry> decodeStock(byte[] raw) throws IOException {
+        List<Entry> entries = read(raw);
+        List<StockEntry> out = new ArrayList<>(entries.size());
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            ItemStack stack;
+            try {
+                stack = ItemStack.deserializeBytes(entry.template());
+            } catch (RuntimeException e) {
+                throw new IOException("entry " + i + " template could not be read: " + rootMessage(e), e);
+            }
+            if (stack == null || stack.getType().isAir()) throw new IOException("entry " + i + " template decoded to no item");
+            out.add(new StockEntry(stack, entry.amount()));
+        }
+        return out;
+    }
+
+    /** Legacy object streams held int amounts; each stack becomes one entry. */
+    static List<StockEntry> legacyStock(List<ItemStack> items) throws IOException {
+        List<StockEntry> out = new ArrayList<>(items.size());
+        for (int i = 0; i < items.size(); i++) {
+            ItemStack item = items.get(i);
+            if (item == null || item.getType().isAir() || item.getAmount() < 1) {
+                throw new IOException("legacy entry " + i + " is empty");
+            }
+            out.add(new StockEntry(item, item.getAmount()));
+        }
+        return out;
     }
 
     static List<ItemStack> decode(byte[] raw) throws IOException {

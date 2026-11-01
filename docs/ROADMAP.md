@@ -12,7 +12,7 @@ Targets below are proposed milestones, not delivery promises. Source, tests and 
 | 1.3.0 | BSC2 item codec v2, amount lore/head textures, 90 mob definitions, particles, per-action currencies and additional shop pricing adapters |
 | 1.3.1-dev (unreleased) | Deferred GUI callbacks, entity-owned autosell with lifecycle checks and offline Folia retention, Gradle execution-time API cleanup, synchronized docs/specifications and regression tests |
 
-The BSC2 codec carries logical amounts separately from item templates. **It is not the proposed `ItemKey → long` vault**: the current model still uses logical `ItemStack` entries with int counts.
+The BSC2 codec carries logical amounts separately from item templates. Branch `feat/vault-exact-long` (unreleased) replaces the int `ItemStack` entries with exact `long` `StockEntry` quantities and the three capacity limits; durable reservations, a versioned `ItemKey` and overflow policies remain open (see [STOR-01](features/VIRTUAL_STORAGE.md) status).
 
 ## Proposed implementation order
 

@@ -120,6 +120,7 @@ economy:
   action: " {muted}%action%: {highlight}%currency% {muted}(%state%)"
   currency: " {muted}- {highlight}%id% {muted}%name%: %state%"
   shop: " {muted}shop: {highlight}%value%"
+  autosold: "{success}Autosold {highlight}%items%{success} item(s) for {highlight}%value%{success}."
 
 modify:
   usage: "{usage}Usage: /bmodify <player> {muted}(while looking at your spawner)"

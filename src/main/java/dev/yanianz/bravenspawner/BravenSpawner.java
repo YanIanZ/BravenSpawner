@@ -100,12 +100,27 @@ public final class BravenSpawner extends JavaPlugin {
         return product == null || product.maxStack() <= 0 ? settings.stackLimit
                 : Math.min(settings.stackLimit, product.maxStack());
     }
-    public int maximumItems(Spawner spawner) {
+    /** Total stored-item cap for one spawner; 0 = unlimited. Exact {@code long}. */
+    public long maximumItems(Spawner spawner) {
         ProductDefinition product = product(spawner);
         if (product == null || settings.unlimitedStorage) return 0;
-        int scaled = scaledLimit(product.maxStoredItems(), spawner.stack());
-        double tierScale = settings.capacityScale(spawner.tier());
-        return scaled <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE, Math.floor(scaled * tierScale));
+        int base = product.maxStoredItems();
+        if (base <= 0) return 0;
+        long scaled = saturatingMultiply(base, Math.max(1, spawner.stack()));
+        double capped = Math.floor(scaled * settings.capacityScale(spawner.tier()));
+        return capped >= (double) Long.MAX_VALUE ? Long.MAX_VALUE : Math.max(0L, (long) capped);
+    }
+
+    /** Every storage limit that applies to one spawner. */
+    public dev.yanianz.bravenspawner.model.StockLimits stockLimits(Spawner spawner) {
+        return new dev.yanianz.bravenspawner.model.StockLimits(maximumItems(spawner),
+                settings.maxDistinctItems, settings.maxPerItem);
+    }
+
+    private static long saturatingMultiply(long left, long right) {
+        long high = Math.multiplyHigh(left, right);
+        long low = left * right;
+        return (high == 0 && low >= 0) ? low : Long.MAX_VALUE;
     }
     public int maximumXp(Spawner spawner) {
         ProductDefinition product = product(spawner);

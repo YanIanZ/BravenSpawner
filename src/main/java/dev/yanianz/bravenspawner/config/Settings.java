@@ -39,6 +39,10 @@ public final class Settings {
 
     public final boolean blockCollectionInInventory;
     public final boolean unlimitedStorage;
+    /** Distinct item identities per spawner; 0 = only the codec's hard bound. */
+    public final int maxDistinctItems;
+    /** Quantity of one identity per spawner; 0 = no per-item cap. */
+    public final long maxPerItem;
     public final int spawnerLimitInChunk;
     /** True when {@code spawner-limit-in-chunk-mode: stacks}; the default counts spawner blocks. */
     public final boolean chunkLimitCountsStacks;
@@ -108,6 +112,8 @@ public final class Settings {
         this.activationRadius = b.activationRadius;
         this.blockCollectionInInventory = b.blockCollectionInInventory;
         this.unlimitedStorage = b.unlimitedStorage;
+        this.maxDistinctItems = b.maxDistinctItems;
+        this.maxPerItem = b.maxPerItem;
         this.spawnerLimitInChunk = b.spawnerLimitInChunk;
         this.chunkLimitCountsStacks = b.chunkLimitCountsStacks;
         this.convertSpawners = b.convertSpawners;
@@ -179,6 +185,8 @@ public final class Settings {
 
         b.blockCollectionInInventory = root.getBoolean("block-collection-in-inventory", false);
         b.unlimitedStorage = root.getBoolean("unlimited-storage", false);
+        b.maxDistinctItems = Math.max(0, root.getInt("storage-limits.max-distinct-items", 0));
+        b.maxPerItem = Math.max(0L, root.getLong("storage-limits.max-per-item", 0L));
         b.spawnerLimitInChunk = root.getInt("spawner-limit-in-chunk", 100);
         b.chunkLimitCountsStacks = "stacks".equalsIgnoreCase(root.getString("spawner-limit-in-chunk-mode", "blocks"));
         b.convertSpawners = root.getBoolean("convert-spawners", false);
@@ -489,6 +497,8 @@ public final class Settings {
         int activationRadius;
         long boosterSeconds;
         boolean chunkLimitCountsStacks;
+        int maxDistinctItems;
+        long maxPerItem;
         boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, allowHoppers,
                 enableMending, dropXpAsOrbs, placeholdersInGui, removeDurabilityOnBreak, silkTouchOnly,
                 disableExplosionDamage, enableBoosters, disableAutosellNotifications,

@@ -22,7 +22,7 @@ Baseline: published 1.3.0 / `e620f4e`. Result: local **1.3.1-dev**, not publishe
 | --- | --- | --- | --- |
 | EX-05 | Policy | Trusted players may sell the owner's storage and the payout goes to the clicker. | Unchanged by design. `bravenspawner.action.sell` can now withhold selling from a group. A pay-owner option would need offline-capable settlement and is not implemented. |
 | Autosell / sell wand | Scope | Autosell and the sell wand are not gated by `bravenspawner.action.sell`; the owner can be offline and the wand is an explicitly issued item. | Revisit only with an owner-permission cache or provider support for offline permission checks. |
-| REV-09 | Design boundary | `Spawner.storage` is `List<ItemStack>` with int logical counts. BSC2 wire amounts are long, but `ItemCodec.toIntAmount` clamps decoded amounts to int. | Future vault migration must reconcile quantities explicitly and must not reuse clamping as exact-long storage support. |
+| REV-09 | Partly addressed (branch `feat/vault-exact-long`) | Storage is now one exact `long` `StockEntry` per identity; production decode uses `decodeStock` without clamping (`toIntAmount` remains only for the legacy `decodeItems` API). | Open: versioned `ItemKey`, durable reservation journal and crash reconciliation (VSS-05), overflow policies. Downgrade to 1.3.x clamps identities above `Integer.MAX_VALUE`. |
 
 Entity dispatch establishes the plugin-owned execution context, not a third-party API guarantee. All selected economy/shop plugins must support Folia and be qualified on the owner entity thread. There is no provider allowlist or claim of universal adapter thread safety. Offline Folia settlement remains deliberately unavailable.
 

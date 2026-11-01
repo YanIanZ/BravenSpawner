@@ -2,6 +2,7 @@ package dev.yanianz.bravenspawner.mechanics;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>The spawner block is decorative; there is no real container inventory for a
  * vanilla hopper to read. A periodic pass finds hoppers one or two blocks below a
  * spawner and moves a single stack into the hopper. Items are removed with
- * {@link Spawner#drainSlot(int, int)} before insertion, and anything the hopper
+ * {@link Spawner#drainSlotIfSimilar(int, ItemStack, int)} before insertion, and anything the hopper
  * rejects is put back into the spawner, so a full hopper can never duplicate or
  * destroy stock.
  *
@@ -144,13 +145,12 @@ public final class HopperLink {
      */
     private boolean moveOne(Spawner spawner, Hopper hopper) {
         if (plugin.restrictions() != null && !plugin.restrictions().rules().canTakeItems(spawner.product(), false)) return false;
-        List<ItemStack> contents = spawner.contents();
-        if (contents.isEmpty()) return false;
+        List<StockEntry> stock = spawner.stock();
+        if (stock.isEmpty()) return false;
 
-        ItemStack sample = contents.get(0);
-        if (sample == null || sample.getType().isAir()) return false;
-
-        int amount = Math.min(Math.max(1, sample.getMaxStackSize()), Math.max(1, sample.getAmount()));
+        StockEntry first = stock.get(0);
+        ItemStack sample = first.template();
+        int amount = (int) Math.min(first.maxStackSize(), first.quantity());
         ItemStack pulled = spawner.drainSlotIfSimilar(0, sample, amount);
         if (pulled == null || pulled.getAmount() <= 0) return false;
         int original = pulled.getAmount();
@@ -166,7 +166,7 @@ public final class HopperLink {
         for (ItemStack rest : leftover.values()) {
             if (rest == null || rest.getAmount() <= 0) continue;
             rejected += rest.getAmount();
-            spawner.storeVirtual(rest, 0);
+            spawner.restore(rest, rest.getAmount());
         }
         if (rejected < original) plugin.markDirty(spawner);
         return rejected < original;

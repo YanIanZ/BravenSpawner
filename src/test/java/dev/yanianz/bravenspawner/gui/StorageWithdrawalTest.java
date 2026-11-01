@@ -57,7 +57,11 @@ class StorageWithdrawalTest {
         when(template.clone()).thenReturn(template);
         when(template.getAmount()).thenReturn(stored);
         when(template.getMaxStackSize()).thenReturn(maxStack);
-        when(spawner.contents()).thenReturn(List.of(template));
+        org.bukkit.Material material = mock(org.bukkit.Material.class);
+        when(material.isAir()).thenReturn(false);
+        when(template.getType()).thenReturn(material);
+        var entry = new dev.yanianz.bravenspawner.model.StockEntry(template, stored);
+        when(spawner.stock()).thenReturn(List.of(entry));
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.loadFromString("menu:\n  layout: ['---------', '---------']\nitems:\n  filler:\n    material: STONE\n    symbol: '-'\n");
         MenuDefinition definition = MenuDefinition.parse("storage", yaml.getConfigurationSection("menu"), yaml.getConfigurationSection("items"));

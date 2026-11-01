@@ -432,7 +432,7 @@ public final class SpawnerManager {
         for (var drop : product.drops()) {
             int amount = ProductRoller.amount(drop, credits, random);
             if (amount <= 0) continue;
-            ItemStack output = new ItemStack(drop.material(), amount);
+            ItemStack output = new ItemStack(drop.material(), 1);
             if (drop.displayName() != null || drop.customModelData() >= 0) {
                 var meta = output.getItemMeta();
                 if (meta != null) {
@@ -441,7 +441,8 @@ public final class SpawnerManager {
                     output.setItemMeta(meta);
                 }
             }
-            spawner.storeVirtual(output, plugin.maximumItems(spawner));
+            // Over capacity the surplus is simply not produced (pause, not void).
+            spawner.deposit(output, amount, plugin.stockLimits(spawner));
         }
         int xp = ProductRoller.range(
                 product.xp(), product.maxXpPerCycle(), Math.max(1, spawner.stack()), random);

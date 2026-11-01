@@ -126,7 +126,7 @@ public final class HologramConfig {
      * @param maximumItems the spawner's item capacity; 0 or less means unlimited
      * @param maximumXp    the spawner's XP capacity; 0 or less means unlimited
      */
-    public List<String> lines(Spawner spawner, Map<String, String> extra, int maximumItems, int maximumXp) {
+    public List<String> lines(Spawner spawner, Map<String, String> extra, long maximumItems, int maximumXp) {
         List<String> out = new ArrayList<>(content.size());
         for (String line : content) out.add(bareHex(resolve(line, spawner, extra, maximumItems, maximumXp)));
         return out;
@@ -147,7 +147,7 @@ public final class HologramConfig {
         return Math.min(1.0, (double) value / capacity);
     }
 
-    private String resolve(String line, Spawner spawner, Map<String, String> extra, int maximumItems, int maximumXp) {
+    private String resolve(String line, Spawner spawner, Map<String, String> extra, long maximumItems, int maximumXp) {
         String result = line;
 
         int stack = spawner == null ? 1 : spawner.stack();

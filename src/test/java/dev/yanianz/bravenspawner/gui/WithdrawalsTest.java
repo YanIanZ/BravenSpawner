@@ -62,6 +62,59 @@ class WithdrawalsTest {
         Withdrawals.Result result = Withdrawals.deliver(player, spawner, List.of(stack(200, 64)));
         assertEquals(190, result.moved());
         assertEquals(10, result.returned());
-        verify(spawner).storeVirtual(rejected, 0);
+        verify(spawner).restore(rejected, 10L);
+    }
+
+    /** A mock item of one identity (its Material), with real amount state. */
+    private static ItemStack identity(org.bukkit.Material type, int amount) {
+        ItemStack item = mock(ItemStack.class);
+        AtomicInteger value = new AtomicInteger(amount);
+        when(item.getType()).thenReturn(type);
+        when(item.getAmount()).thenAnswer(call -> value.get());
+        doAnswer(call -> { value.set(call.getArgument(0)); return null; }).when(item).setAmount(anyInt());
+        when(item.getMaxStackSize()).thenReturn(64);
+        when(item.clone()).thenAnswer(call -> identity(type, value.get()));
+        when(item.isSimilar(any())).thenAnswer(call -> call.getArgument(0) instanceof ItemStack other && other.getType() == type);
+        return item;
+    }
+
+    private static Spawner model() {
+        return new Spawner(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "world", 0, 0, 0,
+                Spawner.Kind.MOB, "ZOMBIE", 1, 0, true);
+    }
+
+    @Test void takeAllMovesOneInventoryAndReportsWhatStaysStored() {
+        org.bukkit.Material rod = mock(org.bukkit.Material.class);
+        when(rod.isAir()).thenReturn(false);
+        Spawner spawner = model();
+        spawner.deposit(identity(rod, 1), 10_000_000L, dev.yanianz.bravenspawner.model.StockLimits.UNLIMITED);
+        Player player = mock(Player.class);
+        PlayerInventory inventory = mock(PlayerInventory.class);
+        when(player.getInventory()).thenReturn(inventory);
+        when(inventory.addItem(any(ItemStack[].class))).thenReturn(new HashMap<>());
+
+        Withdrawals.Result result = Withdrawals.takeAll(player, spawner);
+        long batch = (long) Withdrawals.MAX_PARTS * 64;
+        assertEquals(batch, result.moved());
+        assertEquals(10_000_000L - batch, result.returned());
+        assertEquals(10_000_000L - batch, spawner.storedCount());
+    }
+
+    @Test void takeAllRestoresWhatTheInventoryRejects() {
+        org.bukkit.Material rod = mock(org.bukkit.Material.class);
+        when(rod.isAir()).thenReturn(false);
+        Spawner spawner = model();
+        spawner.deposit(identity(rod, 1), 100L, dev.yanianz.bravenspawner.model.StockLimits.UNLIMITED);
+        Player player = mock(Player.class);
+        PlayerInventory inventory = mock(PlayerInventory.class);
+        when(player.getInventory()).thenReturn(inventory);
+        HashMap<Integer, ItemStack> rejected = new HashMap<>();
+        rejected.put(0, identity(rod, 30));
+        when(inventory.addItem(any(ItemStack[].class))).thenReturn(rejected);
+
+        Withdrawals.Result result = Withdrawals.takeAll(player, spawner);
+        assertEquals(70, result.moved());
+        assertEquals(30, result.returned());
+        assertEquals(30, spawner.storedCount(), "conservation: rejected units are back in storage");
     }
 }
