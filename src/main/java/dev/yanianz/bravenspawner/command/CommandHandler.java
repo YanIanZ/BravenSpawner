@@ -434,6 +434,10 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             return;
         }
         String prefix = args[2].toLowerCase(Locale.ROOT);
+        if (prefix.length() < 4) {
+            messages().send(sender, "escrow.unknown", "id", args[2]);
+            return;
+        }
         java.util.Map.Entry<Spawner, dev.yanianz.bravenspawner.model.Escrow> match = null;
         for (var entry : open) {
             if (!entry.getValue().id().toString().startsWith(prefix)) continue;
@@ -443,7 +447,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             }
             match = entry;
         }
-        if (prefix.length() < 4 || match == null) {
+        if (match == null) {
             messages().send(sender, "escrow.unknown", "id", args[2]);
             return;
         }

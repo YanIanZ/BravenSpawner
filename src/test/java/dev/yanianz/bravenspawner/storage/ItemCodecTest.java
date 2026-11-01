@@ -201,10 +201,10 @@ class ItemCodecTest {
         assertEquals(2, seen.size());
     }
 
-    /** The model's distinct bound must never let storage exceed what this codec can write. */
-    @org.junit.jupiter.api.Test void modelDistinctBoundMatchesCodecLimit() {
-        org.junit.jupiter.api.Assertions.assertEquals(ItemCodec.MAX_ITEMS,
-                dev.yanianz.bravenspawner.model.StockLimits.HARD_MAX_DISTINCT);
+    /** The codec keeps headroom above the model's distinct bound for returned units. */
+    @org.junit.jupiter.api.Test void codecLimitHasHeadroomAboveTheModelBound() {
+        org.junit.jupiter.api.Assertions.assertTrue(ItemCodec.MAX_ITEMS
+                >= 2 * dev.yanianz.bravenspawner.model.StockLimits.HARD_MAX_DISTINCT);
     }
 
     /** VSS-01/09: v2 entries keep exact long amounts on the wire, beyond int. */

@@ -1,7 +1,6 @@
 package dev.yanianz.bravenspawner.storage;
 
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.model.StockEntry;
 import dev.yanianz.bravenspawner.model.StoreSnapshot;
 import org.bukkit.inventory.ItemStack;
 
@@ -124,36 +123,6 @@ public interface Storage extends AutoCloseable {
             } catch (RuntimeException e) {
                 throw new IllegalStateException("could not encode " + items.size() + " item stack(s) for spawner "
                         + recordId + ": " + (e.getMessage() == null ? ItemCodec.rootMessage(e) : e.getMessage()), e);
-            }
-        }
-
-        /**
-         * Encodes exact-count stock in format v2. Like {@link #encodeItems(List, String)},
-         * a failure is thrown rather than written as an empty store.
-         */
-        public static String encodeStock(List<StockEntry> stock, String recordId) {
-            if (stock == null) throw new IllegalArgumentException("stock must not be null");
-            try {
-                return Base64.getEncoder().encodeToString(ItemCodec.encodeStock(stock));
-            } catch (RuntimeException e) {
-                throw new IllegalStateException("could not encode " + stock.size() + " stock entr(ies) for spawner "
-                        + recordId + ": " + (e.getMessage() == null ? ItemCodec.rootMessage(e) : e.getMessage()), e);
-            }
-        }
-
-        /**
-         * Decodes stored stock (format v2, or a legacy object stream) with exact
-         * quantities; returns {@code null} when the blob is malformed so the caller
-         * quarantines the record instead of loading an empty store.
-         */
-        public static List<StockEntry> decodeStock(String blob, String recordId) {
-            if (blob == null || blob.isBlank()) return new ArrayList<>();
-            try {
-                byte[] raw = Base64.getDecoder().decode(blob);
-                return ItemCodec.isV2(raw) ? ItemCodec.decodeStock(raw) : ItemCodec.legacyStock(ItemCodec.decodeLegacy(raw));
-            } catch (Exception e) {
-                LOG.warning("quarantined malformed inventory for record " + recordId + ": " + e);
-                return null;
             }
         }
 

@@ -53,7 +53,13 @@ final class ItemCodec {
     static final byte[] MAGIC = {'B', 'S', 'C', '2'};
     static final int VERSION = 2;
     static final int VERSION_ESCROW = 3;
-    static final int MAX_ITEMS = 4096;
+    /**
+     * Entries one list may hold. Twice the model's distinct bound
+     * ({@link dev.yanianz.bravenspawner.model.StockLimits#HARD_MAX_DISTINCT}): new
+     * identities stop at the bound, and the headroom absorbs units returned to
+     * storage by a racing withdrawal so a save can never fail on the count.
+     */
+    static final int MAX_ITEMS = 8192;
     static final int MAX_TEMPLATE_BYTES = 2 * 1024 * 1024;
     static final int MAX_ESCROWS = dev.yanianz.bravenspawner.model.Escrow.MAX_PER_SPAWNER;
 
@@ -213,35 +219,6 @@ final class ItemCodec {
             throw new IllegalStateException("item #" + index + " " + describe(item) + " could not be serialized: "
                     + rootMessage(e), e);
         }
-    }
-
-    /** Exact-count adapter: quantities are written as stored, never narrowed to int. */
-    static byte[] encodeStock(List<StockEntry> stock) {
-        List<Entry> entries = new ArrayList<>(stock.size());
-        for (int i = 0; i < stock.size(); i++) {
-            StockEntry entry = stock.get(i);
-            if (entry == null) throw new IllegalArgumentException("entry #" + i + " is null");
-            entries.add(new Entry(entry.quantity(), template(entry.template(), i)));
-        }
-        return write(entries);
-    }
-
-    /** Exact-count decode of format v2; no amount is clamped. */
-    static List<StockEntry> decodeStock(byte[] raw) throws IOException {
-        List<Entry> entries = read(raw);
-        List<StockEntry> out = new ArrayList<>(entries.size());
-        for (int i = 0; i < entries.size(); i++) {
-            Entry entry = entries.get(i);
-            ItemStack stack;
-            try {
-                stack = ItemStack.deserializeBytes(entry.template());
-            } catch (RuntimeException e) {
-                throw new IOException("entry " + i + " template could not be read: " + rootMessage(e), e);
-            }
-            if (stack == null || stack.getType().isAir()) throw new IOException("entry " + i + " template decoded to no item");
-            out.add(new StockEntry(stack, entry.amount()));
-        }
-        return out;
     }
 
     /** Stock plus escrows; v2 bytes when there are no escrows. */

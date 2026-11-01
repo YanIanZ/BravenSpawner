@@ -272,7 +272,9 @@ public final class Spawner {
             long total = 0;
             for (Slot slot : storage) total += slot.quantity;
             Slot slot = find(item);
-            if (slot == null && storage.size() >= bounds.effectiveDistinct()) return 0;
+            // Identities currently held in an escrow still count: a refused payment
+            // returns them, and the store must then still fit the codec.
+            if (slot == null && distinctIncludingEscrows() >= bounds.effectiveDistinct()) return 0;
             long existing = slot == null ? 0 : slot.quantity;
             long accepted = Math.min(amount, Math.max(0, bounds.effectiveTotal() - total));
             accepted = Math.min(accepted, Math.max(0, bounds.effectivePerItem() - existing));
@@ -461,6 +463,22 @@ public final class Spawner {
             escrows.addAll(value.escrows());
             touch();
         }
+    }
+
+    /** Distinct identities in storage plus those held only in escrows. Caller holds {@link #lock}. */
+    private int distinctIncludingEscrows() {
+        if (escrows.isEmpty()) return storage.size();
+        List<ItemStack> extra = new ArrayList<>();
+        for (Escrow escrow : escrows) {
+            for (StockEntry entry : escrow.items()) {
+                ItemStack identity = entry.template();
+                if (find(identity) != null) continue;
+                boolean seen = false;
+                for (ItemStack other : extra) if (other.isSimilar(identity)) { seen = true; break; }
+                if (!seen) extra.add(identity);
+            }
+        }
+        return storage.size() + extra.size();
     }
 
     /** Caller holds {@link #lock}. */

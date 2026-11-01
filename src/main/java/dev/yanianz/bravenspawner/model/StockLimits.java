@@ -12,7 +12,7 @@ package dev.yanianz.bravenspawner.model;
  */
 public record StockLimits(long maxTotal, int maxDistinct, long maxPerItem) {
 
-    /** Mirrors {@code ItemCodec.MAX_ITEMS}; a larger store could not be saved. */
+    /** New identities stop here; the codec keeps headroom above it for returned units. */
     public static final int HARD_MAX_DISTINCT = 4096;
 
     public static final StockLimits UNLIMITED = new StockLimits(0, 0, 0);
