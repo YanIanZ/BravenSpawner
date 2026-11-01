@@ -41,6 +41,11 @@ Fill before each campaign:
 | OWN-14 | World rollback, missing anchor, restore option | No overwrite of another block without explicit operator policy | NOT RUN |
 | OWN-15 | Command permission, aliases, completion | Commands match documentation and plugin.yml | NOT RUN |
 | OWN-16 | Booster configured duration, feature toggles | Runtime behavior matches validated config | NOT RUN |
+| OWN-17 | Negate each `bravenspawner.action.*` node for a trusted player and an op; try sell, right-click storage sell, collect all, XP, upgrade, buy 1/64/max | Denied action shows the denial message and moves no stock, XP or money; collect all performs only the permitted half; defaults unchanged when nodes are unset | NOT RUN |
+| OWN-18 | Stocked spawner with no hopper, then place a hopper 1 and 2 blocks below; also `/setblock` a hopper | Transfer starts immediately after placement; within ~7 s after `/setblock`; no duplicated or lost items | NOT RUN |
+| OWN-19 | Ninja mode with view distance 4 vs 12, many spawners, teleport and world change | Distant spawners within view stay hidden, near ones visible, nothing flickers back after chunk reload | NOT RUN |
+| OWN-21 | Place, break, stack, convert vanilla, booster activate and repair with a customised `messages.yml` prefix/roles | Every line uses the configured prefix and colours; stacking and booster activation play their `sounds.yml` cues | NOT RUN |
+| OWN-20 | Remove a spawner block via explosion (damage enabled) or `/setblock air`; restart with and without `restore-missing-spawners` | Production pauses with one warning; restore recreates the block, logs the replaced material and shows `RESTORE` in the log menu | NOT RUN |
 
 ## 3. Durability and failure injection
 

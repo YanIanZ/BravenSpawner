@@ -15,6 +15,10 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Emulates a hopper pulling from a virtual spawner.
@@ -25,15 +29,28 @@ import java.util.List;
  * {@link Spawner#drainSlot(int, int)} before insertion, and anything the hopper
  * rejects is put back into the spawner, so a full hopper can never duplicate or
  * destroy stock.
+ *
+ * <p>Most stocked spawners have no hopper. A region probe that finds none puts the
+ * spawner on an idle back-off of {@value #IDLE_BACKOFF_PASSES} passes, so the
+ * global pass stops dispatching a region task for it every 8 ticks. Placing a
+ * hopper under a spawner ({@link #wake(Location)}) ends the back-off immediately;
+ * any other way a hopper appears is picked up when the back-off expires.
  */
 public final class HopperLink {
 
     /** Vanilla hoppers transfer every 8 ticks; matching that avoids a faster loop. */
     private static final long TRANSFER_PERIOD_TICKS = 8L;
+    /** Passes (8 ticks each, about 6.4 s) a spawner without a hopper is skipped. */
+    static final long IDLE_BACKOFF_PASSES = 16L;
+    /** Every this many passes, back-off entries for removed spawners are pruned. */
+    private static final long PRUNE_INTERVAL_PASSES = 64L;
 
     private final BravenSpawner plugin;
     private volatile ScheduledTask task;
     private volatile boolean running;
+    /** spawner id -> first pass number at which the spawner is probed again. */
+    private final Map<UUID, Long> idleUntil = new ConcurrentHashMap<>();
+    private final AtomicLong passes = new AtomicLong();
 
     public HopperLink(BravenSpawner plugin) {
         this.plugin = plugin;
@@ -53,34 +70,71 @@ public final class HopperLink {
             task.cancel();
             task = null;
         }
+        idleUntil.clear();
     }
 
-    private void tick() {
+    /**
+     * Ends the idle back-off of any spawner one or two blocks above a newly placed
+     * hopper. Only touches the in-memory map, so any thread may call it.
+     */
+    public void wake(Location hopper) {
+        if (hopper == null || hopper.getWorld() == null) return;
+        for (int depth = 1; depth <= 2; depth++) {
+            Spawner spawner = plugin.manager().at(hopper.clone().add(0, depth, 0));
+            if (spawner != null) idleUntil.remove(spawner.id());
+        }
+    }
+
+    /** Test hook: whether the spawner is currently skipped by the global pass. */
+    boolean idle(UUID spawnerId) {
+        Long until = idleUntil.get(spawnerId);
+        return until != null && until > passes.get();
+    }
+
+    void tick() {
         if (!enabled()) return;
+        long pass = passes.incrementAndGet();
+        if (pass % PRUNE_INTERVAL_PASSES == 0) {
+            idleUntil.keySet().removeIf(id -> plugin.manager().byId(id) == null);
+        }
         for (Spawner spawner : plugin.manager().all()) {
-            if (spawner == null || spawner.storedCount() <= 0) continue;
+            if (spawner == null) continue;
+            Long until = idleUntil.get(spawner.id());
+            if (until != null && until > pass) continue;
+            if (spawner.storedCount() <= 0) continue;
             Location block = spawner.blockLocation();
             if (block == null || block.getWorld() == null) continue;
             // The hopper is in the same chunk column as the spawner, so this
             // region owns both the block read and the inventory mutation.
-            Bukkit.getRegionScheduler().execute(plugin, block, () -> transfer(spawner, block));
+            Bukkit.getRegionScheduler().execute(plugin, block, () -> transfer(spawner, block, pass));
         }
     }
 
-    private void transfer(Spawner spawner, Location center) {
+    private void transfer(Spawner spawner, Location center, long pass) {
         synchronized (spawner) {
             if (!enabled() || plugin.manager().byId(spawner.id()) != spawner) return;
             World world = center.getWorld();
-            if (world == null || !world.isChunkLoaded(center.getBlockX() >> 4, center.getBlockZ() >> 4)) return;
+            if (world == null || !world.isChunkLoaded(center.getBlockX() >> 4, center.getBlockZ() >> 4)) {
+                backOff(spawner, pass);
+                return;
+            }
 
             Block base = center.getBlock();
+            boolean found = false;
             for (int depth = 1; depth <= 2; depth++) {
                 Block below = base.getRelative(BlockFace.DOWN, depth);
                 if (below.getType() != Material.HOPPER) continue;
                 if (!(below.getState() instanceof Hopper hopper)) continue;
-                if (moveOne(spawner, hopper)) return;
+                found = true;
+                if (moveOne(spawner, hopper)) break;
             }
+            if (found) idleUntil.remove(spawner.id());
+            else backOff(spawner, pass);
         }
+    }
+
+    private void backOff(Spawner spawner, long pass) {
+        idleUntil.put(spawner.id(), pass + IDLE_BACKOFF_PASSES);
     }
 
     /**

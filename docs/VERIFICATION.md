@@ -1,3 +1,16 @@
+# P2 scans, scheduling and permissions verification — 2026-11-01
+
+Build: **1.3.1-dev**, branch `fix/p2-scans-scheduling-permissions` on `main` `f32c41f` (after merged PR13).
+
+- `./gradlew clean build --console=plain` and the CI command `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain`: **BUILD SUCCESSFUL**; **257 tests, zero failures/errors/skips** (236 before this pass).
+- Polish pass: `MessageKeysTest` scans `src/main/java` for message-key literals and asserts each has a bundled default; its first run listed nine non-message literals, which the scanner now excludes (config reads, `.yml` names, sound paths).
+- New cases: `ProductionChainTest` (8), `HopperLinkTest` (5), `NinjaTest` (2), `ActionPermissionsTest` (4), `ChunkLimitTest.nearChunk…` (1). `FullCollectionTest` fixtures now grant the default per-action nodes.
+- Regression proof: `ProductionChainTest` run against the previous `SpawnerManager` in a temporary worktree: **8/8 failed**; all pass on this branch. Hopper/Ninja/permission tests use new APIs and were not run against old code.
+- Artifact SHA-256 (polish build): `b31d7579cdcd7b87a9a243b7b0d9af5ff1730d2526d0d4759cdba16221a42491`.
+- No schema migration or dependency change. The audit action enum gains `RESTORE` (appended; older log files still parse).
+
+Live Paper/Folia qualification (OWN-13, OWN-17 to OWN-20 in [TESTER_OWNER.md](TESTER_OWNER.md)) is owned by the server operator and is NOT RUN. Mocked schedulers do not prove Folia handling of delayed region tasks in unloading chunks.
+
 # Autosell verification — 2026-11-01
 
 Build: **1.3.1-dev**, autosell ownership changes on baseline `2cfdbb0` (after merged PR11/12).

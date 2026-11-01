@@ -144,9 +144,12 @@ public final class StackService {
      *
      * <p>Persistent data wins over the physical amount, because the amount is
      * display-only and a stack of 1 can legitimately carry 5 000 units. Values
-     * outside {@code 1..max} are clamped so a corrupted or admin-issued item cannot
-     * inject more value than the configured cap allows, and a missing key falls
-     * back to 1 for items issued before the canonical field existed.
+     * below 1 are raised to 1 and a missing key falls back to 1 for items issued
+     * before the canonical field existed. Values above the cap are returned
+     * unchanged on purpose: place and merge compare the count with the cap and
+     * reject an oversized item untouched, because clamping would silently destroy
+     * the excess units. {@code max} is kept for call-site symmetry and is not
+     * applied here.
      */
     public static int canonicalCount(BravenSpawner plugin, ItemStack item, int max) {
         if (plugin == null || item == null) return 1;

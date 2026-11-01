@@ -7,7 +7,7 @@ import dev.yanianz.bravenspawner.mechanics.HopperLink;
 import dev.yanianz.bravenspawner.mechanics.Mending;
 import dev.yanianz.bravenspawner.mechanics.Ninja;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.util.Messages;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -74,7 +74,7 @@ public final class BlockListener implements Listener {
 
         if (!plugin.ready() && (kind != null || isSpawnerBlock(event.getBlockPlaced()))) {
             event.setCancelled(true);
-            player.sendMessage(Text.of(unavailableMessage()));
+            sendUnavailable(player);
             return;
         }
         if (kind == null || product == null) {
@@ -87,7 +87,7 @@ public final class BlockListener implements Listener {
         var definition = kind == Spawner.Kind.MOB ? plugin.products().mob(product) : plugin.products().item(product);
         if (definition == null || kind == Spawner.Kind.ITEM && !s.useItemSpawners) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cThat spawner product is unavailable."));
+            Messages.of(plugin).send(player, "spawner.product-unavailable");
             return;
         }
         Block block = event.getBlockPlaced();
@@ -96,23 +96,23 @@ public final class BlockListener implements Listener {
             return;
         }
         if (s.isBlacklisted(block.getWorld().getName())) {
-            player.sendMessage(Text.of("&cSpawners are disabled in this world."));
+            Messages.of(plugin).send(player, "spawner.world-disabled");
             event.setCancelled(true);
             return;
         }
 
         // The virtual count is the canonical value; the physical amount is always
-        // one. Clamping keeps a hand-edited item inside the configured cap.
+        // one. An oversized (hand-edited) count is rejected below, never clamped.
         int stack = StackService.canonicalCount(plugin, item, s.stackLimit);
         int productLimit = definition.maxStack() <= 0 ? s.stackLimit : Math.min(s.stackLimit, definition.maxStack());
         if (stack > productLimit) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cThis product's stack limit is " + productLimit + "."));
+            Messages.of(plugin).send(player, "spawner.product-stack-limit", "limit", productLimit);
             return;
         }
 
         if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, stack)) {
-            player.sendMessage(Text.of("&cChunk spawner limit reached (" + s.spawnerLimitInChunk + ")."));
+            Messages.of(plugin).send(player, "spawner.chunk-limit", "limit", s.spawnerLimitInChunk);
             event.setCancelled(true);
             return;
         }
@@ -130,7 +130,7 @@ public final class BlockListener implements Listener {
                 kind, product, stack, 0, true);
 
         if (!plugin.manager().register(spawner)) {
-            player.sendMessage(Text.of("&cA spawner already occupies this block."));
+            Messages.of(plugin).send(player, "spawner.occupied");
             event.setCancelled(true);
             return;
         }
@@ -141,8 +141,11 @@ public final class BlockListener implements Listener {
                     player.getName(), product, spawner.stack(),
                     block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
         }
-        player.sendMessage(Text.of("&aSpawner placed: &f" + product
-                + (spawner.stack() > 1 ? " &7x" + spawner.stack() : "")));
+        if (spawner.stack() > 1) {
+            Messages.of(plugin).send(player, "spawner.placed-stack", "product", product, "stack", spawner.stack());
+        } else {
+            Messages.of(plugin).send(player, "spawner.placed", "product", product);
+        }
     }
 
     /**
@@ -157,7 +160,7 @@ public final class BlockListener implements Listener {
         String mob = vanillaProduct(block);
         if (mob == null) return;
         if (!plugin.manager().chunkAllowsNewSpawner(block.getWorld(), block.getX() >> 4, block.getZ() >> 4, 1)) {
-            player.sendMessage(Text.of("&cChunk spawner limit reached (" + plugin.settings().spawnerLimitInChunk + ")."));
+            Messages.of(plugin).send(player, "spawner.chunk-limit", "limit", plugin.settings().spawnerLimitInChunk);
             event.setCancelled(true);
             return;
         }
@@ -166,7 +169,7 @@ public final class BlockListener implements Listener {
                 Spawner.Kind.MOB, mob, 1, 0, true);
         if (!plugin.manager().register(spawner)) return;
         plugin.holograms().update(spawner);
-        player.sendMessage(Text.of("&aConverted vanilla spawner: &f" + mob));
+        Messages.of(plugin).send(player, "spawner.converted", "mob", mob);
     }
 
     /** Product id for the vanilla spawner's mob, or null when it has none or no product exists. */
@@ -185,7 +188,7 @@ public final class BlockListener implements Listener {
             // it would destroy the record's stack, loot and XP.
             if (isSpawnerBlock(event.getBlock())) {
                 event.setCancelled(true);
-                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+                sendUnavailable(event.getPlayer());
             }
             return;
         }
@@ -205,13 +208,13 @@ public final class BlockListener implements Listener {
         }
         if (!plugin.mayBreak(player, spawner)) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cThat spawner is not yours."));
+            Messages.of(plugin).send(player, "gui.not-yours");
             return;
         }
 
         if (s.corruptionEnabled && spawner.corrupted() && !s.corruptionAllowBreaking && !admin) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cThis spawner is corrupted — repair it first."));
+            Messages.of(plugin).send(player, "spawner.break-corrupted");
             return;
         }
 
@@ -219,20 +222,20 @@ public final class BlockListener implements Listener {
             ItemStack hand = player.getInventory().getItemInMainHand();
             if (hand == null || !hand.containsEnchantment(org.bukkit.enchantments.Enchantment.SILK_TOUCH)) {
                 event.setCancelled(true);
-                player.sendMessage(Text.of("&cSilk Touch is required to break spawners."));
+                Messages.of(plugin).send(player, "spawner.break-silk-touch");
                 return;
             }
         }
 
         if (!plugin.ready() || spawner.storedCount() > 0) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cCollect the stored items before breaking this spawner."));
+            Messages.of(plugin).send(player, "spawner.break-not-empty");
             return;
         }
         long wait = breakCooldowns.acquire(player.getUniqueId(), s.cooldownBreakMs, System.currentTimeMillis());
         if (wait > 0) {
             event.setCancelled(true);
-            player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore breaking another spawner."));
+            Messages.of(plugin).send(player, "spawner.break-cooldown", "seconds", seconds(wait));
             return;
         }
 
@@ -266,7 +269,7 @@ public final class BlockListener implements Listener {
         } else {
             event.getBlock().getWorld().dropItemNaturally(drop, plugin.createSpawnerItem(spawner));
         }
-        player.sendMessage(Text.of("&eSpawner removed; contents dropped."));
+        Messages.of(plugin).send(player, "spawner.removed");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -280,7 +283,7 @@ public final class BlockListener implements Listener {
         if (!plugin.ready()) {
             if (isSpawnerBlock(block)) {
                 event.setCancelled(true);
-                event.getPlayer().sendMessage(Text.of(unavailableMessage()));
+                sendUnavailable(event.getPlayer());
             }
             return;
         }
@@ -299,7 +302,7 @@ public final class BlockListener implements Listener {
         if (player.isSneaking()) {
             long wait = stackCooldowns.acquire(player.getUniqueId(), s.cooldownStackMs, System.currentTimeMillis());
             if (wait > 0) {
-                player.sendMessage(Text.of("&cWait &f" + seconds(wait) + "s &cbefore stacking again."));
+                Messages.of(plugin).send(player, "spawner.stack-cooldown", "seconds", seconds(wait));
                 return;
             }
             report(player, stackService.stack(player, spawner, event.getItem()), spawner);
@@ -307,7 +310,7 @@ public final class BlockListener implements Listener {
         }
 
         if (!plugin.mayUse(player, spawner)) {
-            player.sendMessage(Text.of("&cThat spawner is not yours."));
+            Messages.of(plugin).send(player, "gui.not-yours");
             return;
         }
 
@@ -322,16 +325,15 @@ public final class BlockListener implements Listener {
             case OK -> {
                 plugin.holograms().update(spawner);
                 if (plugin.particles() != null) plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.STACK, spawner.location());
-                player.sendMessage(Text.of("&aSpawner now holds &f" + result.stackAfter() + "&a."));
+                Messages.of(plugin).send(player, "spawner.stacked", "stack", result.stackAfter());
+                if (plugin.gui() != null) plugin.gui().feedback(player, dev.yanianz.bravenspawner.wand.SoundFeedback.Cue.STACKING);
             }
-            case NOT_AUTHORIZED -> player.sendMessage(Text.of("&cThat spawner is not yours."));
-            case NO_ITEM -> player.sendMessage(Text.of("&7Hold a spawner item to merge it."));
-            case WRONG_ITEM -> player.sendMessage(Text.of("&cOnly an identical spawner item can be merged."));
-            case CHUNK_LIMIT -> player.sendMessage(Text.of("&cChunk spawner limit reached ("
-                    + plugin.settings().spawnerLimitInChunk + ")."));
-            case STACK_LIMIT -> player.sendMessage(Text.of("&cThis spawner can hold &f"
-                    + result.room() + "&c more."));
-            default -> player.sendMessage(Text.of("&cThat merge is not possible."));
+            case NOT_AUTHORIZED -> Messages.of(plugin).send(player, "gui.not-yours");
+            case NO_ITEM -> Messages.of(plugin).send(player, "spawner.stack-no-item");
+            case WRONG_ITEM -> Messages.of(plugin).send(player, "spawner.stack-wrong-item");
+            case CHUNK_LIMIT -> Messages.of(plugin).send(player, "spawner.chunk-limit", "limit", plugin.settings().spawnerLimitInChunk);
+            case STACK_LIMIT -> Messages.of(plugin).send(player, "spawner.stack-limit", "room", result.room());
+            default -> Messages.of(plugin).send(player, "spawner.stack-failed");
         }
     }
 
@@ -359,10 +361,8 @@ public final class BlockListener implements Listener {
         return block != null && block.getType() == Material.SPAWNER;
     }
 
-    private String unavailableMessage() {
-        return plugin.isStorageAvailable()
-                ? "&cSpawner storage is still loading."
-                : "&cSpawner storage is unavailable; spawners are locked until an administrator fixes it.";
+    private void sendUnavailable(Player player) {
+        Messages.of(plugin).send(player, plugin.isStorageAvailable() ? "general.not-ready" : "general.storage-down");
     }
 
     /*
@@ -399,6 +399,14 @@ public final class BlockListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onTeleport(PlayerTeleportEvent event) {
         ninja.forget(event.getPlayer());
+    }
+
+    /** A hopper placed under a spawner ends that spawner's hopper idle back-off. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onHopperPlace(BlockPlaceEvent event) {
+        if (event.getBlockPlaced().getType() == Material.HOPPER) {
+            hopperLink.wake(event.getBlockPlaced().getLocation());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

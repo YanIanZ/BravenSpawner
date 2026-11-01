@@ -49,6 +49,26 @@ permissions:
     default: true
   bravenspawner.item.extract:
     default: true
+  bravenspawner.action.*:
+    description: Every per-action spawner menu node. Each narrows access; none grants it.
+    default: true
+    children:
+      bravenspawner.action.sell: true
+      bravenspawner.action.xp: true
+      bravenspawner.action.upgrade: true
+      bravenspawner.action.buy: true
+  bravenspawner.action.sell:
+    description: Sell spawner storage from the menu (sell all, right-click sell, collect all).
+    default: true
+  bravenspawner.action.xp:
+    description: Collect stored spawner XP from the menu.
+    default: true
+  bravenspawner.action.upgrade:
+    description: Buy the next spawner tier from the menu.
+    default: true
+  bravenspawner.action.buy:
+    description: Open the buy-stack menu and buy spawner stack units.
+    default: true
 
   bravenspawner.restrictions.bypass:
     default: op

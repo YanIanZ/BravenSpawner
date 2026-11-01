@@ -58,8 +58,17 @@ public final class RestoreMissing {
                             && braven.manager().byId(spawner.id()) != spawner) return;
                     try {
                         Block block = world.getBlockAt(spawner.x(), spawner.y(), spawner.z());
-                        if (block.getType() == material) return;
+                        Material previous = block.getType();
+                        if (previous == material) return;
                         block.setType(material, false);
+                        // Opt-in, but it overwrites whatever is there now: leave a trail.
+                        plugin.getLogger().warning("restored spawner block " + spawner.id() + " at "
+                                + spawner.world() + " " + spawner.x() + "," + spawner.y() + "," + spawner.z()
+                                + ", replacing " + previous);
+                        if (plugin instanceof BravenSpawner braven) {
+                            braven.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.RESTORE,
+                                    null, 0, "replaced " + previous);
+                        }
                     } catch (RuntimeException e) {
                         plugin.getLogger().warning("could not restore spawner block " + spawner.id()
                                 + ": " + e.getMessage());

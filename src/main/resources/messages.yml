@@ -76,6 +76,13 @@ booster:
 
 booster-item:
   usage: "{usage}Usage: /bspawner boosteritem <player> <normal|personal> <id> [amount]"
+  received: "{success}Received {highlight}%amount%{success} booster item(s)."
+  personal-hint: "{success}Carry this personal booster in your inventory to receive its effect."
+  target-hint: "{info}Right-click one of your spawners to activate this booster."
+  not-allowed: "{error}You cannot activate a booster on this spawner."
+  protected: "{error}Protection prevents booster activation here."
+  already-active: "{error}An equal or stronger booster of this type is already active on this spawner."
+  activated: "{success}Activated a {highlight}%type%{success} booster for {highlight}%duration%{success}."
   invalid-scope: "{error}Scope must be {highlight}normal{error} or {highlight}personal{error}."
   unknown: "{error}Unknown booster id, or boosters are disabled."
   scheduled: "{success}Booster item on its way to {highlight}%player%{success}."
@@ -98,6 +105,9 @@ corrupt:
   done: "{error}Spawner corrupted."
 repair:
   done: "{success}Spawner repaired."
+  not-corrupted: "{muted}That spawner is not corrupted."
+  repaired-one: "{success}Corrupted spawner repaired."
+  repaired-many: "{success}Repaired {highlight}%count%{success} corrupted spawners."
 
 doctor:
   header: "{accent}Doctor {muted}— storage and catalogue health"
@@ -123,6 +133,27 @@ hologram:
   command-disabled: "{error}Hologram toggling is disabled on this server."
   feature-disabled: "{error}Holograms are disabled on this server."
 
+spawner:
+  product-unavailable: "{error}That spawner product is unavailable."
+  world-disabled: "{error}Spawners are disabled in this world."
+  product-stack-limit: "{error}This product's stack limit is {highlight}%limit%{error}."
+  chunk-limit: "{error}Chunk spawner limit reached ({highlight}%limit%{error})."
+  occupied: "{error}A spawner already occupies this block."
+  placed: "{success}Spawner placed: {highlight}%product%"
+  placed-stack: "{success}Spawner placed: {highlight}%product% {muted}x%stack%"
+  converted: "{success}Converted vanilla spawner: {highlight}%mob%"
+  break-corrupted: "{error}This spawner is corrupted. Repair it first."
+  break-silk-touch: "{error}Silk Touch is required to break spawners."
+  break-not-empty: "{error}Collect the stored items before breaking this spawner."
+  break-cooldown: "{error}Wait {highlight}%seconds%s{error} before breaking another spawner."
+  removed: "{info}Spawner removed; contents dropped."
+  stack-cooldown: "{error}Wait {highlight}%seconds%s{error} before stacking again."
+  stacked: "{success}Spawner now holds {highlight}%stack%{success}."
+  stack-no-item: "{muted}Hold a spawner item to merge it."
+  stack-wrong-item: "{error}Only an identical spawner item can be merged."
+  stack-limit: "{error}This spawner can hold {highlight}%room%{error} more."
+  stack-failed: "{error}That merge is not possible."
+
 lock:
   unavailable: "{error}That spawner is not available."
   settling: "{info}This spawner was just closed. You can open it again in {highlight}%seconds%s{info}."
@@ -133,6 +164,7 @@ lock:
 gui:
   not-yours: "{error}That spawner is not yours."
   extract-denied: "{error}You cannot take items out of spawners."
+  action-denied: "{error}You don't have permission to do that here."
   log-denied: "{error}Only the owner can view this spawner's history."
   corruption-unavailable: "{error}The repair puzzle is unavailable; ask an administrator to check gui/corruption.yml."
   trusted-hint: "{info}Look at the spawner and type {usage}/bmodify <player>{info} to trust someone."

@@ -456,12 +456,6 @@ public final class ProductLoader {
         return null;
     }
 
-    @Deprecated
-    private static String firstStringLegacy(YamlConfiguration yaml, String primary, String secondary) {
-        String value = yaml.getString(primary);
-        return value != null ? value : yaml.getString(secondary);
-    }
-
     private static List<String> spawnerLore(YamlConfiguration yaml) {
         if (yaml.isList("spawner-item-lore")) return yaml.getStringList("spawner-item-lore");
         if (yaml.isList("spawner-item.lore")) return yaml.getStringList("spawner-item.lore");

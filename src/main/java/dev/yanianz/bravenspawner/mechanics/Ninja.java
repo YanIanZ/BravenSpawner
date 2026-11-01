@@ -10,10 +10,8 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Folia as well as Paper.
  */
 public final class Ninja {
+
+    /** Largest client view distance the protocol allows, in chunks. */
+    private static final int MAX_VIEW_DISTANCE = 32;
 
     private final BravenSpawner plugin;
 
@@ -74,7 +75,7 @@ public final class Ninja {
         if (player != null) hidden.remove(player.getUniqueId());
     }
 
-    private void tick() {
+    void tick() {
         if (!running || !plugin.isEnabled() || !plugin.ready()) return;
         for (Player player : Bukkit.getOnlinePlayers()) {
             Schedulers.onEntity(plugin, player, () -> refresh(player),
@@ -104,13 +105,18 @@ public final class Ninja {
         String worldName = player.getWorld().getName();
         Map<UUID, Location> state = hidden.computeIfAbsent(
                 player.getUniqueId(), ignored -> new ConcurrentHashMap<>());
-        Set<UUID> present = new HashSet<>();
 
-        for (Spawner spawner : plugin.manager().all()) {
-            if (spawner == null || !worldName.equals(spawner.world())) continue;
+        // The client holds no chunks beyond its view distance, so a block change
+        // there is discarded. Only spawners within view distance (plus one chunk
+        // of margin) are candidates; the chunk index keeps this independent of the
+        // total spawner count and avoids re-sending AIR for every distant block.
+        int radius = viewDistance(player) + 1;
+        int chunkX = (int) Math.floor(player.getX()) >> 4;
+        int chunkZ = (int) Math.floor(player.getZ()) >> 4;
+        for (Spawner spawner : plugin.manager().nearChunk(worldName, chunkX, chunkZ, radius)) {
+            if (spawner == null) continue;
             Location block = spawner.blockLocation();
             if (block == null) continue;
-            present.add(spawner.id());
 
             double distanceSq = distanceSquared(player, block);
             if (distanceSq <= visibilitySq) {
@@ -123,15 +129,22 @@ public final class Ninja {
             }
         }
 
-        prune(player, state, present);
+        prune(player, state);
+    }
+
+    /** Server send view distance in chunks, falling back to the protocol maximum. */
+    static int viewDistance(Player player) {
+        int distance = player.getSendViewDistance();
+        if (distance <= 0) distance = player.getViewDistance();
+        return distance <= 0 ? MAX_VIEW_DISTANCE : Math.min(distance, MAX_VIEW_DISTANCE);
     }
 
     /** Restores spawners that were removed while a player still had them hidden. */
-    private void prune(Player player, Map<UUID, Location> state, Set<UUID> present) {
+    private void prune(Player player, Map<UUID, Location> state) {
         Iterator<Map.Entry<UUID, Location>> iterator = state.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<UUID, Location> entry = iterator.next();
-            if (present.contains(entry.getKey())) continue;
+            if (plugin.manager().byId(entry.getKey()) != null) continue;
             show(player, entry.getValue());
             iterator.remove();
         }
