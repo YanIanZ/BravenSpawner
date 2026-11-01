@@ -4,7 +4,7 @@ import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.holo.Holograms;
 import dev.yanianz.bravenspawner.manager.SpawnerManager;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.util.Messages;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -77,15 +77,15 @@ public final class CorruptionTask {
     public int repair(Player player, Spawner spawner) {
         if (spawner == null) return 0;
         if (!spawner.corrupted()) {
-            if (player != null) player.sendMessage(Text.of("&7That spawner is not corrupted."));
+            if (player != null) Messages.of(plugin).send(player, "repair.not-corrupted");
             return 0;
         }
         int repaired = repairAllNearby(spawner);
         if (player != null) {
             if (repaired > 1) {
-                player.sendMessage(Text.of("&aRepaired &f" + repaired + "&a corrupted spawners."));
+                Messages.of(plugin).send(player, "repair.repaired-many", "count", repaired);
             } else {
-                player.sendMessage(Text.of("&aCorrupted spawner repaired."));
+                Messages.of(plugin).send(player, "repair.repaired-one");
             }
         }
         return repaired;

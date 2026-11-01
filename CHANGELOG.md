@@ -41,6 +41,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and never grants access to a spawner. Collect-all performs only the permitted halves.
 
 ### Changed
+- Block, stacking, booster-item and repair chat lines moved from hard-coded text to
+  `messages.yml` (new `spawner.*`, `booster-item.*` and `repair.*` keys) so the prefix
+  and colour roles apply everywhere. Missing keys fall back to the bundled defaults.
+- `sounds.yml` `stacking` now also plays when merging a spawner item into a block, and
+  `booster.add` plays on booster activation. `booster.remove` stays unused because
+  boosters expire lazily without an event.
+- Removed unused code: the old aggregate drop sampler in `SpawnerManager` (production
+  uses `ProductRoller`), `ProductLoader.firstStringLegacy` and an unused import.
 - `StackService.canonicalCount` documentation now matches the code: oversized counts
   are rejected by place/merge, not clamped (EX-10).
 - Removed the unused `instant_page_navigation` option from bundled config; old copies

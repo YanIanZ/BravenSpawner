@@ -215,7 +215,8 @@ public final class Boosters {
             player.getInventory().addItem(item).values().forEach(leftover ->
                     player.getWorld().dropItemNaturally(player.getLocation(), leftover));
             refreshPersonal(player);
-            player.sendMessage(Text.of("&aReceived " + amount + " booster item(s)."));
+            dev.yanianz.bravenspawner.util.Messages.of(plugin instanceof dev.yanianz.bravenspawner.BravenSpawner braven ? braven : null)
+                    .send(player, "booster-item.received", "amount", amount);
         }, null);
         return true;
     }

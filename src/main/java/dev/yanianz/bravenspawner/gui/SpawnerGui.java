@@ -177,6 +177,11 @@ public final class SpawnerGui implements Listener {
         return Messages.of(plugin);
     }
 
+    /** Plays a configured {@code sounds.yml} cue for actions outside the menu. */
+    public void feedback(Player player, SoundFeedback.Cue cue) {
+        play(player, cue);
+    }
+
     private void play(Player player, SoundFeedback.Cue cue) {
         if (player == null || soundsUnavailable) return;
         SoundFeedback feedback = sounds;

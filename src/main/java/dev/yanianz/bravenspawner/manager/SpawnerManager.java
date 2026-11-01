@@ -1,10 +1,14 @@
 package dev.yanianz.bravenspawner.manager;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.boosters.Boosters;
 import dev.yanianz.bravenspawner.config.Settings;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.product.ProductRoller;
 import dev.yanianz.bravenspawner.util.Schedulers;
+import dev.yanianz.bravenspawner.util.Text;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 
@@ -13,6 +17,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,23 +46,17 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class SpawnerManager {
 
-    /**
-     * Trials below this mean use exact geometric sampling; above it the binomial
-     * is approximated by a normal with mean {@code np} and variance {@code np(1-p)}.
-     */
-    private static final double EXACT_TRIAL_THRESHOLD = 64.0;
-
     private final BravenSpawner plugin;
     private final Map<String, Spawner> byBlock = new ConcurrentHashMap<>();
     private final Map<UUID, Spawner> byId = new ConcurrentHashMap<>();
     /** Per-chunk index ({@code world:cx:cz}) so the chunk caps never scan every spawner. */
-    private final Map<String, java.util.Set<Spawner>> byChunk = new ConcurrentHashMap<>();
+    private final Map<String, Set<Spawner>> byChunk = new ConcurrentHashMap<>();
     /** Per-world index so per-player passes never visit other worlds. */
-    private final Map<String, java.util.Set<Spawner>> byWorld = new ConcurrentHashMap<>();
+    private final Map<String, Set<Spawner>> byWorld = new ConcurrentHashMap<>();
     private final Map<UUID, TaskLease> tasks = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGuiOpen = new ConcurrentHashMap<>();
     /** Spawners already reported as missing their block, so the log is not flooded. */
-    private final java.util.Set<UUID> reportedMissing = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> reportedMissing = ConcurrentHashMap.newKeySet();
 
     /**
      * Guards task installation. Cancelling and installing must be one step: a
@@ -110,9 +109,9 @@ public final class SpawnerManager {
         return chunkKey(spawner.world(), spawner.x() >> 4, spawner.z() >> 4);
     }
 
-    private java.util.Set<Spawner> chunk(World world, int chunkX, int chunkZ) {
-        if (world == null) return java.util.Set.of();
-        return byChunk.getOrDefault(chunkKey(world.getName(), chunkX, chunkZ), java.util.Set.of());
+    private Set<Spawner> chunk(World world, int chunkX, int chunkZ) {
+        if (world == null) return Set.of();
+        return byChunk.getOrDefault(chunkKey(world.getName(), chunkX, chunkZ), Set.of());
     }
 
     /**
@@ -127,13 +126,13 @@ public final class SpawnerManager {
     public List<Spawner> nearChunk(String world, int chunkX, int chunkZ, int radius) {
         List<Spawner> out = new ArrayList<>();
         if (world == null || radius < 0) return out;
-        java.util.Set<Spawner> inWorld = byWorld.get(world);
+        Set<Spawner> inWorld = byWorld.get(world);
         if (inWorld == null || inWorld.isEmpty()) return out;
         long side = 2L * radius + 1L;
         if (side * side < inWorld.size()) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
-                    java.util.Set<Spawner> set = byChunk.get(chunkKey(world, chunkX + dx, chunkZ + dz));
+                    Set<Spawner> set = byChunk.get(chunkKey(world, chunkX + dx, chunkZ + dz));
                     if (set != null) out.addAll(set);
                 }
             }
@@ -316,7 +315,7 @@ public final class SpawnerManager {
                 : ThreadLocalRandom.current().nextLong(definition.intervalTicks(), (long) definition.maxIntervalTicks() + 1);
         long period = s.productionPeriod(spawner.tier(), productDelay);
         double speed = plugin.boosters() == null ? 1.0
-                : plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.SPEED, spawner.owner(), spawner.id());
+                : plugin.boosters().multiplier(Boosters.Type.SPEED, spawner.owner(), spawner.id());
         if (Double.isFinite(speed) && speed > 0.0) period = Math.max(20L, Math.round(period / speed));
         return Math.max(1L, period);
     }
@@ -384,8 +383,8 @@ public final class SpawnerManager {
      * {@code restore-missing-spawners} can recreate the block on the next start.
      */
     private boolean blockPresent(World world, Spawner spawner, Settings s) {
-        org.bukkit.Material type = world.getBlockAt(spawner.x(), spawner.y(), spawner.z()).getType();
-        if (type == org.bukkit.Material.SPAWNER || type == s.spawnerMaterial) {
+        Material type = world.getBlockAt(spawner.x(), spawner.y(), spawner.z()).getType();
+        if (type == Material.SPAWNER || type == s.spawnerMaterial) {
             reportedMissing.remove(spawner.id());
             return true;
         }
@@ -414,85 +413,33 @@ public final class SpawnerManager {
     private void produceVirtual(Spawner spawner, Settings s) {
         var product = plugin.product(spawner);
         if (product == null) return;
-        double multiplier = plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.LOOT,
+        double multiplier = plugin.boosters().multiplier(Boosters.Type.LOOT,
                 spawner.owner(), spawner.id());
         int credits = (int) Math.min(Integer.MAX_VALUE,
                 Math.max(1.0, Math.floor(Math.max(1, spawner.stack()) * multiplier)));
         Random random = ThreadLocalRandom.current();
         for (var drop : product.drops()) {
-            int amount = dev.yanianz.bravenspawner.product.ProductRoller.amount(drop, credits, random);
+            int amount = ProductRoller.amount(drop, credits, random);
             if (amount <= 0) continue;
             ItemStack output = new ItemStack(drop.material(), amount);
             if (drop.displayName() != null || drop.customModelData() >= 0) {
                 var meta = output.getItemMeta();
                 if (meta != null) {
-                    if (drop.displayName() != null) meta.displayName(dev.yanianz.bravenspawner.util.Text.item(drop.displayName()));
+                    if (drop.displayName() != null) meta.displayName(Text.item(drop.displayName()));
                     if (drop.customModelData() >= 0) meta.setCustomModelData(drop.customModelData());
                     output.setItemMeta(meta);
                 }
             }
             spawner.storeVirtual(output, plugin.maximumItems(spawner));
         }
-        int xp = dev.yanianz.bravenspawner.product.ProductRoller.range(
+        int xp = ProductRoller.range(
                 product.xp(), product.maxXpPerCycle(), Math.max(1, spawner.stack()), random);
-        double xpMultiplier = plugin.boosters().multiplier(dev.yanianz.bravenspawner.boosters.Boosters.Type.XP,
+        double xpMultiplier = plugin.boosters().multiplier(Boosters.Type.XP,
                 spawner.owner(), spawner.id());
         xp = (int) Math.min(Integer.MAX_VALUE, Math.round(xp * xpMultiplier));
         spawner.addXp(xp, plugin.maximumXp(spawner));
         spawner.produced(credits);
         plugin.markDirty(spawner);
-    }
-
-    private static int clamp(int value, int min, int max) {
-        return value < min ? min : Math.min(value, max);
-    }
-
-    /**
-     * Rolls one drop rule for {@code units} independent production cycles.
-     *
-     * <p>Expected value matches the per-unit roll exactly. Deterministic drops
-     * multiply; probabilistic drops use the binomial distribution for the whole
-     * batch. Below {@value #EXACT_TRIAL_THRESHOLD} expected successes the sampler is
-     * exact (geometric gaps, cost proportional to successes); above it the normal
-     * approximation {@code N(np, np(1-p))} is used and clamped to {@code [0, trials]},
-     * which keeps the relative error near {@code 1/sqrt(np)} — under 12.5% in the
-     * worst case at the threshold and shrinking as the batch grows.
-     */
-    static int rollAggregate(Settings.Drop drop, int units, Random random) {
-        if (drop == null || units <= 0) return 0;
-        if (drop.chance <= 0.0) return 0;
-        int perUnit = Math.max(1, drop.amount);
-        if (drop.chance >= 1.0) return saturatingMultiply(perUnit, units);
-        long trials = (long) perUnit * units;
-        if (trials <= 0) return 0;
-        return (int) Math.min(Integer.MAX_VALUE, sampleBinomial(trials, drop.chance, random));
-    }
-
-    private static long sampleBinomial(long trials, double probability, Random random) {
-        double mean = trials * probability;
-        if (mean < EXACT_TRIAL_THRESHOLD) {
-            double logFailure = Math.log1p(-probability);
-            long successes = 0;
-            long position = -1;
-            while (true) {
-                double u = random.nextDouble();
-                double gap = Math.floor(Math.log(1.0 - u) / logFailure);
-                position += 1 + (gap < 0 ? 0 : (long) gap);
-                if (position >= trials) break;
-                successes++;
-            }
-            return successes;
-        }
-
-        double deviation = Math.sqrt(trials * probability * (1.0 - probability));
-        long sample = Math.round(mean + deviation * random.nextGaussian());
-        if (sample < 0) return 0;
-        return Math.min(sample, trials);
-    }
-
-    private static int saturatingMultiply(int left, int right) {
-        long product = (long) left * right;
-        return product > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) product;
     }
 
     /**

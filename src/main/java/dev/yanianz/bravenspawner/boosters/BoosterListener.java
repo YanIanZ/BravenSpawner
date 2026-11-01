@@ -2,7 +2,8 @@ package dev.yanianz.bravenspawner.boosters;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.util.Messages;
+import dev.yanianz.bravenspawner.wand.SoundFeedback;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -36,31 +37,31 @@ final class BoosterListener implements Listener {
         Player player = event.getPlayer();
         if (definition.scope() == Boosters.Scope.PERSONAL) {
             boosters.refreshPersonal(player);
-            player.sendMessage(Text.of("&aCarry this personal booster in your inventory to receive its effect."));
+            Messages.of(plugin).send(player, "booster-item.personal-hint");
             return;
         }
         if (!plugin.ready()) return;
         var block = event.getClickedBlock();
         Spawner spawner = block == null || plugin.manager() == null ? null : plugin.manager().at(block.getLocation());
         if (spawner == null) {
-            player.sendMessage(Text.of("&eRight-click one of your spawners to activate this booster."));
+            Messages.of(plugin).send(player, "booster-item.target-hint");
             return;
         }
         if (!plugin.mayUse(player, spawner)) {
-            player.sendMessage(Text.of("&cYou cannot activate a booster on this spawner."));
+            Messages.of(plugin).send(player, "booster-item.not-allowed");
             return;
         }
         var restrictions = plugin.restrictions();
         if (restrictions != null && !restrictions.canOpen(player, spawner)) return;
         var protection = plugin.protection();
         if (protection != null && !protection.canUse(player, spawner.blockLocation())) {
-            player.sendMessage(Text.of("&cProtection prevents booster activation here."));
+            Messages.of(plugin).send(player, "booster-item.protected");
             return;
         }
         var hand = player.getInventory().getItemInMainHand();
         if (!definition.equals(boosters.readItem(hand)) || hand.getAmount() < 1) return;
         if (!boosters.grantSpawner(definition.type(), spawner.id(), definition.multiplier(), definition.seconds())) {
-            player.sendMessage(Text.of("&cAn equal or stronger booster of this type is already active on this spawner."));
+            Messages.of(plugin).send(player, "booster-item.already-active");
             return;
         }
         // The event and inventory are on this entity's thread; consume exactly one.
@@ -68,8 +69,9 @@ final class BoosterListener implements Listener {
         player.getInventory().setItemInMainHand(hand);
         plugin.markDirty(spawner);
         if (plugin.particles() != null) plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.BOOSTER, spawner.location());
-        player.sendMessage(Text.of("&aActivated " + definition.type().name().toLowerCase(java.util.Locale.ROOT)
-                + " booster for " + definition.duration() + "."));
+        Messages.of(plugin).send(player, "booster-item.activated",
+                "type", definition.type().name().toLowerCase(java.util.Locale.ROOT), "duration", definition.duration());
+        if (plugin.gui() != null) plugin.gui().feedback(player, SoundFeedback.Cue.BOOSTER_ADD);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
