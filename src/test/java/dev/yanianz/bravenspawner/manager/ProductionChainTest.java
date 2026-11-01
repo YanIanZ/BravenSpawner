@@ -176,4 +176,30 @@ class ProductionChainTest {
         verify(plugin, times(1)).particles();
         assertEquals(1, pending.size());
     }
+
+    /** AWF / ASP: an unloading world cancels its leases; loading re-arms them. */
+    @Test void pauseAndResumeWorld() {
+        Spawner spawner = spawner();
+        manager.register(spawner);
+        assertEquals(1, manager.pauseWorld("world"));
+        assertEquals(0, manager.liveTasks(spawner.id()));
+        runNext();
+        assertTrue(pending.isEmpty(), "the cancelled chain does not re-arm");
+        assertEquals(1, manager.resumeWorld("world"));
+        assertEquals(1, manager.liveTasks(spawner.id()));
+        assertEquals(1, pending.size());
+        assertEquals(0, manager.pauseWorld("nether"));
+    }
+
+    /** SuperiorSkyblock2 spawner-rates upgrade shortens the interval. */
+    @Test void islandSpawnRateShortensTheInterval() {
+        var islands = mock(dev.yanianz.bravenspawner.hook.IslandHook.class);
+        when(islands.spawnRateMultiplier(any())).thenReturn(2.0);
+        manager.register(spawner());
+        long normal = pending.getFirst().delay();
+        when(plugin.islands()).thenReturn(islands);
+        manager.register(new Spawner(UUID.randomUUID(), UUID.randomUUID(), "world", 99, 64, 1,
+                Spawner.Kind.MOB, "ZOMBIE", 1, 0, true));
+        assertEquals(Math.max(20L, Math.round(normal / 2.0)), pending.get(1).delay());
+    }
 }

@@ -13,6 +13,7 @@ repositories {
     maven("https://jitpack.io")
     maven("https://repo.essentialsx.net/releases/")
     maven("https://api.modrinth.com/maven") { content { includeGroup("maven.modrinth") } }
+    maven("https://repo.bg-software.com/repository/api/") { content { includeGroup("com.bgsoftware") } }
     maven("https://maven.enginehub.org/repo/")
     // Optional-at-runtime plugins. Only their API types are needed at compile
     // time; PlatformDetector and Placeholders guard the runtime link.
@@ -33,11 +34,13 @@ dependencies {
     compileOnly(libs.modrinth.dky9btbd) { isTransitive = false }
     compileOnly(libs.worldedit.bukkit) { isTransitive = false }
     compileOnly(libs.worldedit.core) { isTransitive = false }
+    compileOnly(libs.superiorskyblock.api) { isTransitive = false }
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.mockito.core)
     testImplementation(libs.paper.api)
     testImplementation(libs.vault.api) { isTransitive = false }
+    testImplementation(libs.superiorskyblock.api) { isTransitive = false }
     testRuntimeOnly(libs.junit.platform.launcher)
     implementation(libs.mongodb.driver.sync)
     implementation(libs.sqlite.jdbc)

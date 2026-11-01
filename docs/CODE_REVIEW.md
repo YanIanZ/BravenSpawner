@@ -16,6 +16,23 @@ Baseline: published 1.3.0 / `e620f4e`. Result: local **1.3.1-dev**, not publishe
 | REV-10 | P2 | A record whose block vanished without a break event kept producing; opt-in restore overwrote blocks without an audit trail. | Production checks the block type on its owning region and pauses with one warning. Restore logs the replaced material and records `RESTORE`. Covered by `ProductionChainTest.missingBlockPausesProductionWithoutEndingTheChain`. |
 | REV-05 / TH-01 | P1 | Global autosell performed online currency and shop work without owning the player thread; built-in XP/item currencies refused it. | Global pass now only dispatches online work. Quotes and settlement run on the owner entity scheduler, with one ticket per spawner and fresh identity/readiness/config checks. Shutdown invalidates queued tickets. Folia offline sales preserve stock; Paper offline-capable settlement remains. `AutosellSchedulingTest` covers real XP/item currency ownership plus scheduler/lifecycle/failure cases. |
 
+## Stack review — PR #15 to #18 (2026-11-01)
+
+An independent review of `main...feat/island-worlds-ssb` reported ten findings. All ten were checked against the code, and nine are fixed in the layer that introduced them. Regression tests marked † fail on the code before the fix.
+
+| # | Layer | Finding | Resolution |
+| --- | --- | --- | --- |
+| 1 | #17 | The sell-wand use was charged in the deferred settlement callback, so switching hotbar slot kept the use | The use is charged in the click event when any sale is SOLD or SETTLING |
+| 2 | #18 | The autosell membership gate passed for unloaded island worlds (null location) | An unloaded island world waits; nothing is sold †(`AutosellSchedulingTest`) |
+| 3 | #18 | Shared island spawners required only the privilege, not membership, so visitors/coop could sell | Sharing requires `member()` and the privilege †(`SharedIslandAccessTest`) |
+| 4 | #18 | The fail-closed SSB2 hook denied every world server-wide | Denies only on `superiorskyblock.island-worlds` prefixes (default `SuperiorWorld`, `ssb_`) †(`SuperiorSkyblockHookTest`) |
+| 5 | #17 | Each sale forced a full flush; YAML rewrote the whole file per click | Sale flushes are spaced by `storage.sale-save-interval-ms` (default 250 ms, max 5 s) and coalesced (`PersistSoonTest`) |
+| 6 | #15 | The next production delay (boosters, later island lookup) was computed under the global `scheduleLock` | Computed before the lock; only the lease check and handle swap are locked |
+| 7 | #17 | A refund could push a store past 4096 identities, and one unsavable record aborts the YAML flush | Escrowed identities count toward the distinct cap; codec headroom raised to 8192 †(`SpawnerStorageTest`) |
+| 8 | #17 | Shutdown returns unpaid escrows without invoking the sale callbacks | Accepted and documented: callbacks would message or play sounds off-thread during disable, and wand uses are charged at the click |
+| 9 | #17 | `/bspawner escrow` checked the minimum id prefix length after matching | Length checked first |
+| 10 | #16/#17 | Duplicated stock codec helpers had no production callers | Removed; one `entries`/`stockOf` path |
+
 ## Remaining findings and limits
 
 | ID | Priority | Current evidence | Required follow-up |

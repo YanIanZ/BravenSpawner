@@ -35,6 +35,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deprecated execution-time `Task.project` access and enabling configuration-cache use.
 
 ### Added
+- **Island worlds and SuperiorSkyblock2** ([docs](docs/ISLAND_INTEGRATIONS.md)). SourbyCraft
+  Aurora World Fabric and AdvancedSlimePaper island worlds: unloading pauses production
+  and drops holograms, loading resumes them (also Canvas `WorldUnloadAsyncEvent`).
+  SuperiorSkyblock2: island privileges for use/place/break, members sharing island
+  spawners, spawner-rates and mob-drops upgrade multipliers, record cleanup on disband
+  (including unloaded AWF worlds), and autosell only for current island members, which
+  keeps Aurora MultiProfile purses separate. Fails closed when SSB2 is broken.
 - **Crash-safe sell settlement (STOR-01, VSS-05).** A sale first moves the priced units
   into an escrow stored inside the spawner record, saves it, and only then asks the
   economy to pay (back on the payee's or the global thread). A confirmed deposit drops

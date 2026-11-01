@@ -8,12 +8,14 @@ import org.bukkit.entity.Player;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
-/** Optional WorldGuard checks, independent of ownership and Bukkit event cancellation. */
+/** Optional WorldGuard and island-plugin checks, independent of ownership and Bukkit event cancellation. */
 public final class ProtectionService {
+    private final BravenSpawner plugin;
     private final Logger logger;
     private final AtomicBoolean warned = new AtomicBoolean();
 
     public ProtectionService(BravenSpawner plugin) {
+        this.plugin = plugin;
         this.logger = plugin.getLogger();
     }
 
@@ -32,6 +34,13 @@ public final class ProtectionService {
 
     private boolean allows(Player player, Location location, Action action) {
         if (player == null || location == null || location.getWorld() == null) return false;
+        // Island plugin first (SuperiorSkyblock2 privileges), then WorldGuard; both must allow.
+        var island = dev.yanianz.bravenspawner.hook.IslandHook.of(plugin.islands()).check(player, location, switch (action) {
+            case USE -> dev.yanianz.bravenspawner.hook.IslandHook.Action.USE;
+            case PLACE -> dev.yanianz.bravenspawner.hook.IslandHook.Action.PLACE;
+            case BREAK -> dev.yanianz.bravenspawner.hook.IslandHook.Action.BREAK;
+        });
+        if (island == dev.yanianz.bravenspawner.hook.IslandHook.Verdict.DENY) return false;
         var installed = Bukkit.getPluginManager().getPlugin("WorldGuard");
         if (installed == null) return true;
         // A present but disabled/broken protection plugin must not become an

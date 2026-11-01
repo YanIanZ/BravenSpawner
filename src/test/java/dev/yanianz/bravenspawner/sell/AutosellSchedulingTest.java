@@ -296,4 +296,26 @@ class AutosellSchedulingTest {
         sweep(); tick(); verify(spawner, never()).release(any());
         sweep(); assertEquals(1, queue.size());
     }
+
+    /** Review finding: an unloaded island world must not bypass the membership gate. */
+    @Test void unloadedIslandWorldWaitsInsteadOfPaying() {
+        var islands = mock(dev.yanianz.bravenspawner.hook.IslandHook.class);
+        when(islands.requiresMembershipForAutosell()).thenReturn(true);
+        when(islands.member(any(), any())).thenReturn(true);
+        when(plugin.islands()).thenReturn(islands);
+        when(spawner.blockLocation()).thenReturn(null);
+        sweep();
+        assertTrue(queue.isEmpty(), "nothing is dispatched for an unloaded island world");
+        noPayment();
+    }
+
+    @Test void formerIslandMemberIsNotPaid() {
+        var islands = mock(dev.yanianz.bravenspawner.hook.IslandHook.class);
+        when(islands.requiresMembershipForAutosell()).thenReturn(true);
+        when(islands.member(any(), any())).thenReturn(false);
+        when(plugin.islands()).thenReturn(islands);
+        when(spawner.blockLocation()).thenReturn(new org.bukkit.Location(mock(org.bukkit.World.class), 0, 64, 0));
+        sweep();
+        noPayment();
+    }
 }

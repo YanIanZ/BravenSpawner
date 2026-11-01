@@ -8,6 +8,7 @@ shopgui = "3.2.0"
 economyshopgui = "1.11.0"
 modrinth-dky9btbd = "J66QOTLZ"
 worldedit = "7.3.9"
+superiorskyblock = "2026.3"
 mongodb = "5.14.0"
 sqlite = "3.54.1.0"
 hikari = "7.1.0"
@@ -27,6 +28,7 @@ economyshopgui-api = { module = "com.github.Gypopo:EconomyShopGUI-API", version.
 modrinth-dky9btbd = { module = "maven.modrinth:DKY9btbd", version.ref = "modrinth-dky9btbd" }
 worldedit-bukkit = { module = "com.sk89q.worldedit:worldedit-bukkit", version.ref = "worldedit" }
 worldedit-core = { module = "com.sk89q.worldedit:worldedit-core", version.ref = "worldedit" }
+superiorskyblock-api = { module = "com.bgsoftware:SuperiorSkyblockAPI", version.ref = "superiorskyblock" }
 mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version.ref = "mongodb" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
