@@ -132,10 +132,18 @@ class SuperiorSkyblockHookTest {
         privileges.verify(() -> IslandPrivilege.register(eq("SPAWNER_BREAK"), any()), never());
     }
 
-    @Test void failClosedHookDeniesEverything() {
-        IslandHook closed = IslandHooks.failClosed();
-        assertEquals(IslandHook.Verdict.DENY, closed.check(player, offIsland, IslandHook.Action.USE));
-        assertFalse(closed.member(UUID.randomUUID(), offIsland));
+    /** Review finding: a broken SSB2 denies only on island worlds, not server-wide. */
+    @Test void failClosedHookDeniesOnlyOnIslandWorlds() {
+        IslandHook closed = IslandHooks.failClosed(IslandHooks.Settings.load(new YamlConfiguration()));
+        World superior = mock(World.class), awf = mock(World.class), survival = mock(World.class);
+        when(superior.getName()).thenReturn("SuperiorWorld_nether");
+        when(awf.getName()).thenReturn("ssb_3f66d9b1ba4345f1adbf78dd16b923f5_normal");
+        when(survival.getName()).thenReturn("world");
+        assertEquals(IslandHook.Verdict.DENY, closed.check(player, new Location(superior, 0, 0, 0), IslandHook.Action.USE));
+        assertEquals(IslandHook.Verdict.DENY, closed.check(player, new Location(awf, 0, 0, 0), IslandHook.Action.BREAK));
+        assertEquals(IslandHook.Verdict.NOT_ISLAND, closed.check(player, new Location(survival, 0, 0, 0), IslandHook.Action.USE));
+        assertFalse(closed.member(UUID.randomUUID(), new Location(awf, 0, 0, 0)));
+        assertTrue(closed.member(UUID.randomUUID(), new Location(survival, 0, 0, 0)));
         assertEquals(IslandHook.NONE, IslandHook.of(null));
     }
 

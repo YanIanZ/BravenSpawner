@@ -324,8 +324,11 @@ public final class SellService {
         // An owner who left the island (or, with Aurora MultiProfile, is on another
         // profile) must not be paid for its spawners; the stock stays until they return.
         var islands = plugin.islands();
-        if (islands != null && islands.requiresMembershipForAutosell() && !islands.member(owner, spawner.blockLocation())) {
-            return false;
+        if (islands != null && islands.requiresMembershipForAutosell()) {
+            // An unloaded island world (AWF/ASP idle unload) cannot be checked: wait
+            // for it to load instead of treating it as "not on an island".
+            var location = spawner.blockLocation();
+            if (location == null || !islands.member(owner, location)) return false;
         }
         return plugin.restrictions() == null || plugin.restrictions().rules().canOpen(spawner.product(), false);
     }

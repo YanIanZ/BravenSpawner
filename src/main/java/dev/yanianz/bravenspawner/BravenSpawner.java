@@ -144,9 +144,13 @@ public final class BravenSpawner extends JavaPlugin {
         if (player.hasPermission("bravenspawner.admin") || !ownershipEnforced()
                 || spawner.canUse(player.getUniqueId())) return true;
         // SuperiorSkyblock2: island members holding the use privilege share the island's spawners.
+        // Only members share: a visitor or coop role granted the privilege does not.
         var hook = dev.yanianz.bravenspawner.hook.IslandHook.of(islands());
-        return hook.sharesSpawners() && hook.check(player, spawner.blockLocation(),
-                dev.yanianz.bravenspawner.hook.IslandHook.Action.USE) == dev.yanianz.bravenspawner.hook.IslandHook.Verdict.ALLOW;
+        if (!hook.sharesSpawners()) return false;
+        var location = spawner.blockLocation();
+        return location != null && hook.member(player.getUniqueId(), location)
+                && hook.check(player, location, dev.yanianz.bravenspawner.hook.IslandHook.Action.USE)
+                == dev.yanianz.bravenspawner.hook.IslandHook.Verdict.ALLOW;
     }
 
     /** Owner or admin, or anyone when {@code ownership.enabled: false}. */

@@ -62,6 +62,10 @@ superiorskyblock:
   # Autosell pays an owner only while they are a member of the spawner's island
   # (with Aurora MultiProfile: while that island's profile is active).
   autosell-requires-membership: true
+  # World-name prefixes of island worlds. If SSB2 is installed but fails, spawner
+  # actions are denied only in these worlds. Defaults: SSB2's own world and
+  # SSB-AuroraWorlds (AWF) island worlds.
+  island-worlds: [SuperiorWorld, ssb_]
   # SSB2 privilege names. Names starting with BRAVENSPAWNER_ are registered as new
   # island privileges (then grant them per role in SSB2's permission menu).
   privileges:

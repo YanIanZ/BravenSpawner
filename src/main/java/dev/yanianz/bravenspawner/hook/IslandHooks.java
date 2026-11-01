@@ -20,7 +20,15 @@ public final class IslandHooks {
     /** Settings under {@code superiorskyblock} in config.yml. */
     public record Settings(boolean enabled, boolean islandPermissions, boolean shareSpawners, boolean multipliers,
                            boolean removeOnDisband, boolean autosellRequiresMembership, double maxMultiplier,
-                           String usePrivilege, String placePrivilege, String breakPrivilege) {
+                           String usePrivilege, String placePrivilege, String breakPrivilege,
+                           java.util.List<String> islandWorldPrefixes) {
+
+        /** True for a world SSB2 islands live in (its island world, or an AWF/ASP island world). */
+        public boolean islandWorld(String world) {
+            if (world == null) return false;
+            for (String prefix : islandWorldPrefixes) if (world.startsWith(prefix)) return true;
+            return false;
+        }
 
         public static Settings load(ConfigurationSection root) {
             ConfigurationSection s = root == null ? null : root.getConfigurationSection("superiorskyblock");
@@ -36,7 +44,9 @@ public final class IslandHooks {
                     Double.isFinite(max) && max >= 1.0 ? max : 100.0,
                     privilege(s.getString("privileges.use"), "CHEST_ACCESS"),
                     privilege(s.getString("privileges.place"), "BUILD"),
-                    privilege(s.getString("privileges.break"), "SPAWNER_BREAK"));
+                    privilege(s.getString("privileges.break"), "SPAWNER_BREAK"),
+                    s.isList("island-worlds") ? java.util.List.copyOf(s.getStringList("island-worlds"))
+                            : java.util.List.of("SuperiorWorld", "ssb_"));
         }
 
         private static String privilege(String raw, String fallback) {
@@ -73,9 +83,9 @@ public final class IslandHooks {
             return IslandHook.NONE;
         }
         if (!installed.isEnabled()) {
-            plugin.getLogger().warning("SuperiorSkyblock2 is installed but not enabled; spawner access on its"
-                    + " worlds is denied until it loads.");
-            return failClosed();
+            plugin.getLogger().warning("SuperiorSkyblock2 is installed but not enabled; spawner access on island"
+                    + " worlds " + settings.islandWorldPrefixes() + " is denied until it loads.");
+            return failClosed(settings);
         }
         try {
             IslandHook hook = new SuperiorSkyblockHook(plugin, settings);
@@ -84,17 +94,27 @@ public final class IslandHooks {
                     + ", multipliers=" + settings.multipliers() + ", disband cleanup=" + settings.removeOnDisband());
             return hook;
         } catch (RuntimeException | LinkageError error) {
-            plugin.getLogger().warning("SuperiorSkyblock2 API unavailable (" + error + "); spawner access denied.");
-            return failClosed();
+            plugin.getLogger().warning("SuperiorSkyblock2 API unavailable (" + error + "); spawner access on"
+                    + " island worlds " + settings.islandWorldPrefixes() + " is denied.");
+            return failClosed(settings);
         }
     }
 
-    /** A broken island plugin must not silently become "no island here". */
-    static IslandHook failClosed() {
+    /**
+     * A broken island plugin must not silently become "no island here" on its own
+     * worlds; every other world keeps working.
+     */
+    static IslandHook failClosed(Settings settings) {
         return new IslandHook() {
             @Override public String name() { return "superiorskyblock2 (unavailable)"; }
-            @Override public Verdict check(Player player, Location location, Action action) { return Verdict.DENY; }
-            @Override public boolean member(UUID player, Location location) { return false; }
+            @Override public Verdict check(Player player, Location location, Action action) {
+                return onIslandWorld(location) ? Verdict.DENY : Verdict.NOT_ISLAND;
+            }
+            @Override public boolean member(UUID player, Location location) { return !onIslandWorld(location); }
+            private boolean onIslandWorld(Location location) {
+                return location == null || location.getWorld() == null
+                        || settings.islandWorld(location.getWorld().getName());
+            }
             @Override public double spawnRateMultiplier(Location location) { return 1.0; }
             @Override public double dropMultiplier(Location location) { return 1.0; }
             @Override public boolean sharesSpawners() { return false; }

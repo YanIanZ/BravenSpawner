@@ -16,11 +16,11 @@ Both keep each island in its own Bukkit world, load it on demand and unload it w
 | Feature | Behaviour |
 | --- | --- |
 | Island privileges | On an island, use/place/break require the configured SSB2 privilege (defaults `CHEST_ACCESS`, `BUILD`, `SPAWNER_BREAK`), in addition to WorldGuard and ownership. SSB2 bypass mode allows. Names starting with `BRAVENSPAWNER_` are registered as new privileges in `onLoad`; built-in names are never registered. |
-| Shared spawners | `members-share-spawners`: island members holding the use privilege may use every spawner of their island. Breaking stays with the spawner's owner. |
+| Shared spawners | `members-share-spawners`: island **members** holding the use privilege may use every spawner of their island; visitors and coops never share, even with the privilege. Breaking stays with the spawner's owner. |
 | Multipliers | The island's `spawner-rates` upgrade shortens the production interval; `mob-drops` multiplies loot. Non-finite or non-positive values count as 1; capped by `max-multiplier`. |
 | Disband | `remove-spawners-on-disband`: records inside the island, or in its AWF worlds (even unloaded), are removed and audited as `BREAK`. Spawners with an open sale escrow are kept. |
-| Autosell | `autosell-requires-membership`: the owner is paid only while a member of the spawner's island; otherwise the stock stays. |
-| Failure | SSB2 installed but disabled, or an API error: spawner actions are denied (fail closed) and logged once. |
+| Autosell | `autosell-requires-membership`: the owner is paid only while a member of the spawner's island; otherwise the stock stays. A spawner in an unloaded island world waits for the world to load. |
+| Failure | SSB2 installed but disabled, or an API error: spawner actions are denied (fail closed) on island worlds only (`island-worlds` prefixes, default `SuperiorWorld`, `ssb_`), logged once. |
 
 ## Aurora MultiProfile (SSB-AuroraProfiles)
 

@@ -1,3 +1,12 @@
+# Stack review fixes verification — 2026-11-01
+
+Branches `fix/p2-scans-scheduling-permissions`, `feat/vault-escrow` and `feat/island-worlds-ssb` (PR #15, #17, #18); `main` (with #14) merged into the stack and cascaded.
+
+- Top of the stack, after `clean`, CI command: **BUILD SUCCESSFUL**, **303 tests, zero failures/errors/skips**. Lower layers ran their full suites before each push.
+- GitHub Actions now builds stacked pull requests too (the `pull_request` branch filter was removed); #15 to #18 passed before these fixes.
+- Review findings and resolutions: [CODE_REVIEW.md](CODE_REVIEW.md#stack-review--pr-15-to-18-2026-11-01).
+- Artifact SHA-256: `8827cf63afaea4f7a7891a57c9cb5aee3440a1302b27526b7c8b730fc9a76e9c`.
+
 # Island worlds and SuperiorSkyblock2 verification — 2026-11-01
 
 Build: **1.3.1-dev**, branch `feat/island-worlds-ssb` stacked on `feat/vault-escrow` (PR #17).
