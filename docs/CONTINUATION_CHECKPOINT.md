@@ -1,3 +1,10 @@
+# Vault core — 2026-11-01 (1.3.1-dev)
+
+- PR #16 `feat/vault-exact-long`, stacked on PR #15. Exact `long` StockEntry storage, three capacity limits, identity take/restore, exact-count codec decode. 265 tests pass.
+- Merge order: PR #15, then PR #16 (retarget to main after #15 merges).
+- Open STOR-01 items: versioned ItemKey, durable reservations (VSS-05), overflow policies, GUI search/sort.
+- Live qualification owned by user: OWN-13, OWN-17 to OWN-22.
+
 # P2 follow-up — 2026-11-01 (1.3.1-dev)
 
 - Branch `fix/p2-scans-scheduling-permissions` from `main` f32c41f. Addresses REV-06 (hopper back-off, Ninja view-distance index), REV-07 (delayed-task production chain), REV-08 (per-action nodes `bravenspawner.action.*`, default true) and REV-10 (missing-block pause, RESTORE audit). EX-10 doc fixed; PM-05 already fixed in source.
