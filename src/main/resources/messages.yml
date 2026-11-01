@@ -46,6 +46,7 @@ help:
   - " {usage}/bspawner sellwand {muted}<player> [uses|Nd|inf] [amount]"
   - " {usage}/bspawner modifier {muted}<player> <type> <value> [amount]"
   - " {usage}/bspawner corrupt {muted}| {usage}repair {info}— on the spawner you are looking at"
+  - " {usage}/bspawner escrow {muted}[list|refund <id>|confirm <id>] {info}— resolve sales interrupted by a crash"
   - " {usage}/bspawner doctor {info}— storage and catalogue health check"
   - " {usage}/bspawner economy {info}— currencies and shop pricing in use"
   - " {usage}/bspawner reload {info}— reload configuration, menus and messages"
@@ -148,12 +149,22 @@ spawner:
   break-not-empty: "{error}Collect the stored items before breaking this spawner."
   break-cooldown: "{error}Wait {highlight}%seconds%s{error} before breaking another spawner."
   removed: "{info}Spawner removed; contents dropped."
+  break-settling: "{error}A sale of this spawner is still being settled. Try again in a moment."
   stack-cooldown: "{error}Wait {highlight}%seconds%s{error} before stacking again."
   stacked: "{success}Spawner now holds {highlight}%stack%{success}."
   stack-no-item: "{muted}Hold a spawner item to merge it."
   stack-wrong-item: "{error}Only an identical spawner item can be merged."
   stack-limit: "{error}This spawner can hold {highlight}%room%{error} more."
   stack-failed: "{error}That merge is not possible."
+
+escrow:
+  header: "{accent}Unresolved sales: {highlight}%count% {muted}(payment outcome unknown after a restart)"
+  line: " {muted}#%id% {highlight}%items% item(s) {muted}for {highlight}%value% %currency% {muted}to %payee% at %location%"
+  usage: "{usage}Usage: /bspawner escrow [list|refund <id>|confirm <id>]"
+  unknown: "{error}No unresolved sale matches {highlight}%id%{error}."
+  ambiguous: "{error}More than one unresolved sale starts with {highlight}%id%{error}; type more of the id."
+  refunded: "{success}Returned {highlight}%items%{success} item(s) of sale #%id% to storage."
+  confirmed: "{success}Confirmed sale #%id%; {highlight}%items%{success} item(s) were removed."
 
 lock:
   unavailable: "{error}That spawner is not available."
@@ -199,7 +210,7 @@ gui:
     no-economy: "{error}%currency% is not available right now, so nothing was sold."
     failed: "{error}The sale failed and nothing was removed."
     failed-reason: "{error}The sale failed and nothing was removed. {muted}(%reason%)"
-    pending: "{info}A previous payout is still being settled; no new sale was made."
+    pending: "{info}Earlier sales of this spawner are still being settled; try again in a moment."
   buy:
     unavailable: "{error}Buying this spawner is not available."
     currency-unavailable: "{error}%currency% is not available right now; nothing was charged."

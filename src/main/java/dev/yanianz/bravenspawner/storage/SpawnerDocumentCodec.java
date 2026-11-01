@@ -26,7 +26,7 @@ public final class SpawnerDocumentCodec {
                     .append("hologram", spawner.hologram()).append("corrupted", spawner.corrupted())
                     .append("corrupted_at", spawner.corruptedAt()).append("xp", spawner.storedXp())
                     .append("produced", spawner.produced()).append("pending", spawner.pending())
-                    .append("trusted", trusted).append("items", Storage.Codec.encodeStock(spawner.stock(), spawner.id().toString()))
+                    .append("trusted", trusted).append("items", Storage.Codec.encodeStore(spawner.store(), spawner.id().toString()))
                     .append("updated_at", System.currentTimeMillis());
         }
     }
@@ -57,9 +57,9 @@ public final class SpawnerDocumentCodec {
         }
         Object blob = document.get("items");
         if (!(blob instanceof String value) || value.isBlank()) throw new IllegalArgumentException("items must be a nonempty encoded string");
-        var contents = Storage.Codec.decodeStock(value, id.toString());
+        var contents = Storage.Codec.decodeStore(value, id.toString());
         if (contents == null) throw new IllegalArgumentException("malformed inventory blob");
-        spawner.replaceStock(contents);
+        spawner.replaceStore(contents);
         return spawner;
     }
 

@@ -2,6 +2,7 @@ package dev.yanianz.bravenspawner.storage;
 
 import dev.yanianz.bravenspawner.model.Spawner;
 import dev.yanianz.bravenspawner.model.StockEntry;
+import dev.yanianz.bravenspawner.model.StoreSnapshot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -150,6 +151,31 @@ public interface Storage extends AutoCloseable {
             try {
                 byte[] raw = Base64.getDecoder().decode(blob);
                 return ItemCodec.isV2(raw) ? ItemCodec.decodeStock(raw) : ItemCodec.legacyStock(ItemCodec.decodeLegacy(raw));
+            } catch (Exception e) {
+                LOG.warning("quarantined malformed inventory for record " + recordId + ": " + e);
+                return null;
+            }
+        }
+
+        /** Encodes stock and escrows (v2 when no escrow is held, v3 otherwise). */
+        public static String encodeStore(StoreSnapshot store, String recordId) {
+            if (store == null) throw new IllegalArgumentException("store must not be null");
+            try {
+                return Base64.getEncoder().encodeToString(ItemCodec.encodeStore(store));
+            } catch (RuntimeException e) {
+                throw new IllegalStateException("could not encode " + store.stock().size() + " stock entr(ies) and "
+                        + store.escrows().size() + " escrow(s) for spawner " + recordId + ": "
+                        + (e.getMessage() == null ? ItemCodec.rootMessage(e) : e.getMessage()), e);
+            }
+        }
+
+        /** Decodes stock and escrows; null when malformed (quarantine the record). */
+        public static StoreSnapshot decodeStore(String blob, String recordId) {
+            if (blob == null || blob.isBlank()) return new StoreSnapshot(List.of(), List.of());
+            try {
+                byte[] raw = Base64.getDecoder().decode(blob);
+                if (ItemCodec.isV2(raw)) return ItemCodec.decodeStore(raw);
+                return new StoreSnapshot(ItemCodec.legacyStock(ItemCodec.decodeLegacy(raw)), List.of());
             } catch (Exception e) {
                 LOG.warning("quarantined malformed inventory for record " + recordId + ": " + e);
                 return null;

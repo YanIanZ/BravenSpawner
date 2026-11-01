@@ -1,7 +1,9 @@
 package dev.yanianz.bravenspawner.storage;
 
 import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import dev.yanianz.bravenspawner.model.Escrow;
 import dev.yanianz.bravenspawner.model.StockEntry;
+import dev.yanianz.bravenspawner.model.StoreSnapshot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
 
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -33,6 +36,13 @@ import java.util.function.Function;
  * template bytes ({@link ItemStack#serializeAsBytes()} of an amount-1 clone, which
  * carries the data version so Paper upgrades it on load).
  *
+ * <p>Format v3 is v2 followed by an escrow section ({@code int} count, then per
+ * escrow: id and payee as two {@code long}s each, a UTF currency id, a {@code double}
+ * value, a {@code long} creation time and its own v2-style entry list). It is written
+ * only while a record holds escrows; otherwise the bytes are exactly v2, so older
+ * releases keep reading ordinary records and quarantine (never truncate) the rare
+ * record caught mid-sale.
+ *
  * <p>Blobs without the magic are legacy Java-serialization streams written by
  * {@code BukkitObjectOutputStream}. Those may hold amounts above 99 (written on
  * 1.21.1), so the item map's amount is lifted out before Bukkit deserializes it
@@ -42,8 +52,10 @@ final class ItemCodec {
 
     static final byte[] MAGIC = {'B', 'S', 'C', '2'};
     static final int VERSION = 2;
+    static final int VERSION_ESCROW = 3;
     static final int MAX_ITEMS = 4096;
     static final int MAX_TEMPLATE_BYTES = 2 * 1024 * 1024;
+    static final int MAX_ESCROWS = dev.yanianz.bravenspawner.model.Escrow.MAX_PER_SPAWNER;
 
     static final String TYPE_KEY = ConfigurationSerialization.SERIALIZED_TYPE_KEY;
     static final String AMOUNT_KEY = "amount";
@@ -69,23 +81,33 @@ final class ItemCodec {
     }
 
     static byte[] write(List<Entry> entries) {
-        if (entries.size() > MAX_ITEMS) {
-            throw new IllegalArgumentException("inventory length " + entries.size() + " outside 0.." + MAX_ITEMS);
-        }
+        return write(entries, List.of());
+    }
+
+    /** One escrow on the wire; see the class comment for the v3 layout. */
+    record RawEscrow(UUID id, UUID payee, String currency, double value, long createdAt, List<Entry> items) { }
+
+    record RawStore(List<Entry> stock, List<RawEscrow> escrows) { }
+
+    static byte[] write(List<Entry> entries, List<RawEscrow> escrows) {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (DataOutputStream out = new DataOutputStream(bytes)) {
             out.write(MAGIC);
-            out.writeInt(VERSION);
-            out.writeInt(entries.size());
-            for (Entry entry : entries) {
-                if (entry.amount() < 1) throw new IllegalArgumentException("amount " + entry.amount() + " below 1");
-                if (entry.template().length == 0 || entry.template().length > MAX_TEMPLATE_BYTES) {
-                    throw new IllegalArgumentException("template length " + entry.template().length
-                            + " outside 1.." + MAX_TEMPLATE_BYTES);
+            out.writeInt(escrows.isEmpty() ? VERSION : VERSION_ESCROW);
+            writeEntries(out, entries);
+            if (!escrows.isEmpty()) {
+                if (escrows.size() > MAX_ESCROWS) throw new IllegalArgumentException(escrows.size() + " escrows");
+                out.writeInt(escrows.size());
+                for (RawEscrow escrow : escrows) {
+                    out.writeLong(escrow.id().getMostSignificantBits());
+                    out.writeLong(escrow.id().getLeastSignificantBits());
+                    out.writeLong(escrow.payee().getMostSignificantBits());
+                    out.writeLong(escrow.payee().getLeastSignificantBits());
+                    out.writeUTF(escrow.currency());
+                    out.writeDouble(escrow.value());
+                    out.writeLong(escrow.createdAt());
+                    writeEntries(out, escrow.items());
                 }
-                out.writeLong(entry.amount());
-                out.writeInt(entry.template().length);
-                out.write(entry.template());
             }
         } catch (IOException impossible) {
             throw new IllegalStateException(impossible);
@@ -93,27 +115,74 @@ final class ItemCodec {
         return bytes.toByteArray();
     }
 
+    private static void writeEntries(DataOutputStream out, List<Entry> entries) throws IOException {
+        if (entries.size() > MAX_ITEMS) {
+            throw new IllegalArgumentException("inventory length " + entries.size() + " outside 0.." + MAX_ITEMS);
+        }
+        out.writeInt(entries.size());
+        for (Entry entry : entries) {
+            if (entry.amount() < 1) throw new IllegalArgumentException("amount " + entry.amount() + " below 1");
+            if (entry.template().length == 0 || entry.template().length > MAX_TEMPLATE_BYTES) {
+                throw new IllegalArgumentException("template length " + entry.template().length
+                        + " outside 1.." + MAX_TEMPLATE_BYTES);
+            }
+            out.writeLong(entry.amount());
+            out.writeInt(entry.template().length);
+            out.write(entry.template());
+        }
+    }
+
+    /** Reads a v2 blob; a v3 blob (with escrows) is refused here, use {@link #readStore}. */
     static List<Entry> read(byte[] raw) throws IOException {
+        RawStore store = readStore(raw);
+        if (!store.escrows().isEmpty()) throw new IOException("blob carries escrows; read it as a store");
+        return store.stock();
+    }
+
+    static RawStore readStore(byte[] raw) throws IOException {
         if (!isV2(raw)) throw new IOException("missing BSC2 header");
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(raw))) {
             in.skipNBytes(MAGIC.length);
             int version = in.readInt();
-            if (version != VERSION) throw new IOException("unsupported item codec version " + version);
-            int n = in.readInt();
-            if (n < 0 || n > MAX_ITEMS) throw new IOException("inventory length " + n + " outside 0.." + MAX_ITEMS);
-            List<Entry> out = new ArrayList<>(n);
-            for (int i = 0; i < n; i++) {
-                long amount = in.readLong();
-                if (amount < 1) throw new IOException("entry " + i + " amount " + amount + " below 1");
-                int length = in.readInt();
-                if (length < 1 || length > MAX_TEMPLATE_BYTES || length > in.available()) {
-                    throw new IOException("entry " + i + " template length " + length + " is invalid");
+            if (version != VERSION && version != VERSION_ESCROW) {
+                throw new IOException("unsupported item codec version " + version);
+            }
+            List<Entry> stock = readEntries(in, "entry");
+            List<RawEscrow> escrows = new ArrayList<>();
+            if (version == VERSION_ESCROW) {
+                int count = in.readInt();
+                if (count < 1 || count > MAX_ESCROWS) throw new IOException("escrow count " + count + " is invalid");
+                for (int i = 0; i < count; i++) {
+                    UUID id = new UUID(in.readLong(), in.readLong());
+                    UUID payee = new UUID(in.readLong(), in.readLong());
+                    String currency = in.readUTF();
+                    double value = in.readDouble();
+                    long createdAt = in.readLong();
+                    if (!Double.isFinite(value) || value < 0) throw new IOException("escrow " + i + " value " + value);
+                    List<Entry> items = readEntries(in, "escrow " + i + " entry");
+                    if (items.isEmpty()) throw new IOException("escrow " + i + " holds no items");
+                    escrows.add(new RawEscrow(id, payee, currency, value, createdAt, items));
                 }
-                out.add(new Entry(amount, in.readNBytes(length)));
             }
             if (in.available() > 0) throw new IOException(in.available() + " trailing byte(s)");
-            return out;
+            return new RawStore(stock, escrows);
         }
+    }
+
+    private static List<Entry> readEntries(DataInputStream in, String label) throws IOException {
+        int n = in.readInt();
+        if (n < 0 || n > MAX_ITEMS) throw new IOException("inventory length " + n + " outside 0.." + MAX_ITEMS);
+        List<Entry> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            long amount = in.readLong();
+            if (amount < 1) throw new IOException(label + " " + i + " amount " + amount + " below 1");
+            int length = in.readInt();
+            if (length < 1 || length > MAX_TEMPLATE_BYTES || length > in.available()) {
+                throw new IOException(label + " " + i + " template length " + length + " is invalid");
+            }
+            out.add(new Entry(amount, in.readNBytes(length)));
+        }
+        return out;
     }
 
     /** Logical amounts are ints in memory; anything wider is clamped, never wrapped. */
@@ -160,6 +229,53 @@ final class ItemCodec {
     /** Exact-count decode of format v2; no amount is clamped. */
     static List<StockEntry> decodeStock(byte[] raw) throws IOException {
         List<Entry> entries = read(raw);
+        List<StockEntry> out = new ArrayList<>(entries.size());
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            ItemStack stack;
+            try {
+                stack = ItemStack.deserializeBytes(entry.template());
+            } catch (RuntimeException e) {
+                throw new IOException("entry " + i + " template could not be read: " + rootMessage(e), e);
+            }
+            if (stack == null || stack.getType().isAir()) throw new IOException("entry " + i + " template decoded to no item");
+            out.add(new StockEntry(stack, entry.amount()));
+        }
+        return out;
+    }
+
+    /** Stock plus escrows; v2 bytes when there are no escrows. */
+    static byte[] encodeStore(StoreSnapshot store) {
+        List<Entry> stock = entries(store.stock());
+        List<RawEscrow> escrows = new ArrayList<>(store.escrows().size());
+        for (Escrow escrow : store.escrows()) {
+            escrows.add(new RawEscrow(escrow.id(), escrow.payee(), escrow.currency(), escrow.value(),
+                    escrow.createdAt(), entries(escrow.items())));
+        }
+        return write(stock, escrows);
+    }
+
+    static StoreSnapshot decodeStore(byte[] raw) throws IOException {
+        RawStore store = readStore(raw);
+        List<Escrow> escrows = new ArrayList<>(store.escrows().size());
+        for (RawEscrow escrow : store.escrows()) {
+            escrows.add(new Escrow(escrow.id(), escrow.payee(), escrow.currency(), escrow.value(),
+                    escrow.createdAt(), stockOf(escrow.items())));
+        }
+        return new StoreSnapshot(stockOf(store.stock()), escrows);
+    }
+
+    private static List<Entry> entries(List<StockEntry> stock) {
+        List<Entry> out = new ArrayList<>(stock.size());
+        for (int i = 0; i < stock.size(); i++) {
+            StockEntry entry = stock.get(i);
+            if (entry == null) throw new IllegalArgumentException("entry #" + i + " is null");
+            out.add(new Entry(entry.quantity(), template(entry.template(), i)));
+        }
+        return out;
+    }
+
+    private static List<StockEntry> stockOf(List<Entry> entries) throws IOException {
         List<StockEntry> out = new ArrayList<>(entries.size());
         for (int i = 0; i < entries.size(); i++) {
             Entry entry = entries.get(i);

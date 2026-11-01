@@ -1,3 +1,13 @@
+# Escrowed sale settlement verification — 2026-11-01
+
+Build: **1.3.1-dev**, branch `feat/vault-escrow` stacked on `feat/vault-exact-long` (PR #16).
+
+- `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain` after `clean`: **BUILD SUCCESSFUL**; **282 tests, zero failures/errors/skips**.
+- New: `PersistSoonTest` (4: shared flush, later request gets its own flush, failure/unhealthy reports false, close fails pending), escrow cases in `SpawnerStorageTest` (hold/release/refund conservation, cap, store restore), `ItemCodecTest` (v2 byte identity without escrows, v3 round trip, v2-only reader refuses v3, malformed/oversized sections), `SellMultiplierTest` (payment after escrow and outside the monitor, failed save, async outcome once, shutdown return, retired player, escrow cap, unresolved listing). Autosell tests drive the extra payment hop on the owner scheduler.
+- `PersistSoonTest` caught a real defect during development: `close()` did not fail pending save requests (an edit had not applied); fixed before commit.
+- Artifact SHA-256: `4f2e13e8ba638df7c9e46e9bc11eee3aeb0dc9f90ba667db81fc9f0aff2bbe5f`.
+- Crash injection, live providers and multi-backend restarts were not run: owner case OWN-23.
+
 # Exact-count vault core verification — 2026-11-01
 
 Build: **1.3.1-dev**, branch `feat/vault-exact-long` stacked on `fix/p2-scans-scheduling-permissions` (PR #15).

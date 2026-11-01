@@ -122,8 +122,8 @@ public final class YamlStorage implements Storage {
             try {
                 UUID id = UUID.fromString(key);
                 UUID owner = UUID.fromString(s.getString("owner", ""));
-                List<dev.yanianz.bravenspawner.model.StockEntry> items =
-                        Storage.Codec.decodeStock(s.getString("items"), key);
+                dev.yanianz.bravenspawner.model.StoreSnapshot items =
+                        Storage.Codec.decodeStore(s.getString("items"), key);
                 if (items == null) {
                     // Keep the raw section; an empty list here would overwrite the
                     // player's stored loot on the next durable flush.
@@ -140,7 +140,7 @@ public final class YamlStorage implements Storage {
                         s.getInt("tier", 0),
                         s.getBoolean("hologram", true));
                 spawner.trusted().addAll(Storage.Codec.decodeTrusted(s.getString("trusted")));
-                spawner.replaceStock(items);
+                spawner.replaceStore(items);
                 spawner.addXp(s.getInt("xp", 0));
                 spawner.produced(s.getLong("produced", 0));
                 Storage.Codec.restoreCorruption(spawner, s.getBoolean("corrupted", false),
@@ -234,7 +234,7 @@ public final class YamlStorage implements Storage {
         yaml.set(base + ".xp", s.storedXp());
         yaml.set(base + ".produced", s.produced());
         yaml.set(base + ".trusted", Storage.Codec.encodeTrusted(s.trusted()));
-        yaml.set(base + ".items", Storage.Codec.encodeStock(s.stock(), s.id().toString()));
+        yaml.set(base + ".items", Storage.Codec.encodeStore(s.store(), s.id().toString()));
     }
 
     /**

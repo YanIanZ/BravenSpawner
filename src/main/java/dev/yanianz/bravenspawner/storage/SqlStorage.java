@@ -320,7 +320,7 @@ public final class SqlStorage implements Storage {
             plugin.getLogger().warning("quarantined spawner row with malformed id " + rawId);
             return null;
         }
-        List<StockEntry> items = Storage.Codec.decodeStock(rs.getString("items"), rawId);
+        dev.yanianz.bravenspawner.model.StoreSnapshot items = Storage.Codec.decodeStore(rs.getString("items"), rawId);
         if (items == null) {
             plugin.getLogger().warning("quarantined spawner row " + rawId + ": inventory is unreadable");
             return null;
@@ -337,7 +337,7 @@ public final class SqlStorage implements Storage {
                     rs.getInt("tier"),
                     rs.getBoolean("hologram"));
             spawner.trusted().addAll(Storage.Codec.decodeTrusted(rs.getString("trusted")));
-            spawner.replaceStock(items);
+            spawner.replaceStore(items);
             spawner.addXp(rs.getInt("xp"));
             spawner.produced(rs.getLong("produced"));
             Storage.Codec.restoreCorruption(spawner, rs.getBoolean("corrupted"), rs.getLong("corrupted_at"));
@@ -500,7 +500,7 @@ public final class SqlStorage implements Storage {
         ps.setInt(14, s.storedXp());
         ps.setLong(15, s.produced());
         ps.setString(16, Storage.Codec.encodeTrusted(s.trusted()));
-        ps.setString(17, Storage.Codec.encodeStock(s.stock(), s.id().toString()));
+        ps.setString(17, Storage.Codec.encodeStore(s.store(), s.id().toString()));
         ps.setLong(18, now);
     }
 

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -128,6 +129,59 @@ public final class CheckpointService implements AutoCloseable {
         return flush(snapshot(), true);
     }
 
+    /** Requests not yet covered by a flush; guarded by {@link #pendingLock}. */
+    private final Object pendingLock = new Object();
+    private List<CompletableFuture<Boolean>> pending = new ArrayList<>();
+    private boolean persistScheduled;
+
+    /**
+     * Makes everything marked dirty so far durable, soon, off the calling thread.
+     *
+     * <p>The future completes {@code true} only after a flush that started after this
+     * call has been accepted by the backend; {@code false} when storage is unhealthy,
+     * the flush failed or the service is closed. Concurrent requests share one flush.
+     * Sales use this to save their escrow before asking the economy to pay.
+     */
+    public CompletableFuture<Boolean> persistSoon() {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        if (closed) {
+            future.complete(false);
+            return future;
+        }
+        boolean schedule;
+        synchronized (pendingLock) {
+            pending.add(future);
+            schedule = !persistScheduled;
+            persistScheduled = true;
+        }
+        if (schedule) {
+            try {
+                Bukkit.getAsyncScheduler().runNow(plugin, t -> persistPending());
+            } catch (RuntimeException e) {
+                plugin.getLogger().warning("could not schedule a durable save: " + e.getMessage());
+                persistPending();
+            }
+        }
+        return future;
+    }
+
+    private void persistPending() {
+        List<CompletableFuture<Boolean>> batch;
+        synchronized (pendingLock) {
+            batch = pending;
+            pending = new ArrayList<>();
+            persistScheduled = false;
+        }
+        if (batch.isEmpty()) return;
+        boolean saved;
+        try {
+            saved = !closed && storage.isHealthy() && flush(snapshot(), false);
+        } catch (RuntimeException e) {
+            saved = false;
+        }
+        for (CompletableFuture<Boolean> future : batch) future.complete(saved);
+    }
+
     private List<Spawner> snapshot() {
         Collection<Spawner> live = liveSpawners.get();
         if (live == null || live.isEmpty()) return new ArrayList<>();
@@ -154,7 +208,8 @@ public final class CheckpointService implements AutoCloseable {
     public void close() {
         if (closed) return;
         closed = true;
-
+        // A save requested now would never run; tell its sale so it is returned.
+        failPending();
         ScheduledTask current = task;
         task = null;
         if (current != null) {
@@ -165,6 +220,15 @@ public final class CheckpointService implements AutoCloseable {
             }
         }
         drain();
+    }
+
+    private void failPending() {
+        List<CompletableFuture<Boolean>> batch;
+        synchronized (pendingLock) {
+            batch = pending;
+            pending = new ArrayList<>();
+        }
+        for (CompletableFuture<Boolean> future : batch) future.complete(false);
     }
 
     private void drain() {

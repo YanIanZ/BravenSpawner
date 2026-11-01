@@ -1,6 +1,7 @@
 package dev.yanianz.bravenspawner.sell;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
+import dev.yanianz.bravenspawner.model.Escrow;
 import dev.yanianz.bravenspawner.model.Spawner;
 import dev.yanianz.bravenspawner.model.StockEntry;
 import dev.yanianz.bravenspawner.util.Schedulers;
@@ -26,16 +27,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Converts stored spawner loot into money, on demand and on a timer.
  *
- * <p>Every sale is a small state machine — {@code QUOTED → PAID → CLEARED}, or
- * {@code QUOTED → FAILED} — so a quote can be deposited exactly once and its
- * stock removed exactly once. A quote that was paid but whose slots could not be
- * drained is quarantined per spawner and retried before any new quote, which is
- * what stops a retry from paying the same stack twice.
+ * <p>Every sale is escrowed before it is paid (STOR-01, VSS-05). Under the spawner
+ * monitor the priced quantities move from storage into an {@link Escrow} inside the
+ * spawner record; the record is then saved; only after that save is confirmed is
+ * the economy asked to pay, back on the payee's (or the global) thread. A confirmed
+ * deposit drops the escrow, a refusal returns its units to storage. A crash
+ * therefore never duplicates value: before the save nothing changed on disk, after
+ * it the units sit in an escrow whose payment outcome is unknown, which is held for
+ * an administrator ({@code /bspawner escrow}) instead of being re-sold or returned.
  *
- * <p>Removal is a reservation drain, not a snapshot replace: the priced amount
- * of each material is taken from live storage with {@link Spawner#drainSlot(int, int)},
- * so loot produced between the quote and the commit survives. Only the exact
- * amounts that were paid for are ever removed.
+ * <p>Loot produced between the quote and the commit stays in storage: only the
+ * priced quantities are escrowed, by identity.
  *
  * <p>The service is a per-plugin singleton installed from the GUI constructor,
  * which is the only subsystem the bootstrap creates during onEnable; that keeps
@@ -55,7 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SellService {
 
     /** Outcome of a sale attempt, so the caller can word the feedback without re-checking config. */
-    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED, PENDING }
+    public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED, PENDING, SETTLING }
 
     /** A completed, refused or quarantined sale: value is what was (or would have been) paid. */
     public record Sale(Status status, double value, long items, String reason) {
@@ -69,15 +71,7 @@ public final class SellService {
      * plus item meta), so two stacks of the same material with different meta are
      * never conflated and the drain cannot remove a different item than it priced.
      */
-    private static final class Reservation {
-        private final ItemStack template;
-        private long remaining;
-
-        private Reservation(ItemStack template, long amount) {
-            this.template = template;
-            this.remaining = amount;
-        }
-    }
+    private record Reservation(ItemStack template, long amount) {}
 
     private record Priced(List<Reservation> reserved, long items, double value) {}
 
@@ -91,57 +85,23 @@ public final class SellService {
         }
     }
 
-    /** The only legal transitions: QUOTED→PAID→CLEARED, or QUOTED→FAILED. */
-    private enum Phase { QUOTED, PAID, CLEARED, FAILED }
-
-    /**
-     * One sale attempt carrying the quote it must pay for.
-     *
-     * <p>{@link #markPaid()} and {@link #markCleared()} refuse a second call, so
-     * even a buggy caller cannot turn one quote into two deposits or two drains.
-     * Methods are synchronized because the autosell pass and a GUI click share
-     * the spawner lock, but a future async settlement must not see a half state.
-     */
-    private static final class SaleAttempt {
-        private final UUID id = UUID.randomUUID();
-        private final UUID spawnerId;
-        private final List<Reservation> reservations;
-        private final long items;
-        private final double value;
-        private final Player actor;
-        private Phase phase = Phase.QUOTED;
-
-        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, long items, double value, Player actor) {
-            this.spawnerId = spawnerId;
-            this.reservations = reservations;
-            this.items = items;
-            this.value = value;
-            this.actor = actor;
-        }
-
-        synchronized boolean markPaid() {
-            if (phase != Phase.QUOTED) return false;
-            phase = Phase.PAID;
-            return true;
-        }
-
-        synchronized boolean markCleared() {
-            if (phase != Phase.PAID) return false;
-            phase = Phase.CLEARED;
-            return true;
-        }
-
-        synchronized void failBeforePayment() {
-            if (phase == Phase.QUOTED) phase = Phase.FAILED;
-        }
-
-        /** Units still owed to the buyer; shrinks as the drain succeeds. */
-        synchronized long outstanding() {
-            long left = 0;
-            for (Reservation reservation : reservations) left += Math.max(0, reservation.remaining);
-            return left;
-        }
+    /** Runs settlement steps on the thread that owns them; replaceable in tests. */
+    interface Dispatcher {
+        /** Runs on the player's entity thread; false when the entity refused the task. */
+        boolean onPlayer(Player player, Runnable task, Runnable retired);
+        /** Runs on the global region (the main thread on Paper); false when refused. */
+        boolean onGlobal(Runnable task);
     }
+
+    /** Durable save of everything marked dirty so far; replaceable in tests. */
+    interface Durability {
+        java.util.concurrent.CompletableFuture<Boolean> persistSoon();
+    }
+
+    private static final int WAITING = 0, PAYING = 1, DONE = 2;
+
+    /** An escrowed sale between its save and its payment; the state is claimed exactly once. */
+    private record InFlight(Spawner spawner, Escrow escrow, java.util.concurrent.atomic.AtomicInteger state) {}
 
     private static final long MIN_AUTOSELL_TICKS = 100L;
 
@@ -151,8 +111,10 @@ public final class SellService {
     private final ShopHook shop;
     private final AtomicBoolean economyWarned = new AtomicBoolean();
 
-    /** Paid-but-uncleared attempts, keyed by spawner; each entry is guarded by its spawner's monitor. */
-    private final Map<UUID, SaleAttempt> pendingPayouts = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Escrowed sales whose payment has not finished, keyed by escrow id. */
+    private final Map<UUID, InFlight> inFlight = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile Dispatcher dispatcher;
+    private volatile Durability durability;
 
     /** One queued or running autosale per spawner, released even when an entity retires. */
     private final Map<UUID, Object> queuedAutosells = new java.util.concurrent.ConcurrentHashMap<>();
@@ -161,6 +123,20 @@ public final class SellService {
 
     private SellService(BravenSpawner plugin) {
         this.plugin = plugin;
+        this.dispatcher = new Dispatcher() {
+            @Override public boolean onPlayer(Player player, Runnable task, Runnable retired) {
+                return player.getScheduler().execute(plugin, task, retired, 1L);
+            }
+            @Override public boolean onGlobal(Runnable task) {
+                Bukkit.getGlobalRegionScheduler().execute(plugin, task);
+                return true;
+            }
+        };
+        this.durability = () -> {
+            var checkpoints = plugin.checkpoints();
+            return checkpoints == null ? java.util.concurrent.CompletableFuture.completedFuture(false)
+                    : checkpoints.persistSoon();
+        };
         this.shop = new ShopHook(plugin);
         this.shop.load();
         startAutosell();
@@ -227,8 +203,20 @@ public final class SellService {
         return sell(player, spawner, 1.0);
     }
 
-    /** Settles the complete wand-adjusted quote with one deposit and one drain. */
+    /** Settles the complete wand-adjusted quote with one escrow and one deposit. */
     public Sale sell(Player player, Spawner spawner, double multiplier) {
+        return sell(player, spawner, multiplier, null);
+    }
+
+    /**
+     * Sells and reports the outcome.
+     *
+     * <p>A refusal, or a settlement that finished before this method returned, is the
+     * return value and {@code settled} is not called. Otherwise the return value is
+     * {@link Status#SETTLING} and {@code settled} receives the final outcome later, on
+     * the player's thread.
+     */
+    public Sale sell(Player player, Spawner spawner, double multiplier, java.util.function.Consumer<Sale> settled) {
         if (!Double.isFinite(multiplier) || multiplier <= 0.0) {
             return Sale.refused(Status.FAILED, "invalid sale multiplier");
         }
@@ -246,11 +234,7 @@ public final class SellService {
         PriceTable base = prices(spawner, player, currency);
         double combined = base.multiplier() * multiplier;
         if (!Double.isFinite(combined)) return Sale.refused(Status.FAILED, "sale multiplier overflow");
-        synchronized (spawner) {
-            Sale outstanding = settleOutstanding(spawner);
-            if (outstanding != null) return outstanding;
-            return attemptSale(spawner, player, base.withMultiplier(combined), player);
-        }
+        return attemptSale(spawner, player, base.withMultiplier(combined), player, player, settled);
     }
 
     /**
@@ -279,11 +263,18 @@ public final class SellService {
         ScheduledTask task = autosellTask;
         autosellTask = null;
         if (task != null && !task.isCancelled()) task.cancel();
-        if (!pendingPayouts.isEmpty()) {
-            plugin.getLogger().warning(pendingPayouts.size()
-                    + " paid sale(s) still had unremoved stock at shutdown; they were not paid again.");
+        // Sales still waiting for their save were never paid: return their units so
+        // the final drain stores them. A payment already in progress stays escrowed.
+        int returned = 0;
+        for (InFlight flight : List.copyOf(inFlight.values())) {
+            if (!flight.state().compareAndSet(WAITING, DONE)) continue;
+            inFlight.remove(flight.escrow().id(), flight);
+            if (flight.spawner().refund(flight.escrow().id())) {
+                plugin.markDirty(flight.spawner());
+                returned++;
+            }
         }
-        pendingPayouts.clear();
+        if (returned > 0) plugin.getLogger().info(returned + " unpaid sale(s) returned to storage at shutdown.");
     }
 
     // ------------------------------------------------------------ autosell
@@ -383,16 +374,12 @@ public final class SellService {
         Sale sale;
         synchronized (spawner) {
             if (!eligible(spawner, ownerId) || (online != null && !online.isOnline())) return;
-            Sale outstanding = settleOutstanding(spawner);
-            if (outstanding != null) {
-                if (outstanding.status() == Status.PENDING) {
-                    plugin.getLogger().warning("payout for " + spawner.id()
-                            + " is still waiting for stock; autosell skipped it.");
-                }
-                return;
-            }
-            sale = attemptSale(spawner, owner, table, null);
+            // One autosale in flight per spawner; the next pass picks up the rest.
+            if (settling(spawner)) return;
         }
+        sale = attemptSale(spawner, owner, table, null, online, done -> {
+            if (done.status() == Status.SOLD) notifyOwner(spawner, done.items(), done.value());
+        });
         if (sale.status() == Status.SOLD) notifyOwner(spawner, sale.items(), sale.value());
     }
 
@@ -533,39 +520,38 @@ public final class SellService {
 
     // ---------------------------------------------------------- settlement
 
-    /**
-     * Finishes a previously paid quote before a new one is quoted.
-     *
-     * <p>Returns null when there is nothing pending or the pending drain has just
-     * completed, so the caller may quote the remaining stock. Returns a
-     * {@link Status#PENDING} sale while the stock is still owed: the money already
-     * left the provider, and quoting again would pay for the same units twice.
-     */
-    private Sale settleOutstanding(Spawner spawner) {
-        synchronized (spawner) {
-            SaleAttempt pending = pendingPayouts.get(spawner.id());
-            if (pending == null) return null;
-            if (drain(pending, spawner) && pending.markCleared()) {
-                pendingPayouts.remove(spawner.id(), pending);
-                recordSettlement(spawner, pending);
-                plugin.getLogger().info("reconciled paid sale " + pending.id + " for spawner " + spawner.id());
-                return null;
-            }
-            return new Sale(Status.PENDING, pending.value, pending.items,
-                    "a previous payout of " + format(pending.value) + " is still waiting for its items");
-        }
+    /** True while a sale of this spawner is between its escrow and its payment. */
+    public boolean settling(Spawner spawner) {
+        for (InFlight flight : inFlight.values()) if (flight.spawner() == spawner) return true;
+        return false;
     }
 
     /**
-     * Quotes, pays once and drains once.
-     *
-     * <p>The order is deliberate: nothing leaves storage until the provider
-     * reports a successful deposit. A rejection fails the attempt with storage
-     * untouched; a successful deposit followed by a failed drain leaves the
-     * attempt in {@link Phase#PAID} and quarantines it, so the next pass removes
-     * the stock without calling the economy again.
+     * Escrows held by registered spawners that no live sale owns: their payment
+     * outcome was unknown at the last shutdown or crash. Each awaits an
+     * administrator's {@code /bspawner escrow refund|confirm}.
      */
-    private Sale attemptSale(Spawner spawner, OfflinePlayer target, PriceTable table, Player actor) {
+    public List<Map.Entry<Spawner, Escrow>> unresolved() {
+        List<Map.Entry<Spawner, Escrow>> out = new ArrayList<>();
+        var manager = plugin.manager();
+        if (manager == null) return out;
+        for (Spawner spawner : manager.all()) {
+            for (Escrow escrow : spawner.escrows()) {
+                if (!inFlight.containsKey(escrow.id())) out.add(Map.entry(spawner, escrow));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Phase A: quote and escrow under the spawner monitor, then request a durable save.
+     *
+     * @param payOn player whose thread pays (null pays on the global thread)
+     */
+    private Sale attemptSale(Spawner spawner, OfflinePlayer target, PriceTable table, Player actor, Player payOn,
+                             java.util.function.Consumer<Sale> settled) {
+        Escrow escrow;
+        InFlight flight;
         synchronized (spawner) {
             var product = plugin.product(spawner);
             if (product != null && product.mustBeFullToCollect()) {
@@ -579,61 +565,121 @@ public final class SellService {
             if (priced.items() <= 0 || priced.value() <= 0.0) {
                 return Sale.refused(Status.NOTHING_TO_SELL, "nothing stored has a sell price");
             }
-
-            SaleAttempt attempt = new SaleAttempt(spawner.id(), priced.reserved(), priced.items(), priced.value(), actor);
-            String refusal = deposit(table.currency(), target, attempt.value);
-            if (refusal != null) {
-                attempt.failBeforePayment();
-                return new Sale(Status.FAILED, attempt.value, attempt.items, refusal);
+            if (target == null) return Sale.refused(Status.FAILED, "no payout target");
+            List<StockEntry> requests = new ArrayList<>(priced.reserved().size());
+            for (Reservation reservation : priced.reserved()) {
+                requests.add(new StockEntry(reservation.template(), reservation.amount()));
             }
-            if (!attempt.markPaid()) {
-                // Only reachable if a future caller reuses the attempt; refusing here
-                // is what keeps one quote from being paid twice.
-                return new Sale(Status.FAILED, attempt.value, attempt.items, "sale was already paid");
+            escrow = spawner.hold(UUID.randomUUID(), target.getUniqueId(), table.currency().id(), priced.value(), requests);
+            if (escrow == null) {
+                return new Sale(Status.PENDING, 0.0, 0, "too many sales of this spawner are still settling");
             }
-
-            if (!drain(attempt, spawner) || !attempt.markCleared()) {
-                pendingPayouts.put(spawner.id(), attempt);
-                plugin.getLogger().warning("payout " + attempt.id + " for spawner " + spawner.id()
-                        + " was sent but " + attempt.outstanding()
-                        + " item(s) could not be removed; the sale is quarantined until stock returns.");
-                return new Sale(Status.PENDING, attempt.value, attempt.items,
-                        "payout sent; " + attempt.outstanding() + " item(s) still to be removed");
-            }
-            recordSettlement(spawner, attempt);
-            return new Sale(Status.SOLD, attempt.value, attempt.items, "");
-        }
-    }
-
-    /** Called only on the transition to CLEARED, including a later reconciliation. */
-    private void recordSettlement(Spawner spawner, SaleAttempt attempt) {
-        try {
-            plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.SELL,
-                    attempt.actor, attempt.items, "value=" + attempt.value + "; sale=" + attempt.id);
-        } catch (RuntimeException exception) {
-            // Audit I/O must never turn an already committed payout into a retry.
-            plugin.getLogger().warning("could not record sale " + attempt.id + ": " + exception.getMessage());
-        }
-    }
-
-    /**
-     * Removes exactly the reserved amounts, by identity.
-     *
-     * <p>{@link Spawner#take(ItemStack, long)} removes from the matching identity
-     * atomically under the spawner monitor, so concurrent production appends cannot
-     * shift what is removed. Loot that appeared after the quote is not in the
-     * reservation and stays put. A shortfall (stock withdrawn by another path after
-     * the quote) leaves the attempt paid with its remaining count, retried later.
-     */
-    private boolean drain(SaleAttempt attempt, Spawner spawner) {
-        for (Reservation reservation : attempt.reservations) {
-            if (reservation.remaining <= 0) continue;
-            long removed = spawner.take(reservation.template, reservation.remaining);
-            if (removed <= 0) continue;
-            reservation.remaining -= removed;
+            flight = new InFlight(spawner, escrow, new java.util.concurrent.atomic.AtomicInteger(WAITING));
+            inFlight.put(escrow.id(), flight);
             plugin.markDirty(spawner);
         }
-        return attempt.outstanding() <= 0;
+
+        java.util.concurrent.atomic.AtomicReference<Sale> immediate = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicBoolean returned = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.function.Consumer<Sale> finish = outcome -> {
+            synchronized (immediate) {
+                if (!returned.get()) { immediate.set(outcome); return; }
+            }
+            if (settled != null) {
+                try { settled.accept(outcome); }
+                catch (RuntimeException e) { plugin.getLogger().warning("sale callback failed: " + e.getMessage()); }
+            }
+        };
+
+        java.util.concurrent.CompletableFuture<Boolean> saved;
+        try {
+            saved = durability.persistSoon();
+        } catch (RuntimeException e) {
+            saved = java.util.concurrent.CompletableFuture.completedFuture(false);
+        }
+        saved.whenComplete((ok, error) -> dispatchPayment(flight, Boolean.TRUE.equals(ok) && error == null,
+                target, table.currency(), actor, payOn, finish));
+
+        synchronized (immediate) {
+            returned.set(true);
+            Sale done = immediate.get();
+            if (done != null) return done;
+        }
+        return new Sale(Status.SETTLING, escrow.value(), escrow.quantity(), "");
+    }
+
+    /** Hops from the save callback to the thread that may pay. */
+    private void dispatchPayment(InFlight flight, boolean saved, OfflinePlayer target, Currency currency,
+                                 Player actor, Player payOn, java.util.function.Consumer<Sale> finish) {
+        Runnable pay = () -> pay(flight, saved, target, currency, actor, finish);
+        Runnable retired = () -> returnUnpaid(flight, finish, "the player left before the payment");
+        try {
+            boolean accepted = payOn != null ? dispatcher.onPlayer(payOn, pay, retired) : dispatcher.onGlobal(pay);
+            if (!accepted) retired.run();
+        } catch (RuntimeException e) {
+            returnUnpaid(flight, finish, "the payment could not be scheduled");
+        }
+    }
+
+    /** Phase B: runs on the payee's (or global) thread after the escrow save. */
+    private void pay(InFlight flight, boolean saved, OfflinePlayer target, Currency currency, Player actor,
+                     java.util.function.Consumer<Sale> finish) {
+        Spawner spawner = flight.spawner();
+        Escrow escrow = flight.escrow();
+        if (!saved) {
+            returnUnpaid(flight, finish, "the sale could not be saved, so nothing was paid");
+            return;
+        }
+        if (stopped || plugin.manager() == null || plugin.manager().byId(spawner.id()) != spawner) {
+            returnUnpaid(flight, finish, "the spawner is no longer available");
+            return;
+        }
+        if (actor != null && !actor.isOnline()) {
+            returnUnpaid(flight, finish, "the player left before the payment");
+            return;
+        }
+        // From here on the outcome may be unknown after a crash; never refund twice.
+        if (!flight.state().compareAndSet(WAITING, PAYING)) return;
+        String refusal = deposit(currency, target, escrow.value());
+        synchronized (spawner) {
+            if (refusal == null) spawner.release(escrow.id());
+            else spawner.refund(escrow.id());
+        }
+        flight.state().set(DONE);
+        inFlight.remove(escrow.id(), flight);
+        plugin.markDirty(spawner);
+        if (refusal != null) {
+            finish.accept(new Sale(Status.FAILED, escrow.value(), escrow.quantity(), refusal));
+            return;
+        }
+        recordSettlement(spawner, escrow, actor);
+        finish.accept(new Sale(Status.SOLD, escrow.value(), escrow.quantity(), ""));
+    }
+
+    /** Returns a never-paid escrow to storage; a no-op once payment was claimed. */
+    private void returnUnpaid(InFlight flight, java.util.function.Consumer<Sale> finish, String reason) {
+        if (!flight.state().compareAndSet(WAITING, DONE)) return;
+        inFlight.remove(flight.escrow().id(), flight);
+        Spawner spawner = flight.spawner();
+        if (spawner.refund(flight.escrow().id())) plugin.markDirty(spawner);
+        finish.accept(new Sale(Status.FAILED, flight.escrow().value(), flight.escrow().quantity(), reason));
+    }
+
+    /** Recorded once, when the deposit was confirmed. */
+    private void recordSettlement(Spawner spawner, Escrow escrow, Player actor) {
+        try {
+            plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.SELL,
+                    actor, escrow.quantity(), "value=" + escrow.value() + "; sale=" + escrow.id());
+        } catch (RuntimeException exception) {
+            // Audit I/O must never turn an already committed payout into a retry.
+            plugin.getLogger().warning("could not record sale " + escrow.id() + ": " + exception.getMessage());
+        }
+    }
+
+    /** Test hook: replaces thread dispatch and durability. */
+    void testHooks(Dispatcher dispatcher, Durability durability) {
+        if (dispatcher != null) this.dispatcher = dispatcher;
+        if (durability != null) this.durability = durability;
     }
 
     /**

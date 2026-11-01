@@ -61,13 +61,13 @@ public final class SellWandListener implements Listener {
         if (clicked != null && plugin.manager() != null) {
             Spawner spawner = plugin.manager().at(clicked.getLocation());
             if (spawner != null) {
-                consumeUse(player, wand, service.sell(player, wand, spawner));
+                service.sell(player, wand, spawner, report -> consumeUse(player, wand, report));
                 return;
             }
         }
 
         if (wand.definition().withinRadius()) {
-            consumeUse(player, wand, service.sellArea(player, wand));
+            service.sellArea(player, wand, report -> consumeUse(player, wand, report));
         }
         // within-radius: false and no spawner under the cursor is the reference
         // "clicked only" mode: the wand reports nothing and stays silent.
