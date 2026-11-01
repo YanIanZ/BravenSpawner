@@ -232,6 +232,13 @@ public final class BlockListener implements Listener {
             Messages.of(plugin).send(player, "spawner.break-not-empty");
             return;
         }
+        if (!spawner.escrows().isEmpty()) {
+            // Escrowed units belong to a sale that is being (or was) paid; the record
+            // must survive until the sale or an administrator resolves it.
+            event.setCancelled(true);
+            Messages.of(plugin).send(player, "spawner.break-settling");
+            return;
+        }
         long wait = breakCooldowns.acquire(player.getUniqueId(), s.cooldownBreakMs, System.currentTimeMillis());
         if (wait > 0) {
             event.setCancelled(true);

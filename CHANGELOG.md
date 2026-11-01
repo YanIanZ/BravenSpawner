@@ -35,6 +35,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deprecated execution-time `Task.project` access and enabling configuration-cache use.
 
 ### Added
+- **Crash-safe sell settlement (STOR-01, VSS-05).** A sale first moves the priced units
+  into an escrow stored inside the spawner record, saves it, and only then asks the
+  economy to pay (back on the payee's or the global thread). A confirmed deposit drops
+  the escrow; a refusal, a failed save, a player who left or a shutdown before payment
+  returns the units. A crash can no longer duplicate value: escrows found after a
+  restart have an unknown payment outcome and are held until an administrator runs
+  `/bspawner escrow list|refund <id>|confirm <id>` (audited as `ESCROW`). Spawners with
+  an open escrow cannot be broken. Sell, autosell and the sell wand report the final
+  outcome once the payment settles; the provider call no longer holds the spawner lock.
 - **Exact-count virtual storage (STOR-01 local core, VSS-01/03/08/09).** Each stored
   item identity is one entry with an exact 64-bit quantity (`StockEntry`) instead of an
   `ItemStack` with an int amount. Deposits use checked arithmetic and never wrap; the
@@ -51,6 +60,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and never grants access to a spawner. Collect-all performs only the permitted halves.
 
 ### Changed
+- Storage codec v3 adds an escrow section and is written only while a record holds an
+  escrow; every other record stays byte-identical v2. An older release refuses (and
+  keeps) a v3 record instead of loading it without its escrowed units.
 - Loading merges legacy entries of the same identity into one; the on-disk format is
   unchanged (BSC2 v2), so no schema migration runs. **Downgrade caveat:** 1.3.x and
   older clamp any single identity above 2,147,483,647 when reading, so take a backup

@@ -53,6 +53,9 @@ class SellMultiplierTest {
         when(spawner.stock()).thenReturn(List.of(entry4));
         when(spawner.take(stack, 4L)).thenReturn(4L);
         service = SellService.install(plugin);
+        EscrowFixtures.escrowable(spawner);
+        EscrowFixtures.inline(service);
+        EscrowFixtures.live(plugin, spawner, player);
     }
 
     @Test void combinesWandAndServerMultipliersIntoOnePayment() {
@@ -62,7 +65,7 @@ class SellMultiplierTest {
         assertEquals(24.0, sale.value());
         verify(economy, times(1)).deposit(player, 24.0);
         verify(economy, times(1)).deposit(eq(player), anyDouble());
-        verify(spawner).take(any(), eq(4L));
+        verify(spawner).release(any());
     }
 
     @Test void payoutIsRoundedHalfUpToConfiguredDecimals() {
@@ -84,14 +87,15 @@ class SellMultiplierTest {
     @Test void rejectedMultipliedPaymentLeavesStorageUntouched() {
         SellService.Sale sale = service.sell(player, spawner, 1.5);
         assertEquals(SellService.Status.FAILED, sale.status());
-        verify(spawner, never()).take(any(), anyLong());
+        verify(spawner, never()).release(any());
+        verify(spawner).refund(any());
     }
 
     @Test void nonFiniteMultiplierCannotReachEconomy() {
         SellService.Sale sale = service.sell(player, spawner, Double.POSITIVE_INFINITY);
         assertEquals(SellService.Status.FAILED, sale.status());
         verify(economy, never()).deposit(any(), anyDouble());
-        verify(spawner, never()).take(any(), anyLong());
+        verify(spawner, never()).release(any());
     }
     @Test void fullCollectionGateRefusesPaymentBeforeStorageIsFull() {
         var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
@@ -102,7 +106,7 @@ class SellMultiplierTest {
         SellService.Sale sale = service.sell(player, spawner);
         assertEquals(SellService.Status.NOTHING_TO_SELL, sale.status());
         verify(economy, never()).deposit(any(), anyDouble());
-        verify(spawner, never()).take(any(), anyLong());
+        verify(spawner, never()).release(any());
     }
 
     @Test void fullCollectionGateAllowsExactCapacity() {
@@ -162,40 +166,91 @@ class SellMultiplierTest {
                 eq(player), eq(4L), anyString());
     }
 
-    @Test void recordsPendingSettlementOnlyAfterReconciliationWithoutPayingAgain() {
-        StockEntry stock = spawner.stock().getFirst();
-        java.util.concurrent.atomic.AtomicBoolean drained = new java.util.concurrent.atomic.AtomicBoolean();
-        when(spawner.stock()).thenAnswer(call -> drained.get() ? List.of() : List.of(stock));
-        // First drain finds nothing (stock withdrawn elsewhere), the retry succeeds.
-        when(spawner.take(any(), eq(4L))).thenReturn(0L).thenAnswer(call -> { drained.set(true); return 4L; });
+    /** VSS-05: the economy is only asked after the units left storage into a saved escrow. */
+    @Test void paymentHappensAfterEscrowAndWithoutTheSpawnerMonitor() throws Exception {
+        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            when(economy.deposit(player, 16.0)).thenAnswer(invocation -> {
+                verify(spawner).hold(any(), any(), any(), eq(16.0), anyList());
+                verify(spawner, never()).release(any());
+                // A slow provider must not block production or withdrawals.
+                var entered = worker.submit(() -> { synchronized (spawner) { return true; } });
+                assertTrue(entered.get(2, java.util.concurrent.TimeUnit.SECONDS));
+                return true;
+            });
+            assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
+            verify(spawner).release(any());
+            verify(spawner, never()).refund(any());
+        } finally { worker.shutdownNow(); }
+    }
+
+    @Test void failedSaveReturnsTheEscrowWithoutPaying() {
+        service.testHooks(null, () -> java.util.concurrent.CompletableFuture.completedFuture(false));
+        SellService.Sale sale = service.sell(player, spawner);
+        assertEquals(SellService.Status.FAILED, sale.status());
+        verify(economy, never()).deposit(any(), anyDouble());
+        verify(spawner).refund(any());
+        verify(spawner, never()).release(any());
+    }
+
+    @Test void settlementOutcomeArrivesOnceAfterTheSave() {
+        var save = new java.util.concurrent.CompletableFuture<Boolean>();
+        service.testHooks(null, () -> save);
         when(economy.deposit(player, 16.0)).thenReturn(true);
-        assertEquals(SellService.Status.PENDING, service.sell(player, spawner).status());
-        verify(plugin, never()).record(any(), any(), any(), anyLong(), anyString());
-        service.sell(player, spawner);
-        service.sell(player, spawner);
-        verify(economy, times(1)).deposit(eq(player), anyDouble());
+        List<SellService.Sale> outcomes = new java.util.ArrayList<>();
+        SellService.Sale sale = service.sell(player, spawner, 1.0, outcomes::add);
+        assertEquals(SellService.Status.SETTLING, sale.status());
+        assertEquals(4, sale.items());
+        assertTrue(service.settling(spawner));
+        verify(economy, never()).deposit(any(), anyDouble());
+        save.complete(true);
+        assertEquals(1, outcomes.size());
+        assertEquals(SellService.Status.SOLD, outcomes.getFirst().status());
+        assertFalse(service.settling(spawner));
+        verify(economy, times(1)).deposit(player, 16.0);
         verify(plugin, times(1)).record(eq(spawner), eq(dev.yanianz.bravenspawner.audit.AuditEvent.Action.SELL),
                 eq(player), eq(4L), anyString());
     }
 
-    @Test void settlementHoldsSpawnerMonitorWhilePaying() throws Exception {
-        java.util.concurrent.CountDownLatch attempted = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
-        try {
-            when(economy.deposit(player, 16.0)).thenAnswer(invocation -> {
-                worker.submit(() -> {
-                    attempted.countDown();
-                    synchronized (spawner) { entered.countDown(); }
-                });
-                assertTrue(attempted.await(2, java.util.concurrent.TimeUnit.SECONDS));
-                assertFalse(entered.await(100, java.util.concurrent.TimeUnit.MILLISECONDS),
-                        "a withdrawal must wait until quote/payment/drain has completed");
+    @Test void shutdownReturnsSalesStillWaitingForTheirSave() {
+        var save = new java.util.concurrent.CompletableFuture<Boolean>();
+        service.testHooks(null, () -> save);
+        List<SellService.Sale> outcomes = new java.util.ArrayList<>();
+        assertEquals(SellService.Status.SETTLING, service.sell(player, spawner, 1.0, outcomes::add).status());
+        service.shutdown();
+        verify(spawner).refund(any());
+        save.complete(true);
+        verify(economy, never()).deposit(any(), anyDouble());
+        verify(spawner, never()).release(any());
+        assertTrue(outcomes.isEmpty(), "a sale returned at shutdown reports nothing afterwards");
+    }
+
+    @Test void retiredPlayerBeforePaymentReturnsTheEscrow() {
+        service.testHooks(new SellService.Dispatcher() {
+            @Override public boolean onPlayer(org.bukkit.entity.Player p, Runnable task, Runnable retired) {
+                retired.run();
                 return true;
-            });
-            assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
-            assertTrue(entered.await(2, java.util.concurrent.TimeUnit.SECONDS));
-        } finally { worker.shutdownNow(); }
+            }
+            @Override public boolean onGlobal(Runnable task) { task.run(); return true; }
+        }, null);
+        assertEquals(SellService.Status.FAILED, service.sell(player, spawner).status());
+        verify(economy, never()).deposit(any(), anyDouble());
+        verify(spawner).refund(any());
+    }
+
+    @Test void escrowCapRefusesANewSale() {
+        doReturn(null).when(spawner).hold(any(), any(), any(), anyDouble(), anyList());
+        assertEquals(SellService.Status.PENDING, service.sell(player, spawner).status());
+        verify(economy, never()).deposit(any(), anyDouble());
+    }
+
+    @Test void unresolvedListsOnlyEscrowsNoLiveSaleOwns() {
+        var escrow = new dev.yanianz.bravenspawner.model.Escrow(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                "VAULT", 5.0, 1L, List.of(spawner.stock().getFirst()));
+        when(spawner.escrows()).thenReturn(List.of(escrow));
+        when(plugin.manager().all()).thenReturn(List.of(spawner));
+        assertEquals(1, service.unresolved().size());
+        assertSame(escrow, service.unresolved().getFirst().getValue());
     }
 
     @Test void removedStockIsMarkedDirtyWithoutRequiringGuiOrProduction() {

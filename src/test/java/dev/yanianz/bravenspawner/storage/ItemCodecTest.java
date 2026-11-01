@@ -201,10 +201,10 @@ class ItemCodecTest {
         assertEquals(2, seen.size());
     }
 
-    /** The model's distinct bound must never let storage exceed what this codec can write. */
-    @org.junit.jupiter.api.Test void modelDistinctBoundMatchesCodecLimit() {
-        org.junit.jupiter.api.Assertions.assertEquals(ItemCodec.MAX_ITEMS,
-                dev.yanianz.bravenspawner.model.StockLimits.HARD_MAX_DISTINCT);
+    /** The codec keeps headroom above the model's distinct bound for returned units. */
+    @org.junit.jupiter.api.Test void codecLimitHasHeadroomAboveTheModelBound() {
+        org.junit.jupiter.api.Assertions.assertTrue(ItemCodec.MAX_ITEMS
+                >= 2 * dev.yanianz.bravenspawner.model.StockLimits.HARD_MAX_DISTINCT);
     }
 
     /** VSS-01/09: v2 entries keep exact long amounts on the wire, beyond int. */
@@ -212,5 +212,43 @@ class ItemCodecTest {
         var entries = java.util.List.of(new ItemCodec.Entry(10_000_000_000L, new byte[] {1, 2, 3}),
                 new ItemCodec.Entry(Long.MAX_VALUE, new byte[] {4}));
         org.junit.jupiter.api.Assertions.assertEquals(entries, ItemCodec.read(ItemCodec.write(entries)));
+    }
+
+    /** Without escrows the bytes are exactly v2, so older releases keep reading the record. */
+    @org.junit.jupiter.api.Test void storeWithoutEscrowsIsByteIdenticalV2() throws Exception {
+        var entries = java.util.List.of(new ItemCodec.Entry(70_000L, new byte[] {9, 8}));
+        byte[] store = ItemCodec.write(entries, java.util.List.of());
+        org.junit.jupiter.api.Assertions.assertArrayEquals(ItemCodec.write(entries), store);
+        org.junit.jupiter.api.Assertions.assertEquals(entries, ItemCodec.read(store));
+    }
+
+    /** VSS-05: v3 carries escrows; a v2-only reader refuses it rather than dropping them. */
+    @org.junit.jupiter.api.Test void escrowStoreRoundTripsAndIsRefusedByAV2Read() throws Exception {
+        var stock = java.util.List.of(new ItemCodec.Entry(5L, new byte[] {1}));
+        var escrow = new ItemCodec.RawEscrow(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "VAULT",
+                12.5, 1_700_000_000_000L, java.util.List.of(new ItemCodec.Entry(10_000_000_000L, new byte[] {2, 3})));
+        byte[] raw = ItemCodec.write(stock, java.util.List.of(escrow));
+        var read = ItemCodec.readStore(raw);
+        org.junit.jupiter.api.Assertions.assertEquals(stock, read.stock());
+        org.junit.jupiter.api.Assertions.assertEquals(1, read.escrows().size());
+        var back = read.escrows().getFirst();
+        org.junit.jupiter.api.Assertions.assertEquals(escrow.id(), back.id());
+        org.junit.jupiter.api.Assertions.assertEquals(escrow.payee(), back.payee());
+        org.junit.jupiter.api.Assertions.assertEquals("VAULT", back.currency());
+        org.junit.jupiter.api.Assertions.assertEquals(12.5, back.value());
+        org.junit.jupiter.api.Assertions.assertEquals(escrow.createdAt(), back.createdAt());
+        org.junit.jupiter.api.Assertions.assertEquals(escrow.items(), back.items());
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class, () -> ItemCodec.read(raw));
+    }
+
+    @org.junit.jupiter.api.Test void malformedEscrowSectionsAreRejected() {
+        var stock = java.util.List.of(new ItemCodec.Entry(5L, new byte[] {1}));
+        var escrow = new ItemCodec.RawEscrow(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "V",
+                1.0, 1L, java.util.List.of(new ItemCodec.Entry(1L, new byte[] {2})));
+        byte[] raw = ItemCodec.write(stock, java.util.List.of(escrow));
+        byte[] truncated = java.util.Arrays.copyOf(raw, raw.length - 1);
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class, () -> ItemCodec.readStore(truncated));
+        var tooMany = java.util.Collections.nCopies(ItemCodec.MAX_ESCROWS + 1, escrow);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> ItemCodec.write(stock, tooMany));
     }
 }

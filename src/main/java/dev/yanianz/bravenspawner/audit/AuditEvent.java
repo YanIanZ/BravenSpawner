@@ -47,7 +47,7 @@ public record AuditEvent(
         String detail) {
 
     /** Every auditable verb the plugin emits. */
-    public enum Action { PLACE, BREAK, STACK, WITHDRAW, SELL, UPGRADE, ADMIN_GIVE, CORRUPT, REPAIR, RESTORE }
+    public enum Action { PLACE, BREAK, STACK, WITHDRAW, SELL, UPGRADE, ADMIN_GIVE, CORRUPT, REPAIR, RESTORE, ESCROW }
 
     /** Placeholder actor for console, corruption and repair events. */
     public static final UUID SYSTEM_ACTOR = new UUID(0L, 0L);

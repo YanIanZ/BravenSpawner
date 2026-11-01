@@ -40,6 +40,8 @@ public final class Spawner {
     private final Object lock = this;
     /** One slot per item identity; guarded by {@link #lock}. */
     private final List<Slot> storage = new ArrayList<>();
+    /** Stock held for sales whose payment is pending or unresolved; guarded by {@link #lock}. */
+    private final List<Escrow> escrows = new ArrayList<>();
     private final Set<UUID> trusted = Collections.synchronizedSet(new LinkedHashSet<>());
     private final AtomicLong produced = new AtomicLong();
     private final AtomicInteger pending = new AtomicInteger();
@@ -270,7 +272,9 @@ public final class Spawner {
             long total = 0;
             for (Slot slot : storage) total += slot.quantity;
             Slot slot = find(item);
-            if (slot == null && storage.size() >= bounds.effectiveDistinct()) return 0;
+            // Identities currently held in an escrow still count: a refused payment
+            // returns them, and the store must then still fit the codec.
+            if (slot == null && distinctIncludingEscrows() >= bounds.effectiveDistinct()) return 0;
             long existing = slot == null ? 0 : slot.quantity;
             long accepted = Math.min(amount, Math.max(0, bounds.effectiveTotal() - total));
             accepted = Math.min(accepted, Math.max(0, bounds.effectivePerItem() - existing));
@@ -383,6 +387,98 @@ public final class Spawner {
             storage.addAll(merged);
             touch();
         }
+    }
+
+    /** Escrows held by this spawner, oldest first. */
+    public List<Escrow> escrows() {
+        synchronized (lock) { return List.copyOf(escrows); }
+    }
+
+    /** Stock and escrows captured together, for saving. */
+    public StoreSnapshot store() {
+        synchronized (lock) {
+            List<StockEntry> stock = new ArrayList<>(storage.size());
+            for (Slot slot : storage) stock.add(new StockEntry(slot.template, slot.quantity));
+            return new StoreSnapshot(stock, escrows);
+        }
+    }
+
+    /**
+     * Moves the requested quantities from storage into a new escrow, atomically.
+     *
+     * <p>Each request is taken by identity; a shortfall takes what is there. Returns
+     * null (and changes nothing) when nothing could be taken or the record already
+     * carries {@link Escrow#MAX_PER_SPAWNER} escrows.
+     */
+    public Escrow hold(UUID id, UUID payee, String currency, double value, List<StockEntry> requests) {
+        if (requests == null || requests.isEmpty()) return null;
+        synchronized (lock) {
+            if (escrows.size() >= Escrow.MAX_PER_SPAWNER) return null;
+            List<StockEntry> held = new ArrayList<>();
+            for (StockEntry request : requests) {
+                Slot slot = find(request.template());
+                if (slot == null) continue;
+                long taken = Math.min(request.quantity(), slot.quantity);
+                if (taken <= 0) continue;
+                slot.quantity -= taken;
+                if (slot.quantity <= 0) storage.remove(slot);
+                held.add(new StockEntry(slot.template, taken));
+            }
+            if (held.isEmpty()) return null;
+            Escrow escrow = new Escrow(id, payee, currency, value, System.currentTimeMillis(), held);
+            escrows.add(escrow);
+            touch();
+            return escrow;
+        }
+    }
+
+    /** Drops a paid escrow; its units have left the server for good. */
+    public boolean release(UUID escrowId) {
+        synchronized (lock) {
+            boolean removed = escrows.removeIf(escrow -> escrow.id().equals(escrowId));
+            if (removed) touch();
+            return removed;
+        }
+    }
+
+    /** Returns an unpaid escrow's units to storage (ignoring caps) and drops it. */
+    public boolean refund(UUID escrowId) {
+        synchronized (lock) {
+            Escrow found = null;
+            for (Escrow escrow : escrows) if (escrow.id().equals(escrowId)) { found = escrow; break; }
+            if (found == null) return false;
+            escrows.remove(found);
+            for (StockEntry entry : found.items()) restore(entry.template(), entry.quantity());
+            touch();
+            return true;
+        }
+    }
+
+    /** Replaces stock and escrows on load; see {@link #replaceStock(List)} for overflow handling. */
+    public void replaceStore(StoreSnapshot snapshot) {
+        StoreSnapshot value = snapshot == null ? new StoreSnapshot(List.of(), List.of()) : snapshot;
+        replaceStock(value.stock());
+        synchronized (lock) {
+            escrows.clear();
+            escrows.addAll(value.escrows());
+            touch();
+        }
+    }
+
+    /** Distinct identities in storage plus those held only in escrows. Caller holds {@link #lock}. */
+    private int distinctIncludingEscrows() {
+        if (escrows.isEmpty()) return storage.size();
+        List<ItemStack> extra = new ArrayList<>();
+        for (Escrow escrow : escrows) {
+            for (StockEntry entry : escrow.items()) {
+                ItemStack identity = entry.template();
+                if (find(identity) != null) continue;
+                boolean seen = false;
+                for (ItemStack other : extra) if (other.isSimilar(identity)) { seen = true; break; }
+                if (!seen) extra.add(identity);
+            }
+        }
+        return storage.size() + extra.size();
     }
 
     /** Caller holds {@link #lock}. */

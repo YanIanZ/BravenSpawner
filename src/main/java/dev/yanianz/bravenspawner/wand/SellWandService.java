@@ -211,12 +211,13 @@ public final class SellWandService {
      * matching the reference behaviour where a wand then only works on the spawner
      * that was clicked (the listener's single-spawner path).
      */
-    public Report sellArea(Player player, Wand wand) {
-        if (!enabled() || player == null || wand == null || !usable(player, wand)) return Report.NONE;
+    /** @return true when at least one sale started, so the click must cost a wand use */
+    public boolean sellArea(Player player, Wand wand) {
+        if (!enabled() || player == null || wand == null || !usable(player, wand)) return false;
         if (!beginCooldown(player)) {
             player.sendMessage(Text.of(definition.messageCooldown()));
             sounds.play(player, SoundFeedback.Cue.COOLDOWN);
-            return Report.NONE;
+            return false;
         }
         return sellAll(player, wand, nearby(player, wand));
     }
@@ -227,12 +228,13 @@ public final class SellWandService {
      * <p>This path works even with {@code within-radius: false}: the reference
      * wand's "clicked only" mode is exactly this call.
      */
-    public Report sell(Player player, Wand wand, Spawner spawner) {
-        if (!enabled() || player == null || wand == null || spawner == null || !usable(player, wand)) return Report.NONE;
+    /** @return true when the sale started, so the click must cost a wand use */
+    public boolean sell(Player player, Wand wand, Spawner spawner) {
+        if (!enabled() || player == null || wand == null || spawner == null || !usable(player, wand)) return false;
         if (!beginCooldown(player)) {
             player.sendMessage(Text.of(definition.messageCooldown()));
             sounds.play(player, SoundFeedback.Cue.COOLDOWN);
-            return Report.NONE;
+            return false;
         }
         return sellAll(player, wand, List.of(spawner));
     }
@@ -397,62 +399,100 @@ public final class SellWandService {
      * by the sell service keeps its own status so the player sees "disabled" or
      * "no economy" instead of a generic "nothing to sell".
      */
-    private Report sellAll(Player player, Wand wand, List<Spawner> spawners) {
+    /**
+     * Starts one sale per spawner and reports the summary once all have settled.
+     *
+     * <p>Escrowed sales settle after their save, a tick or more later, so the wand
+     * use is charged now (by the caller, while the wand is certainly in hand) when
+     * any sale started; charging in the settlement callback would let a player
+     * switch slots and keep the use.
+     *
+     * @return true when at least one sale was sold or is settling
+     */
+    private boolean sellAll(Player player, Wand wand, List<Spawner> spawners) {
         if (spawners.isEmpty()) {
             player.sendMessage(Text.of(definition.messageNothing()));
             sounds.play(player, SoundFeedback.Cue.FAILURE);
-            return new Report(0, 0, 0, 0.0, 0);
+            return false;
         }
-
-        int sold = 0;
-        int items = 0;
-        int failed = 0;
-        double base = 0.0;
-        SellService.Status blocked = null;
-        List<org.bukkit.Location> soldAt = new ArrayList<>();
-
+        Tally tally = new Tally(player, spawners.size());
+        boolean started = false;
         for (Spawner spawner : spawners) {
             try {
                 if (!canSell(player, spawner)) {
-                    failed++;
+                    tally.add(spawner, null);
                     continue;
                 }
-                SellService.Sale sale = sellService.sell(player, spawner, wand.priceMultiplier());
-                switch (sale.status()) {
-                    case SOLD -> {
-                        sold++;
-                        soldAt.add(spawner.location());
-                        items += sale.items();
-                        base += sale.value();
-                    }
-                    case NOTHING_TO_SELL -> { }
-                    case DISABLED, NO_ECONOMY, FAILED, PENDING -> {
-                        failed++;
-                        if (blocked == null) blocked = sale.status();
+                SellService.Sale sale = sellService.sell(player, spawner, wand.priceMultiplier(),
+                        settled -> tally.add(spawner, settled));
+                if (sale.status() == SellService.Status.SOLD || sale.status() == SellService.Status.SETTLING) started = true;
+                if (sale.status() != SellService.Status.SETTLING) tally.add(spawner, sale);
+            } catch (RuntimeException e) {
+                plugin.getLogger().warning("sell wand sale failed for " + spawner.id() + ": " + e.getMessage());
+                tally.add(spawner, null);
+            }
+        }
+        return started;
+    }
+
+    /** Collects one outcome per spawner and reports once all have arrived. */
+    private final class Tally {
+        private final Player player;
+        private final int expected;
+        private int received;
+        private int sold;
+        private long items;
+        private int failed;
+        private double value;
+        private SellService.Status blocked;
+        private final List<org.bukkit.Location> soldAt = new ArrayList<>();
+
+        Tally(Player player, int expected) {
+            this.player = player;
+            this.expected = expected;
+        }
+
+        /** A null sale counts as a failure (no access or an exception). */
+        void add(Spawner spawner, SellService.Sale sale) {
+            synchronized (this) {
+                if (sale == null) {
+                    failed++;
+                } else {
+                    switch (sale.status()) {
+                        case SOLD -> {
+                            sold++;
+                            soldAt.add(spawner.location());
+                            items += sale.items();
+                            value += sale.value();
+                        }
+                        case NOTHING_TO_SELL, SETTLING -> { }
+                        case DISABLED, NO_ECONOMY, FAILED, PENDING -> {
+                            failed++;
+                            if (blocked == null) blocked = sale.status();
+                        }
                     }
                 }
-            } catch (RuntimeException e) {
-                failed++;
-                plugin.getLogger().warning("sell wand sale failed for " + spawner.id()
-                        + ": " + e.getMessage());
+                if (++received < expected) return;
+                finish();
             }
         }
 
-        if (sold == 0) {
-            player.sendMessage(Text.of(blockedMessage(blocked)));
-            sounds.play(player, SoundFeedback.Cue.FAILURE);
-            return new Report(spawners.size(), 0, 0, 0.0, failed);
+        private Report finish() {
+            int shownItems = (int) Math.min(Integer.MAX_VALUE, items);
+            if (sold == 0) {
+                player.sendMessage(Text.of(blockedMessage(blocked)));
+                sounds.play(player, SoundFeedback.Cue.FAILURE);
+                return new Report(expected, 0, 0, 0.0, failed);
+            }
+            String message = definition.messageSold()
+                    .replace("%spawners%", Integer.toString(sold))
+                    .replace("%items%", String.format(java.util.Locale.ROOT, "%,d", items))
+                    .replace("%value%", sellService.format(value));
+            player.sendMessage(Text.of(message));
+            sounds.play(player, SoundFeedback.Cue.SUCCESS);
+            particles.play(player, soldAt);
+            return new Report(expected, sold, shownItems, value, failed);
         }
-
-        double paid = base;
-        String message = definition.messageSold()
-                .replace("%spawners%", Integer.toString(sold))
-                .replace("%items%", Integer.toString(items))
-                .replace("%value%", sellService.format(paid));
-        player.sendMessage(Text.of(message));
-        sounds.play(player, SoundFeedback.Cue.SUCCESS);
-        particles.play(player, soldAt);
-        return new Report(spawners.size(), sold, items, paid, failed);
     }
 
     private String blockedMessage(SellService.Status status) {

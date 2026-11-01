@@ -75,7 +75,7 @@ class SpawnerStorageTest {
         assertEquals(StockLimits.HARD_MAX_DISTINCT, StockLimits.UNLIMITED.effectiveDistinct());
         assertEquals(StockLimits.HARD_MAX_DISTINCT, new StockLimits(0, 1_000_000, 0).effectiveDistinct());
         assertEquals(7, new StockLimits(0, 7, 0).effectiveDistinct());
-        assertEquals(4096, StockLimits.HARD_MAX_DISTINCT, "must match ItemCodec.MAX_ITEMS");
+        assertEquals(4096, StockLimits.HARD_MAX_DISTINCT);
     }
 
     /** Restoring undelivered stock ignores gameplay caps: conservation over capacity. */
@@ -112,6 +112,75 @@ class SpawnerStorageTest {
         model.deposit(item(a, 1), 100, StockLimits.UNLIMITED);
         assertNull(model.drainSlotIfSimilar(0, item(b, 1), 10));
         assertEquals(100, model.storedCount());
+    }
+
+    /** VSS-05: escrow moves units out of storage atomically; release drops, refund returns them. */
+    @Test void escrowHoldReleaseAndRefundConserveUnits() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        model.deposit(item(a, 1), 100, StockLimits.UNLIMITED);
+        model.deposit(item(b, 1), 10, StockLimits.UNLIMITED);
+        UUID sale = UUID.randomUUID();
+        Escrow held = model.hold(sale, UUID.randomUUID(), "VAULT", 9.5,
+                java.util.List.of(new StockEntry(item(a, 1), 60), new StockEntry(item(b, 1), 50)));
+        assertNotNull(held);
+        assertEquals(70, held.quantity(), "a shortfall holds what is there");
+        assertEquals(40, model.storedCount());
+        assertEquals(1, model.escrows().size());
+        assertEquals(1, model.store().stock().size(), "an identity held completely leaves storage");
+
+        assertTrue(model.refund(sale));
+        assertEquals(110, model.storedCount());
+        assertTrue(model.escrows().isEmpty());
+        assertFalse(model.refund(sale), "a refund happens once");
+
+        UUID paid = UUID.randomUUID();
+        model.hold(paid, UUID.randomUUID(), "VAULT", 1.0, java.util.List.of(new StockEntry(item(a, 1), 100)));
+        assertTrue(model.release(paid));
+        assertEquals(10, model.storedCount());
+        assertFalse(model.refund(paid), "a released escrow cannot be refunded");
+    }
+
+    @Test void escrowCapAndEmptyHoldChangeNothing() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        model.deposit(item(a, 1), 1_000, StockLimits.UNLIMITED);
+        assertNull(model.hold(UUID.randomUUID(), UUID.randomUUID(), "V", 1.0,
+                java.util.List.of(new StockEntry(item(b, 1), 5))));
+        for (int i = 0; i < Escrow.MAX_PER_SPAWNER; i++) {
+            assertNotNull(model.hold(UUID.randomUUID(), UUID.randomUUID(), "V", 1.0,
+                    java.util.List.of(new StockEntry(item(a, 1), 1))));
+        }
+        assertNull(model.hold(UUID.randomUUID(), UUID.randomUUID(), "V", 1.0,
+                java.util.List.of(new StockEntry(item(a, 1), 1))));
+        assertEquals(1_000 - Escrow.MAX_PER_SPAWNER, model.storedCount());
+    }
+
+    /** Review finding: a refund must always fit, so escrowed identities count toward the distinct cap. */
+    @Test void escrowedIdentitiesCountTowardTheDistinctCap() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class), c = mock(Material.class);
+        StockLimits two = new StockLimits(0, 2, 0);
+        model.deposit(item(a, 1), 5, two);
+        model.deposit(item(b, 1), 5, two);
+        UUID sale = UUID.randomUUID();
+        assertNotNull(model.hold(sale, UUID.randomUUID(), "V", 1.0, java.util.List.of(new StockEntry(item(a, 1), 5))));
+        assertEquals(1, model.distinctSlots());
+        assertEquals(0, model.deposit(item(c, 1), 5, two), "a's slot is reserved by the escrow");
+        assertTrue(model.refund(sale));
+        assertEquals(2, model.distinctSlots());
+    }
+
+    @Test void replaceStoreRestoresEscrowsWithStock() {
+        Spawner model = model();
+        Material a = mock(Material.class);
+        Escrow escrow = new Escrow(UUID.randomUUID(), UUID.randomUUID(), "V", 2.0, 5L,
+                java.util.List.of(new StockEntry(item(a, 1), 7)));
+        model.replaceStore(new StoreSnapshot(java.util.List.of(new StockEntry(item(a, 1), 3)), java.util.List.of(escrow)));
+        assertEquals(3, model.storedCount());
+        assertEquals(java.util.List.of(escrow), model.escrows());
+        assertTrue(model.refund(escrow.id()));
+        assertEquals(10, model.storedCount());
     }
 
     @Test void xpSaturatesWithoutOverflowAndNeverErasesExistingBalance() {

@@ -121,6 +121,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             }
             case "corrupt" -> corrupt(sender);
             case "repair" -> repair(sender);
+            case "escrow" -> escrow(sender, args);
             default -> messages().send(sender, "general.unknown-subcommand", "sub", args[0]);
         }
         return true;
@@ -404,6 +405,66 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         messages().send(player, "repair.done");
     }
 
+    /**
+     * Resolves sale escrows whose payment outcome is unknown (STOR-01, VSS-05).
+     *
+     * <p>{@code refund} returns the units to storage (use when the economy shows no
+     * payment); {@code confirm} drops them (the payment did arrive). Only escrows no
+     * live sale owns are listed or touched.
+     */
+    private void escrow(CommandSender sender, String[] args) {
+        var sell = dev.yanianz.bravenspawner.sell.SellService.install(plugin);
+        var open = sell.unresolved();
+        String action = args.length < 2 ? "list" : args[1].toLowerCase(Locale.ROOT);
+        if (action.equals("list")) {
+            messages().send(sender, "escrow.header", "count", open.size());
+            for (var entry : open) {
+                Spawner s = entry.getKey();
+                var e = entry.getValue();
+                var payee = Bukkit.getOfflinePlayer(e.payee()).getName();
+                messages().sendPlain(sender, "escrow.line", "id", e.id().toString().substring(0, 8),
+                        "items", String.format(Locale.ROOT, "%,d", e.quantity()), "value", e.value(),
+                        "currency", e.currency(), "payee", payee == null ? e.payee().toString() : payee,
+                        "location", s.world() + " " + s.x() + "," + s.y() + "," + s.z());
+            }
+            return;
+        }
+        if ((!action.equals("refund") && !action.equals("confirm")) || args.length < 3) {
+            messages().send(sender, "escrow.usage");
+            return;
+        }
+        String prefix = args[2].toLowerCase(Locale.ROOT);
+        if (prefix.length() < 4) {
+            messages().send(sender, "escrow.unknown", "id", args[2]);
+            return;
+        }
+        java.util.Map.Entry<Spawner, dev.yanianz.bravenspawner.model.Escrow> match = null;
+        for (var entry : open) {
+            if (!entry.getValue().id().toString().startsWith(prefix)) continue;
+            if (match != null) {
+                messages().send(sender, "escrow.ambiguous", "id", args[2]);
+                return;
+            }
+            match = entry;
+        }
+        if (match == null) {
+            messages().send(sender, "escrow.unknown", "id", args[2]);
+            return;
+        }
+        Spawner spawner = match.getKey();
+        var escrow = match.getValue();
+        boolean done = action.equals("refund") ? spawner.refund(escrow.id()) : spawner.release(escrow.id());
+        if (!done) {
+            messages().send(sender, "escrow.unknown", "id", args[2]);
+            return;
+        }
+        plugin.markDirty(spawner);
+        plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.ESCROW,
+                sender instanceof Player p ? p : null, escrow.quantity(), action + " sale=" + escrow.id());
+        messages().send(sender, action.equals("refund") ? "escrow.refunded" : "escrow.confirmed",
+                "id", escrow.id().toString().substring(0, 8), "items", String.format(Locale.ROOT, "%,d", escrow.quantity()));
+    }
+
     private boolean modify(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             messages().send(sender, "general.players-only");
@@ -471,7 +532,9 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "bspawner" -> {
                 if (!sender.hasPermission("bravenspawner.admin")) return List.of();
                 if (args.length == 1) {
-                    out.addAll(List.of("help", "give", "list", "doctor", "economy", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair"));
+                    out.addAll(List.of("help", "give", "list", "doctor", "economy", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair", "escrow"));
+                } else if (args.length == 2 && args[0].equalsIgnoreCase("escrow")) {
+                    out.addAll(List.of("list", "refund", "confirm"));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
                     out.addAll(plugin.settings().mobs().keySet());
                     plugin.settings().items().keySet().forEach(i -> out.add("item:" + i));

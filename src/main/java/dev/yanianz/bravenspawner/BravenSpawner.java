@@ -122,6 +122,9 @@ public final class BravenSpawner extends JavaPlugin {
         long low = left * right;
         return (high == 0 && low >= 0) ? low : Long.MAX_VALUE;
     }
+    /** The live checkpoint service, or null before storage finished loading. */
+    public CheckpointService checkpoints() { return checkpoints; }
+
     public int maximumXp(Spawner spawner) {
         ProductDefinition product = product(spawner);
         return product == null || settings.unlimitedStorage ? 0 : scaledLimit(product.maxStoredXp(), spawner.stack());
@@ -243,6 +246,9 @@ public final class BravenSpawner extends JavaPlugin {
                 manager.startAll();
                 holograms.refreshAll();
                 getLogger().info("BravenSpawner ready — " + manager.size() + " spawner(s), storage=" + settings.storageType);
+                long escrowed = manager.all().stream().mapToLong(s -> s.escrows().size()).sum();
+                if (escrowed > 0) getLogger().warning(escrowed + " sale(s) were interrupted before their payment was"
+                        + " confirmed; their items are held. Check the economy, then run /bspawner escrow.");
             });
         });
     }

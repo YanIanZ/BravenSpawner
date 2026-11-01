@@ -1161,8 +1161,14 @@ public final class SpawnerGui implements Listener {
             fail(player, "gui.sell.must-be-full");
             return;
         }
-        SellService.Sale sale = sellService.sell(player, spawner);
+        // Escrowed sales finish after their save; the outcome arrives on this player's thread.
+        SellService.Sale sale = sellService.sell(player, spawner, 1.0, done -> reportSale(player, done));
+        reportSale(player, sale);
+    }
+
+    private void reportSale(Player player, SellService.Sale sale) {
         switch (sale.status()) {
+            case SETTLING -> { }
             case SOLD -> {
                 messages().send(player, "gui.sell.sold", currencyValues(sellService.currency(),
                         "items", MenuPlaceholders.number(sale.items()), "value", sellService.format(sale.value())));
