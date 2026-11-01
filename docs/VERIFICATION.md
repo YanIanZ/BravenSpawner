@@ -2,8 +2,9 @@
 
 Build: **1.3.1-dev**, branch `feat/vault-exact-long` stacked on `fix/p2-scans-scheduling-permissions` (PR #15).
 
-- `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain` after `clean`: **BUILD SUCCESSFUL**; **265 tests, zero failures/errors/skips**.
+- `./gradlew --no-daemon build --configuration-cache --warning-mode=fail --console=plain` after `clean`: **BUILD SUCCESSFUL**; **267 tests, zero failures/errors/skips**.
 - New/rewritten: `SpawnerStorageTest` (9: quantities beyond int in one entry, long overflow refusal, distinct/per-item caps, hard distinct bound, restore over caps, identity take, legacy merge and overflow refusal, stale-identity guard), `ItemCodecTest` (wire amounts beyond int; model bound equals codec `MAX_ITEMS`). Sell, autosell, GUI, hopper and withdrawal fixtures migrated to `stock()`/`take()`/`restore()`.
+- Self-review fix: take-all reported only the rejected part of its batch as "left"; it now reports everything still stored (`WithdrawalsTest`: 10,000,000-item take-all and rejected-restore conservation).
 - An initial 4096-mock distinct test hung the test JVM (Mockito invocation recording); it was replaced by a direct check of the bound computation.
 - Artifact SHA-256: `25fc1ecdad3d3dc3950aa75e0e1e25f26eb4720bd0341a978d41b5ca691c73e4`.
 - On-disk format unchanged (BSC2 v2); no schema migration. Codec round trip through real Paper `ItemStack` serialization of amounts beyond int was not exercised (requires a server): owner case OWN-22.

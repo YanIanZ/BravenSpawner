@@ -63,6 +63,9 @@ final class Withdrawals {
      * <p>At most {@link #MAX_PARTS} stacks are taken out, so a store of millions
      * never materialises millions of {@link ItemStack}s; whatever the inventory
      * rejects is restored to the same identity.
+     *
+     * @return the moved count and everything still stored afterwards, so callers can
+     *         report "left behind" for the whole store, not just the rejected batch
      */
     static Result takeAll(Player player, Spawner spawner) {
         List<ItemStack> taken = new ArrayList<>();
@@ -77,8 +80,8 @@ final class Withdrawals {
             taken.add(drained);
             parts += (int) ((removed + entry.maxStackSize() - 1) / entry.maxStackSize());
         }
-        if (taken.isEmpty()) return new Result(0, 0);
-        return deliver(player, spawner, taken);
+        long moved = taken.isEmpty() ? 0 : deliver(player, spawner, taken).moved();
+        return new Result(moved, spawner.storedCount());
     }
 
     /** Gives drained items to the player; whatever does not fit is stored back. */
