@@ -259,7 +259,13 @@ public final class BlockListener implements Listener {
         event.setDropItems(false);
 
         Location drop = event.getBlock().getLocation().add(0.5, 0.5, 0.5);
-        spawner.contents().forEach(item -> event.getBlock().getWorld().dropItemNaturally(drop, item));
+        // Breaking requires empty storage (checked above on this region thread);
+        // anything left is still dropped as real, correctly sized stacks.
+        for (var entry : spawner.drainAll()) {
+            for (long left = entry.quantity(); left > 0; left -= entry.maxStackSize()) {
+                event.getBlock().getWorld().dropItemNaturally(drop, entry.stack(left));
+            }
+        }
         // createSpawnerItem stamps the model's virtual count into the PDC, which is
         // the same field place and merge read back.
         if (s.blockCollectionInInventory) {

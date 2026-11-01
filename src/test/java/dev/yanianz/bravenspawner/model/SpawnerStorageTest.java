@@ -22,24 +22,96 @@ class SpawnerStorageTest {
         when(item.isSimilar(any())).thenAnswer(call -> call.getArgument(0) instanceof ItemStack other && other.getType() == type);
         return item;
     }
-    @Test void combinedMaterialsNeverExceedItemCapacity() {
+    @Test void combinedMaterialsNeverExceedTheTotalCap() {
         Spawner model = model();
         Material stone = mock(Material.class), diamond = mock(Material.class);
-        assertNull(model.store(item(stone, 80), 45, 100));
-        assertEquals(20, model.store(item(diamond, 40), 45, 100).getAmount());
+        StockLimits limits = StockLimits.total(100);
+        assertEquals(80, model.deposit(item(stone, 1), 80, limits));
+        assertEquals(20, model.deposit(item(diamond, 1), 40, limits));
         assertEquals(100, model.storedCount());
+        assertEquals(0, model.deposit(item(stone, 1), 1, limits));
     }
-    @Test void virtualQuantitiesUseOneSlotAndPreserveCountOnWithdrawal() {
+
+    /** VSS-01: one entry holds an exact count far beyond int, with no per-stack objects. */
+    @Test void exactQuantitiesBeyondIntUseOneEntry() {
         Spawner model = model();
-        Material stone = mock(Material.class);
-        assertNull(model.storeVirtual(item(stone, 1000000), 2000000));
-        assertEquals(1000000, model.storedCount());
+        Material rod = mock(Material.class);
+        long big = 10_000_000_000L;
+        assertEquals(big, model.deposit(item(rod, 1), big, StockLimits.UNLIMITED));
+        assertEquals(big, model.deposit(item(rod, 1), big, StockLimits.UNLIMITED));
+        assertEquals(2 * big, model.storedCount());
         assertEquals(1, model.distinctSlots());
-        ItemStack expected = model.contents().getFirst();
-        assertEquals(64, model.drainSlotIfSimilar(0, expected, 64).getAmount());
-        assertEquals(999936, model.storedCount());
-        assertEquals(1000000, model.storeVirtual(item(stone, 2000064), 2000000).getAmount());
-        assertEquals(2000000, model.storedCount());
+        assertEquals(2 * big, model.stock().getFirst().quantity());
+        assertEquals(64, model.drainSlotIfSimilar(0, item(rod, 1), 64).getAmount());
+        assertEquals(2 * big - 64, model.quantityOf(item(rod, 1)));
+    }
+
+    /** VSS-08: checked arithmetic never wraps past Long.MAX_VALUE. */
+    @Test void depositsNeverOverflowLong() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        assertEquals(Long.MAX_VALUE - 5, model.deposit(item(a, 1), Long.MAX_VALUE - 5, StockLimits.UNLIMITED));
+        assertEquals(5, model.deposit(item(b, 1), 50, StockLimits.UNLIMITED));
+        assertEquals(Long.MAX_VALUE, model.storedCount());
+        assertEquals(0, model.deposit(item(a, 1), 1, StockLimits.UNLIMITED));
+        assertEquals(0, model.restore(item(b, 1), 1));
+    }
+
+    /** VSS-03: distinct and per-item caps are independent of the total cap. */
+    @Test void distinctAndPerItemCapsApply() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class), c = mock(Material.class);
+        StockLimits limits = new StockLimits(0, 2, 1_000);
+        assertEquals(1_000, model.deposit(item(a, 1), 5_000, limits));
+        assertEquals(10, model.deposit(item(b, 1), 10, limits));
+        assertEquals(0, model.deposit(item(c, 1), 10, limits), "third identity refused");
+        assertEquals(0, model.deposit(item(a, 1), 1, limits), "per-item cap reached");
+        assertEquals(990, model.deposit(item(b, 1), 5_000, limits));
+        assertEquals(2, model.distinctSlots());
+    }
+
+    /** The codec cannot persist more than 4096 identities, so no configuration may exceed it. */
+    @Test void hardDistinctBoundAppliesEvenWhenUnlimited() {
+        assertEquals(StockLimits.HARD_MAX_DISTINCT, StockLimits.UNLIMITED.effectiveDistinct());
+        assertEquals(StockLimits.HARD_MAX_DISTINCT, new StockLimits(0, 1_000_000, 0).effectiveDistinct());
+        assertEquals(7, new StockLimits(0, 7, 0).effectiveDistinct());
+        assertEquals(4096, StockLimits.HARD_MAX_DISTINCT, "must match ItemCodec.MAX_ITEMS");
+    }
+
+    /** Restoring undelivered stock ignores gameplay caps: conservation over capacity. */
+    @Test void restoreIgnoresCapsAndTakeRemovesByIdentity() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        StockLimits limits = StockLimits.total(10);
+        assertEquals(10, model.deposit(item(a, 1), 10, limits));
+        assertEquals(5, model.restore(item(b, 1), 5));
+        assertEquals(15, model.storedCount());
+        assertEquals(3, model.take(item(b, 1), 3));
+        assertEquals(2, model.take(item(b, 1), 99));
+        assertEquals(0, model.take(item(b, 1), 1));
+        assertEquals(1, model.distinctSlots());
+        assertEquals(10, model.quantityOf(item(a, 1)));
+    }
+
+    /** VSS-09: legacy multi-slot stores merge by identity; a sum beyond long is refused. */
+    @Test void replaceStockMergesIdentitiesAndRefusesOverflow() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        model.replaceStock(java.util.List.of(new StockEntry(item(a, 1), 64), new StockEntry(item(b, 1), 7),
+                new StockEntry(item(a, 1), 36)));
+        assertEquals(2, model.distinctSlots());
+        assertEquals(100, model.quantityOf(item(a, 1)));
+        assertThrows(ArithmeticException.class, () -> model.replaceStock(java.util.List.of(
+                new StockEntry(item(a, 1), Long.MAX_VALUE), new StockEntry(item(b, 1), 1))));
+        assertEquals(107, model.storedCount(), "a refused load leaves the previous store intact");
+    }
+
+    @Test void drainSlotIfSimilarRejectsAStaleIdentity() {
+        Spawner model = model();
+        Material a = mock(Material.class), b = mock(Material.class);
+        model.deposit(item(a, 1), 100, StockLimits.UNLIMITED);
+        assertNull(model.drainSlotIfSimilar(0, item(b, 1), 10));
+        assertEquals(100, model.storedCount());
     }
 
     @Test void xpSaturatesWithoutOverflowAndNeverErasesExistingBalance() {

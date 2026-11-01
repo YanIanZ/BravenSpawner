@@ -2,7 +2,7 @@ package dev.yanianz.bravenspawner.sell;
 
 import dev.yanianz.bravenspawner.BravenSpawner;
 import dev.yanianz.bravenspawner.model.Spawner;
-import dev.yanianz.bravenspawner.util.Text;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import dev.yanianz.bravenspawner.util.Schedulers;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import dev.yanianz.bravenspawner.econ.Currency;
@@ -58,7 +58,7 @@ public final class SellService {
     public enum Status { SOLD, NOTHING_TO_SELL, DISABLED, NO_ECONOMY, FAILED, PENDING }
 
     /** A completed, refused or quarantined sale: value is what was (or would have been) paid. */
-    public record Sale(Status status, double value, int items, String reason) {
+    public record Sale(Status status, double value, long items, String reason) {
         static Sale refused(Status status, String reason) {
             return new Sale(status, 0.0, 0, reason);
         }
@@ -71,15 +71,15 @@ public final class SellService {
      */
     private static final class Reservation {
         private final ItemStack template;
-        private int remaining;
+        private long remaining;
 
-        private Reservation(ItemStack template, int amount) {
+        private Reservation(ItemStack template, long amount) {
             this.template = template;
             this.remaining = amount;
         }
     }
 
-    private record Priced(List<Reservation> reserved, int items, double value) {}
+    private record Priced(List<Reservation> reserved, long items, double value) {}
 
     /** A shop-plugin unit quote for one item identity, fetched before the spawner lock. */
     private record ShopQuote(ItemStack template, double unit) {}
@@ -90,8 +90,6 @@ public final class SellService {
             return new PriceTable(unitPrices, value, viewer, shopQuotes, roundTo, currency);
         }
     }
-
-    private record DrainStep(int index, Reservation reservation, int amount) {}
 
     /** The only legal transitions: QUOTED→PAID→CLEARED, or QUOTED→FAILED. */
     private enum Phase { QUOTED, PAID, CLEARED, FAILED }
@@ -108,12 +106,12 @@ public final class SellService {
         private final UUID id = UUID.randomUUID();
         private final UUID spawnerId;
         private final List<Reservation> reservations;
-        private final int items;
+        private final long items;
         private final double value;
         private final Player actor;
         private Phase phase = Phase.QUOTED;
 
-        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, int items, double value, Player actor) {
+        private SaleAttempt(UUID spawnerId, List<Reservation> reservations, long items, double value, Player actor) {
             this.spawnerId = spawnerId;
             this.reservations = reservations;
             this.items = items;
@@ -138,17 +136,14 @@ public final class SellService {
         }
 
         /** Units still owed to the buyer; shrinks as the drain succeeds. */
-        synchronized int outstanding() {
-            int left = 0;
+        synchronized long outstanding() {
+            long left = 0;
             for (Reservation reservation : reservations) left += Math.max(0, reservation.remaining);
             return left;
         }
     }
 
     private static final long MIN_AUTOSELL_TICKS = 100L;
-
-    /** A paid quote is retried at most this many times before it stays quarantined. */
-    private static final int MAX_DRAIN_PASSES = 4;
 
     private static volatile SellService instance;
 
@@ -203,20 +198,20 @@ public final class SellService {
     /** Current sale value of what is stored, including the multiplier; used for the GUI quote. */
     public double value(Spawner spawner) {
         if (spawner == null) return 0.0;
-        return price(spawner.contents(), prices(spawner)).value();
+        return price(spawner.stock(), prices(spawner)).value();
     }
 
     public double value(Player viewer, Spawner spawner) {
-        return spawner == null ? 0.0 : price(spawner.contents(), prices(spawner, viewer)).value();
+        return spawner == null ? 0.0 : price(spawner.stock(), prices(spawner, viewer)).value();
     }
-    public int sellableItems(Player viewer, Spawner spawner) {
-        return spawner == null ? 0 : price(spawner.contents(), prices(spawner, viewer)).items();
+    public long sellableItems(Player viewer, Spawner spawner) {
+        return spawner == null ? 0 : price(spawner.stock(), prices(spawner, viewer)).items();
     }
 
     /** Number of stored items that would be paid for right now. */
-    public int sellableItems(Spawner spawner) {
+    public long sellableItems(Spawner spawner) {
         if (spawner == null) return 0;
-        return price(spawner.contents(), prices(spawner)).items();
+        return price(spawner.stock(), prices(spawner)).items();
     }
 
     /**
@@ -408,13 +403,15 @@ public final class SellService {
      * offline Paper and online entity dispatch use different entry points; keeping
      * notification entity-owned also handles a player moving between regions.
      */
-    private void notifyOwner(Spawner spawner, int items, double value) {
+    private void notifyOwner(Spawner spawner, long items, double value) {
         if (plugin.getConfig().getBoolean("disable-autosell-notifications", false)) return;
         Player owner = Bukkit.getPlayer(spawner.owner());
         if (owner == null || !owner.isOnline()) return;
 
-        String text = "&aAutosold &f" + items + " &aitem(s) for &f" + format(value) + "&a.";
-        owner.getScheduler().execute(plugin, () -> owner.sendMessage(Text.of(text)), null, 1L);
+        String amount = String.format(java.util.Locale.ROOT, "%,d", items);
+        String worth = format(value);
+        owner.getScheduler().execute(plugin, () -> dev.yanianz.bravenspawner.util.Messages.of(plugin)
+                .send(owner, "economy.autosold", "items", amount, "value", worth), null, 1L);
     }
 
     // ------------------------------------------------------------- pricing
@@ -466,8 +463,8 @@ public final class SellService {
     private List<ShopQuote> shopQuotes(Spawner spawner, Player viewer) {
         if (plugin.shops() == null) return List.of();
         List<ShopQuote> quotes = new ArrayList<>();
-        for (ItemStack stack : spawner.contents()) {
-            if (stack == null || stack.getType().isAir()) continue;
+        for (StockEntry entry : spawner.stock()) {
+            ItemStack stack = entry.template();
             boolean known = false;
             for (ShopQuote quote : quotes) {
                 if (quote.template().isSimilar(stack)) { known = true; break; }
@@ -508,36 +505,30 @@ public final class SellService {
      * a set of storage positions: positions shift whenever a producer appends and
      * a position-based quote would either miss loot or take the wrong stack.
      */
-    private Priced price(List<ItemStack> contents, PriceTable table) {
+    private Priced price(List<StockEntry> stock, PriceTable table) {
         List<Reservation> reserved = new ArrayList<>();
-        int items = 0;
+        long items = 0;
         double total = 0.0;
 
-        for (ItemStack stack : contents) {
-            if (stack == null || stack.getType().isAir()) continue;
-            Double unit = unitPrice(table, stack);
+        // Storage already keeps one entry per identity, so each priced entry is
+        // exactly one reservation of its exact quantity.
+        for (StockEntry entry : stock) {
+            ItemStack identity = entry.template();
+            Double unit = unitPrice(table, identity);
             if (unit == null || unit <= 0.0) continue;
-            int amount = stack.getAmount();
-            if (amount <= 0) continue;
-
-            Reservation matching = null;
-            for (Reservation candidate : reserved) {
-                if (candidate.template.isSimilar(stack)) {
-                    matching = candidate;
-                    break;
-                }
-            }
-            if (matching == null) {
-                reserved.add(new Reservation(stack.clone(), amount));
-            } else {
-                matching.remaining += amount;
-            }
-            items += amount;
-            total += unit * amount;
+            long amount = entry.quantity();
+            reserved.add(new Reservation(identity, amount));
+            items = saturatingAdd(items, amount);
+            total += unit * (double) amount;
         }
         // Whole-unit currencies (points, levels, items) round the payout down.
         return new Priced(List.copyOf(reserved), items,
                 CurrencyMath.payout(total * table.multiplier(), table.roundTo(), table.currency().wholeUnits()));
+    }
+
+    private static long saturatingAdd(long left, long right) {
+        long sum = left + right;
+        return ((left ^ sum) & (right ^ sum)) < 0 ? Long.MAX_VALUE : sum;
     }
 
     // ---------------------------------------------------------- settlement
@@ -578,12 +569,12 @@ public final class SellService {
         synchronized (spawner) {
             var product = plugin.product(spawner);
             if (product != null && product.mustBeFullToCollect()) {
-                int capacity = plugin.maximumItems(spawner);
+                long capacity = plugin.maximumItems(spawner);
                 if (capacity > 0 && spawner.storedCount() < capacity) {
                     return Sale.refused(Status.NOTHING_TO_SELL, "storage must be full before collecting");
                 }
             }
-            Priced priced = price(spawner.contents(), table);
+            Priced priced = price(spawner.stock(), table);
             if (!Double.isFinite(priced.value())) return Sale.refused(Status.FAILED, "sale price overflow");
             if (priced.items() <= 0 || priced.value() <= 0.0) {
                 return Sale.refused(Status.NOTHING_TO_SELL, "nothing stored has a sell price");
@@ -626,59 +617,21 @@ public final class SellService {
     }
 
     /**
-     * Removes exactly the reserved amounts, taking stock by identity not by index.
+     * Removes exactly the reserved amounts, by identity.
      *
-     * <p>Each pass snapshots live storage, plans which slots can satisfy which
-     * reservation and then drains in descending slot order, because
-     * {@link Spawner#drainSlot(int, int)} removes an emptied slot and would shift
-     * every higher index. A slot that changed identity underneath the plan is put
-     * back with {@link Spawner#storeVirtual(ItemStack, int)} and the pass is abandoned;
-     * the attempt stays paid and its remaining count is retried later. Loot that
-     * appeared after the quote is never in the reservation, so it stays put.
+     * <p>{@link Spawner#take(ItemStack, long)} removes from the matching identity
+     * atomically under the spawner monitor, so concurrent production appends cannot
+     * shift what is removed. Loot that appeared after the quote is not in the
+     * reservation and stays put. A shortfall (stock withdrawn by another path after
+     * the quote) leaves the attempt paid with its remaining count, retried later.
      */
     private boolean drain(SaleAttempt attempt, Spawner spawner) {
-        for (int pass = 0; pass < MAX_DRAIN_PASSES; pass++) {
-            if (attempt.outstanding() <= 0) return true;
-
-            List<ItemStack> live = spawner.contents();
-            List<DrainStep> steps = new ArrayList<>();
-
-            for (Reservation reservation : attempt.reservations) {
-                int need = reservation.remaining;
-                if (need <= 0) continue;
-                for (int index = 0; index < live.size() && need > 0; index++) {
-                    ItemStack stack = live.get(index);
-                    if (stack == null || stack.getType().isAir()) continue;
-                    if (!reservation.template.isSimilar(stack)) continue;
-
-                    int alreadyPlanned = 0;
-                    for (DrainStep step : steps) {
-                        if (step.index() == index) alreadyPlanned += step.amount();
-                    }
-                    int available = stack.getAmount() - alreadyPlanned;
-                    if (available <= 0) continue;
-
-                    int take = Math.min(need, available);
-                    steps.add(new DrainStep(index, reservation, take));
-                    need -= take;
-                }
-            }
-
-            if (steps.isEmpty()) return false;
-            steps.sort((a, b) -> Integer.compare(b.index(), a.index()));
-
-            for (DrainStep step : steps) {
-                ItemStack removed = spawner.drainSlot(step.index(), step.amount());
-                if (removed == null || removed.getAmount() <= 0) return false;
-                plugin.markDirty(spawner);
-                if (!step.reservation().template.isSimilar(removed)) {
-                    // A concurrent mutation moved a different stack into this slot;
-                    // restore it untouched and re-plan from a fresh snapshot.
-                    spawner.storeVirtual(removed, 0);
-                    return false;
-                }
-                step.reservation().remaining -= removed.getAmount();
-            }
+        for (Reservation reservation : attempt.reservations) {
+            if (reservation.remaining <= 0) continue;
+            long removed = spawner.take(reservation.template, reservation.remaining);
+            if (removed <= 0) continue;
+            reservation.remaining -= removed;
+            plugin.markDirty(spawner);
         }
         return attempt.outstanding() <= 0;
     }

@@ -1,6 +1,6 @@
 # Virtual Storage System (VSS) — Product and Engineering Specification
 
-**Status: PROPOSED, not implemented.** Target: **1.4.0 (Virtual Vault MVP, STOR-01)**; network vault and advanced UX come later. Initial design 2026-10-30, synchronized against shipped 1.3.0 on 2026-11-01. See the [technical specification](../TECHNICAL_SPEC.md) and [GAP_AUDIT §4.4](../GAP_AUDIT.md).
+**Status: local exact-count core IMPLEMENTED on branch `feat/vault-exact-long` (unreleased); the rest is PROPOSED.** Implemented: `StockEntry`/`StockLimits`, exact `long` quantities with checked arithmetic, `max_total` / `max_distinct` / `max_per_item`, identity-based take/restore for sell, take-all, hopper and GUI returns, exact-count BSC2 decode with legacy merge. Not implemented: a versioned `ItemKey` fingerprint (identity is still `ItemStack.isSimilar`), durable reservations/journal and crash reconciliation (VSS-05), configurable overflow policies (production simply pauses at capacity), GUI search/sort and withdraw picker, network vault. Target: **1.4.0 (Virtual Vault MVP, STOR-01)**; network vault and advanced UX come later. Initial design 2026-10-30, synchronized against shipped 1.3.0 on 2026-11-01. See the [technical specification](../TECHNICAL_SPEC.md) and [GAP_AUDIT §4.4](../GAP_AUDIT.md).
 
 ## 0. Current implementation (1.3.0 baseline)
 

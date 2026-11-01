@@ -1,6 +1,7 @@
 package dev.yanianz.bravenspawner.gui;
 
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -56,6 +57,30 @@ final class Withdrawals {
         return parts;
     }
 
+    /**
+     * Moves as much stored stock as one inventory can take, by identity.
+     *
+     * <p>At most {@link #MAX_PARTS} stacks are taken out, so a store of millions
+     * never materialises millions of {@link ItemStack}s; whatever the inventory
+     * rejects is restored to the same identity.
+     */
+    static Result takeAll(Player player, Spawner spawner) {
+        List<ItemStack> taken = new ArrayList<>();
+        int parts = 0;
+        for (StockEntry entry : spawner.stock()) {
+            if (parts >= MAX_PARTS) break;
+            long want = Math.min(entry.quantity(), (long) (MAX_PARTS - parts) * entry.maxStackSize());
+            long removed = spawner.take(entry.template(), want);
+            if (removed <= 0) continue;
+            ItemStack drained = entry.template();
+            drained.setAmount((int) removed);
+            taken.add(drained);
+            parts += (int) ((removed + entry.maxStackSize() - 1) / entry.maxStackSize());
+        }
+        if (taken.isEmpty()) return new Result(0, 0);
+        return deliver(player, spawner, taken);
+    }
+
     /** Gives drained items to the player; whatever does not fit is stored back. */
     static Result deliver(Player player, Spawner spawner, List<ItemStack> drained) {
         List<ItemStack> overflow = new ArrayList<>();
@@ -70,7 +95,7 @@ final class Withdrawals {
             if (leftover != null) {
                 for (ItemStack item : leftover.values()) {
                     rejected += item.getAmount();
-                    spawner.storeVirtual(item, 0);
+                    spawner.restore(item, item.getAmount());
                 }
             }
             moved = offered - rejected;
@@ -78,7 +103,7 @@ final class Withdrawals {
         }
         for (ItemStack item : overflow) {
             returned += item.getAmount();
-            spawner.storeVirtual(item, 0);
+            spawner.restore(item, item.getAmount());
         }
         return new Result(moved, returned);
     }

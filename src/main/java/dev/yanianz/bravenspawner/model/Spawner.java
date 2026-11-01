@@ -38,7 +38,8 @@ public final class Spawner {
     private final int z;
 
     private final Object lock = this;
-    private final List<ItemStack> storage = new ArrayList<>();
+    /** One slot per item identity; guarded by {@link #lock}. */
+    private final List<Slot> storage = new ArrayList<>();
     private final Set<UUID> trusted = Collections.synchronizedSet(new LinkedHashSet<>());
     private final AtomicLong produced = new AtomicLong();
     private final AtomicInteger pending = new AtomicInteger();
@@ -217,140 +218,187 @@ public final class Spawner {
         return new Location(w, x, y, z);
     }
 
-    public List<ItemStack> contents() {
+    /**
+     * Immutable snapshot of the stored identities in storage order. Page and cell
+     * indices in the GUI refer to this order.
+     */
+    public List<StockEntry> stock() {
         synchronized (lock) {
-            List<ItemStack> copy = new ArrayList<>(storage.size());
-            for (ItemStack item : storage) copy.add(item.clone());
+            List<StockEntry> copy = new ArrayList<>(storage.size());
+            for (Slot slot : storage) copy.add(new StockEntry(slot.template, slot.quantity));
             return copy;
         }
     }
 
-    public int storedCount() {
+    /** Exact sum of every stored quantity. Deposits keep it within {@code long}. */
+    public long storedCount() {
         synchronized (lock) {
-            int n = 0;
-            for (ItemStack item : storage) n += item.getAmount();
+            long n = 0;
+            for (Slot slot : storage) n += slot.quantity;
             return n;
         }
     }
 
+    /** Number of distinct stored identities. */
     public int distinctSlots() {
         synchronized (lock) { return storage.size(); }
     }
 
+    /** Stored quantity of one identity; amounts on {@code item} are ignored. */
+    public long quantityOf(ItemStack item) {
+        if (item == null) return 0;
+        synchronized (lock) {
+            Slot slot = find(item);
+            return slot == null ? 0 : slot.quantity;
+        }
+    }
+
     /**
-     * Inserts as much as fits. Returns the remainder, or null when everything landed.
-     * Capacity 0 (or negative) means unlimited storage.
+     * Adds up to {@code amount} of {@code item}'s identity within {@code limits}.
+     *
+     * <p>All arithmetic is checked: the result never exceeds the total, per-item or
+     * distinct limits, nor the {@code long} range. What is not accepted is not
+     * stored; the caller decides what happens to it (production simply does not
+     * create it).
+     *
+     * @return the accepted quantity, 0..amount
      */
-    public ItemStack store(ItemStack incoming, int capacity) { return store(incoming, capacity, 0); }
-
-    public ItemStack store(ItemStack incoming, int capacity, int maximumItems) {
-        if (incoming == null || incoming.getType().isAir()) return null;
+    public long deposit(ItemStack item, long amount, StockLimits limits) {
+        if (item == null || item.getType().isAir() || amount <= 0) return 0;
+        StockLimits bounds = limits == null ? StockLimits.UNLIMITED : limits;
         synchronized (lock) {
-            touch();
-            ItemStack left = incoming.clone();
-            int rejected = 0;
-            if (maximumItems > 0) {
-                long total = 0;
-                for (ItemStack item : storage) total += item.getAmount();
-                int admitted = (int) Math.min(left.getAmount(), Math.max(0L, maximumItems - total));
-                rejected = left.getAmount() - admitted;
-                left.setAmount(admitted);
-            }
-            int limit = capacity <= 0 ? Integer.MAX_VALUE : capacity;
-
-            for (ItemStack existing : storage) {
-                if (left.getAmount() <= 0) break;
-                if (!existing.isSimilar(left)) continue;
-                int space = existing.getMaxStackSize() - existing.getAmount();
-                if (space <= 0) continue;
-                int move = Math.min(space, left.getAmount());
-                existing.setAmount(existing.getAmount() + move);
-                left.setAmount(left.getAmount() - move);
-            }
-
-            while (left.getAmount() > 0 && storage.size() < limit) {
-                ItemStack chunk = left.clone();
-                int take = Math.min(chunk.getMaxStackSize(), left.getAmount());
-                chunk.setAmount(take);
-                storage.add(chunk);
-                left.setAmount(left.getAmount() - take);
-            }
-
-            left.setAmount(left.getAmount() + rejected);
-            return left.getAmount() > 0 ? left : null;
-        }
-    }
-
-    /** Virtual storage uses one logical count per item identity, independent of vanilla stack size. */
-    public ItemStack storeVirtual(ItemStack incoming, int maximumItems) {
-        if (incoming == null || incoming.getType().isAir() || incoming.getAmount() <= 0) return null;
-        synchronized (lock) {
-            touch();
             long total = 0;
-            for (ItemStack item : storage) total += item.getAmount();
-            long ceiling = maximumItems <= 0 ? Integer.MAX_VALUE : maximumItems;
-            int admitted = (int) Math.min(incoming.getAmount(), Math.max(0L, ceiling - total));
-            int remaining = admitted;
-            for (ItemStack item : storage) {
-                if (remaining <= 0) break;
-                if (!item.isSimilar(incoming)) continue;
-                int moved = (int) Math.min(remaining, (long) Integer.MAX_VALUE - item.getAmount());
-                item.setAmount(item.getAmount() + moved);
-                remaining -= moved;
-            }
-            if (remaining > 0) {
-                ItemStack entry = incoming.clone();
-                entry.setAmount(remaining);
-                storage.add(entry);
-            }
-            int rejected = incoming.getAmount() - admitted;
-            if (rejected <= 0) return null;
-            ItemStack leftover = incoming.clone();
-            leftover.setAmount(rejected);
-            return leftover;
+            for (Slot slot : storage) total += slot.quantity;
+            Slot slot = find(item);
+            if (slot == null && storage.size() >= bounds.effectiveDistinct()) return 0;
+            long existing = slot == null ? 0 : slot.quantity;
+            long accepted = Math.min(amount, Math.max(0, bounds.effectiveTotal() - total));
+            accepted = Math.min(accepted, Math.max(0, bounds.effectivePerItem() - existing));
+            accepted = Math.min(accepted, Long.MAX_VALUE - total);
+            if (accepted <= 0) return 0;
+            if (slot == null) storage.add(new Slot(item, accepted));
+            else slot.quantity = existing + accepted;
+            touch();
+            return accepted;
         }
     }
 
-    public List<ItemStack> drainAll() {
+    /**
+     * Puts back stock that was taken out and could not be delivered (a full
+     * inventory, a rejected hopper insert, a reversed sale).
+     *
+     * <p>Conservation wins over capacity: gameplay limits and the distinct bound are
+     * ignored, because the units already belonged to this storage. Only the
+     * {@code long} range can refuse; that would need more than 9.2e18 stored items.
+     *
+     * @return the restored quantity
+     */
+    public long restore(ItemStack item, long amount) {
+        if (item == null || item.getType().isAir() || amount <= 0) return 0;
         synchronized (lock) {
-            List<ItemStack> copy = new ArrayList<>(storage);
+            long total = 0;
+            for (Slot slot : storage) total += slot.quantity;
+            long accepted = Math.min(amount, Long.MAX_VALUE - total);
+            if (accepted <= 0) return 0;
+            Slot slot = find(item);
+            if (slot == null) storage.add(new Slot(item, accepted));
+            else slot.quantity += accepted;
+            touch();
+            return accepted;
+        }
+    }
+
+    /**
+     * Removes up to {@code amount} of {@code identity}, by identity rather than by
+     * position, so concurrent appends cannot redirect the removal.
+     *
+     * @return the removed quantity, 0..amount
+     */
+    public long take(ItemStack identity, long amount) {
+        if (identity == null || amount <= 0) return 0;
+        synchronized (lock) {
+            Slot slot = find(identity);
+            if (slot == null) return 0;
+            long removed = Math.min(amount, slot.quantity);
+            slot.quantity -= removed;
+            if (slot.quantity <= 0) storage.remove(slot);
+            touch();
+            return removed;
+        }
+    }
+
+    /** Removes everything and returns what was stored. */
+    public List<StockEntry> drainAll() {
+        synchronized (lock) {
+            List<StockEntry> copy = new ArrayList<>(storage.size());
+            for (Slot slot : storage) copy.add(new StockEntry(slot.template, slot.quantity));
             storage.clear();
             touch();
             return copy;
         }
     }
 
-    /** Removes up to {@code amount} from a stored slot; used by the paged GUI. */
-    public ItemStack drainSlot(int index, int amount) {
+    /**
+     * A stale GUI may drain only the identity it originally displayed at {@code index}.
+     *
+     * @return an item of that identity carrying the removed amount (which may exceed
+     *         the vanilla stack size; callers split it), or null when nothing moved
+     */
+    public ItemStack drainSlotIfSimilar(int index, ItemStack expected, int amount) {
         synchronized (lock) {
-            if (index < 0 || index >= storage.size()) return null;
-            ItemStack slot = storage.get(index);
-            int take = Math.min(amount, slot.getAmount());
-            ItemStack out = slot.clone();
-            out.setAmount(take);
-            slot.setAmount(slot.getAmount() - take);
-            if (slot.getAmount() <= 0) storage.remove(index);
+            if (expected == null || amount <= 0 || index < 0 || index >= storage.size()) return null;
+            Slot slot = storage.get(index);
+            if (!slot.template.isSimilar(expected)) return null;
+            int removed = (int) Math.min(amount, slot.quantity);
+            slot.quantity -= removed;
+            if (slot.quantity <= 0) storage.remove(index);
             touch();
+            ItemStack out = slot.template.clone();
+            out.setAmount(removed);
             return out;
         }
     }
 
-    /** A stale GUI may drain only the same item identity it originally displayed. */
-    public ItemStack drainSlotIfSimilar(int index, ItemStack expected, int amount) {
+    /**
+     * Replaces the whole store, merging entries of the same identity. Used by the
+     * storage backends on load; a sum beyond {@code long} is refused with
+     * {@link ArithmeticException} so the record is quarantined instead of truncated.
+     */
+    public void replaceStock(List<StockEntry> entries) {
+        List<Slot> merged = new ArrayList<>();
+        if (entries != null) {
+            long total = 0;
+            for (StockEntry entry : entries) {
+                if (entry == null) continue;
+                total = Math.addExact(total, entry.quantity());
+                ItemStack template = entry.template();
+                Slot existing = null;
+                for (Slot slot : merged) if (slot.template.isSimilar(template)) { existing = slot; break; }
+                if (existing == null) merged.add(new Slot(template, entry.quantity()));
+                else existing.quantity = Math.addExact(existing.quantity, entry.quantity());
+            }
+        }
         synchronized (lock) {
-            if (expected == null || amount <= 0 || index < 0 || index >= storage.size()) return null;
-            if (!storage.get(index).isSimilar(expected)) return null;
-            return drainSlot(index, amount);
+            storage.clear();
+            storage.addAll(merged);
+            touch();
         }
     }
 
-    public void replaceContents(List<ItemStack> items) {
-        synchronized (lock) {
-            touch();
-            storage.clear();
-            if (items != null) {
-                for (ItemStack item : items) if (item != null && !item.getType().isAir()) storage.add(item);
-            }
+    /** Caller holds {@link #lock}. */
+    private Slot find(ItemStack item) {
+        for (Slot slot : storage) if (slot.template.isSimilar(item)) return slot;
+        return null;
+    }
+
+    /** One identity: an amount-1 template and its exact quantity. */
+    private static final class Slot {
+        final ItemStack template;
+        long quantity;
+
+        Slot(ItemStack item, long quantity) {
+            this.template = StockEntry.one(item);
+            this.quantity = quantity;
         }
     }
 

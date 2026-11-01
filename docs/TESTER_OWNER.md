@@ -45,6 +45,7 @@ Fill before each campaign:
 | OWN-18 | Stocked spawner with no hopper, then place a hopper 1 and 2 blocks below; also `/setblock` a hopper | Transfer starts immediately after placement; within ~7 s after `/setblock`; no duplicated or lost items | NOT RUN |
 | OWN-19 | Ninja mode with view distance 4 vs 12, many spawners, teleport and world change | Distant spawners within view stay hidden, near ones visible, nothing flickers back after chunk reload | NOT RUN |
 | OWN-21 | Place, break, stack, convert vanilla, booster activate and repair with a customised `messages.yml` prefix/roles | Every line uses the configured prefix and colours; stacking and booster activation play their `sounds.yml` cues | NOT RUN |
+| OWN-22 | Vault (VSS-01/03/09): produce or `/give`-and-deposit far beyond 2.1 billion of one item with `unlimited-storage`; set `storage-limits.max-distinct-items: 2` and `max-per-item: 1000`; restart on YAML, SQLite and MySQL/Mongo; load a 1.3.0 data copy | Exact counts survive restart; a third identity and the 1001st unit are not produced; take-all, sell and hopper conserve totals; 1.3.0 data loads with entries merged and equal totals | NOT RUN |
 | OWN-20 | Remove a spawner block via explosion (damage enabled) or `/setblock air`; restart with and without `restore-missing-spawners` | Production pauses with one warning; restore recreates the block, logs the replaced material and shows `RESTORE` in the log menu | NOT RUN |
 
 ## 3. Durability and failure injection

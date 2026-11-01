@@ -36,6 +36,13 @@ activation-radius: 10
 
 block-collection-in-inventory: true
 unlimited-storage: false
+# Virtual storage limits per spawner; 0 = no gameplay limit. Quantities are exact
+# 64-bit counts. The total cap comes from each product's max-stored-items (scaled by
+# stack and tier); these add a cap on different item kinds and on one kind's amount.
+# A spawner never holds more than 4096 different kinds, the most that can be saved.
+storage-limits:
+  max-distinct-items: 0
+  max-per-item: 0
 # Maximum spawners per chunk (0 = no limit). By default this counts spawner BLOCKS,
 # so stacking onto an existing spawner is never refused by it. Set
 # spawner-limit-in-chunk-mode: stacks to count stack units instead (then a chunk

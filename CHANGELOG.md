@@ -35,12 +35,27 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   deprecated execution-time `Task.project` access and enabling configuration-cache use.
 
 ### Added
+- **Exact-count virtual storage (STOR-01 local core, VSS-01/03/08/09).** Each stored
+  item identity is one entry with an exact 64-bit quantity (`StockEntry`) instead of an
+  `ItemStack` with an int amount. Deposits use checked arithmetic and never wrap; the
+  BSC2 codec now writes and reads those quantities without the old int clamp.
+- `storage-limits.max-distinct-items` and `storage-limits.max-per-item` in `config.yml`
+  (0 = no gameplay limit), independent of the product's total `max-stored-items` cap.
+  A spawner never holds more than 4096 identities, the most the codec can save.
+- Sell settlement, take-all and hopper/GUI returns remove and restore stock by identity
+  (`Spawner.take` / `restore`). Take-all moves at most one inventory's worth per click
+  instead of draining and re-storing the whole store.
 - Per-action menu permissions (PM-01): `bravenspawner.action.sell`, `.xp`, `.upgrade`,
   `.buy`, plus `bravenspawner.action.*`. All default to `true`, so existing servers keep
   their behaviour; negating a node blocks that action for everyone (including admins),
   and never grants access to a spawner. Collect-all performs only the permitted halves.
 
 ### Changed
+- Loading merges legacy entries of the same identity into one; the on-disk format is
+  unchanged (BSC2 v2), so no schema migration runs. **Downgrade caveat:** 1.3.x and
+  older clamp any single identity above 2,147,483,647 when reading, so take a backup
+  before downgrading a server that stored more than that of one item.
+- The autosell notification uses `messages.yml` (`economy.autosold`).
 - Block, stacking, booster-item and repair chat lines moved from hard-coded text to
   `messages.yml` (new `spawner.*`, `booster-item.*` and `repair.*` keys) so the prefix
   and colour roles apply everywhere. Missing keys fall back to the bundled defaults.

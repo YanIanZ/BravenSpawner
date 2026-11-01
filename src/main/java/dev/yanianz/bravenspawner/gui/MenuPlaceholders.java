@@ -40,7 +40,7 @@ public final class MenuPlaceholders {
      * @param headMaterial material name of the product's head icon; blank keeps the menu's material
      */
     public record Snapshot(String product, String displayName, String color, int tier, int stack, int maxStack,
-                           int stored, int maxItems, int xp, int maxXp, String sellValue,
+                           long stored, long maxItems, int xp, int maxXp, String sellValue,
                            String unitPrice, String batchPrice,
                            long minTicks, long maxTicks, int dropMin, int dropMax, int xpMin, int xpMax,
                            int page, int pages, String headTexture, String headMaterial) { }

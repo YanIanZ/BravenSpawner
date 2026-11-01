@@ -3,6 +3,7 @@ package dev.yanianz.bravenspawner.storage;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.yanianz.bravenspawner.model.Spawner;
+import dev.yanianz.bravenspawner.model.StockEntry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -319,7 +320,7 @@ public final class SqlStorage implements Storage {
             plugin.getLogger().warning("quarantined spawner row with malformed id " + rawId);
             return null;
         }
-        List<ItemStack> items = Storage.Codec.decodeItems(rs.getString("items"), rawId);
+        List<StockEntry> items = Storage.Codec.decodeStock(rs.getString("items"), rawId);
         if (items == null) {
             plugin.getLogger().warning("quarantined spawner row " + rawId + ": inventory is unreadable");
             return null;
@@ -336,7 +337,7 @@ public final class SqlStorage implements Storage {
                     rs.getInt("tier"),
                     rs.getBoolean("hologram"));
             spawner.trusted().addAll(Storage.Codec.decodeTrusted(rs.getString("trusted")));
-            spawner.replaceContents(items);
+            spawner.replaceStock(items);
             spawner.addXp(rs.getInt("xp"));
             spawner.produced(rs.getLong("produced"));
             Storage.Codec.restoreCorruption(spawner, rs.getBoolean("corrupted"), rs.getLong("corrupted_at"));
@@ -499,7 +500,7 @@ public final class SqlStorage implements Storage {
         ps.setInt(14, s.storedXp());
         ps.setLong(15, s.produced());
         ps.setString(16, Storage.Codec.encodeTrusted(s.trusted()));
-        ps.setString(17, Storage.Codec.encodeItems(s.contents(), s.id().toString()));
+        ps.setString(17, Storage.Codec.encodeStock(s.stock(), s.id().toString()));
         ps.setLong(18, now);
     }
 

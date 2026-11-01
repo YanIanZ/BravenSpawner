@@ -32,7 +32,7 @@ class HologramConfigTest {
         Spawner spawner = mock(Spawner.class);
         when(spawner.product()).thenReturn("zombie");
         when(spawner.stack()).thenReturn(3);
-        when(spawner.storedCount()).thenReturn(50);
+        when(spawner.storedCount()).thenReturn(50L);
         when(spawner.storedXp()).thenReturn(10);
         for (String line : bundled().lines(spawner, Map.of(), 100, 100)) {
             assertFalse(Text.strip(line).matches(".*#[0-9a-fA-F]{6}.*"), line);

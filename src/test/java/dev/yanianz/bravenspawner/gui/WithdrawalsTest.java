@@ -62,6 +62,6 @@ class WithdrawalsTest {
         Withdrawals.Result result = Withdrawals.deliver(player, spawner, List.of(stack(200, 64)));
         assertEquals(190, result.moved());
         assertEquals(10, result.returned());
-        verify(spawner).storeVirtual(rejected, 0);
+        verify(spawner).restore(rejected, 10L);
     }
 }

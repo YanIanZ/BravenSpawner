@@ -37,8 +37,8 @@ class FullCollectionTest {
         Spawner spawner = mock(Spawner.class);
         Player player = mock(Player.class);
         when(plugin.product(spawner).mustBeFullToCollect()).thenReturn(true);
-        when(plugin.maximumItems(spawner)).thenReturn(2000);
-        when(spawner.storedCount()).thenReturn(1999);
+        when(plugin.maximumItems(spawner)).thenReturn(2000L);
+        when(spawner.storedCount()).thenReturn(1999L);
         invoke(plugin, "sellAll", player, spawner);
         verify(spawner, never()).drainAll();
     }

@@ -200,4 +200,17 @@ class ItemCodecTest {
         assertEquals(List.of(500, 7), items.stream().map(ItemStack::getAmount).toList());
         assertEquals(2, seen.size());
     }
+
+    /** The model's distinct bound must never let storage exceed what this codec can write. */
+    @org.junit.jupiter.api.Test void modelDistinctBoundMatchesCodecLimit() {
+        org.junit.jupiter.api.Assertions.assertEquals(ItemCodec.MAX_ITEMS,
+                dev.yanianz.bravenspawner.model.StockLimits.HARD_MAX_DISTINCT);
+    }
+
+    /** VSS-01/09: v2 entries keep exact long amounts on the wire, beyond int. */
+    @org.junit.jupiter.api.Test void wireAmountsBeyondIntRoundTrip() throws Exception {
+        var entries = java.util.List.of(new ItemCodec.Entry(10_000_000_000L, new byte[] {1, 2, 3}),
+                new ItemCodec.Entry(Long.MAX_VALUE, new byte[] {4}));
+        org.junit.jupiter.api.Assertions.assertEquals(entries, ItemCodec.read(ItemCodec.write(entries)));
+    }
 }

@@ -53,7 +53,7 @@ class HopperLinkTest {
         when(plugin.manager()).thenReturn(manager);
 
         when(spawner.id()).thenReturn(id);
-        when(spawner.storedCount()).thenReturn(10);
+        when(spawner.storedCount()).thenReturn(10L);
         when(spawner.blockLocation()).thenAnswer(call -> new Location(world, 0, 64, 0));
         when(manager.all()).thenReturn(List.of(spawner));
         when(manager.byId(id)).thenReturn(spawner);
@@ -125,7 +125,7 @@ class HopperLinkTest {
     }
 
     @Test void emptySpawnerIsNeverDispatched() {
-        when(spawner.storedCount()).thenReturn(0);
+        when(spawner.storedCount()).thenReturn(0L);
         link.tick();
         assertTrue(dispatched.isEmpty());
     }
