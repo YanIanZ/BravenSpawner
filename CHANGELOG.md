@@ -6,6 +6,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Corrupted spawner visuals**: a corrupted spawner's hologram switches to
+  `hologram.corrupted.content` in holograms.yml. It has a glitching spawner name
+  (`%glitch_type%`), a pulsing "CORRUPTED" line (`%corruption_pulse%`) and a
+  dark-purple background. The animation redraws every `animation-ticks`, and only
+  while a player is near. `hologram.corrupted.enabled: false` keeps the old line.
+  `%corruption_status%` now adds at most three glitch marks instead of the whole
+  `corrupted-chars` string.
+- **Corruption particles**: `particles.corrupted` is a purple cloud with two rising
+  spirals that loops around corrupted spawners near players.
+  `particles.corrupt` is a reverse-portal burst at the moment a spawner becomes
+  corrupted. `particles.repair` is an end-rod burst on every spawner a repair fixes.
+  All three run on the spawner's region and are Folia-safe.
+- **Unicode hologram text**: the shipped holograms use Unicode small capitals
+  throughout (`ᴢᴏᴍʙɪᴇ ꜱᴘᴀᴡɴᴇʀ`, `ꜱᴛᴏʀᴀɢᴇ`, `[ᴄᴏʀʀᴜᴘᴛᴇᴅ]`, `4×`). The new
+  `%spawner_type_small%` placeholder gives the type in small capitals, and glitch
+  glyphs are symbols only. An existing holograms.yml keeps its own text.
 - **Custom-item drops**: a drop's `material` may name an item from MMOItems
   (`mmoitems:TYPE:ID`), EcoItems (`ecoitems:id`), ItemsAdder (`itemsadder:ns:id`),
   Oraxen (`oraxen:id`), Nexo (`nexo:id`) or MythicMobs (`mythicmobs:id`). Items are

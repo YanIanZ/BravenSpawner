@@ -180,6 +180,9 @@ public final class CorruptionTask {
             plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.CORRUPT, null, 0, "timer");
             Holograms holograms = plugin.holograms();
             if (holograms != null) holograms.update(spawner);
+            if (plugin.particles() != null) {
+                plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.CORRUPT, spawner.location());
+            }
             if (plugin.getConfig().getBoolean("enable-logger", false)) {
                 plugin.getLogger().info("Spawner " + spawner.id() + " corrupted at "
                         + spawner.world() + " " + spawner.x() + "," + spawner.y() + ","
@@ -198,6 +201,9 @@ public final class CorruptionTask {
         countdowns.remove(spawner.id());
         Holograms holograms = plugin.holograms();
         if (holograms != null) holograms.update(spawner);
+        if (plugin.particles() != null) {
+            plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.REPAIR, spawner.location());
+        }
     }
 
     private long delayMs(String path, long fallbackSeconds) {

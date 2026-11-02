@@ -50,4 +50,75 @@ class HologramConfigTest {
         assertFalse(config.enabled());
         assertFalse(config.toggleCommandEnabled());
     }
+
+    private static Spawner corrupted(boolean corrupted) {
+        Spawner spawner = mock(Spawner.class);
+        when(spawner.id()).thenReturn(java.util.UUID.fromString("00000000-0000-0000-0000-00000000002a"));
+        when(spawner.product()).thenReturn("zombie");
+        when(spawner.stack()).thenReturn(2);
+        when(spawner.corrupted()).thenReturn(corrupted);
+        return spawner;
+    }
+
+    @Test void corruptedSpawnerShowsTheCorruptedStyle() throws Exception {
+        HologramConfig config = bundled();
+        var healthy = config.lines(corrupted(false), Map.of(), 100, 100, 0);
+        var broken = config.lines(corrupted(true), Map.of(), 100, 100, 0);
+        assertEquals(config.content().size(), healthy.size());
+        assertEquals(config.corruptedStyle().content().size(), broken.size());
+        assertTrue(Text.strip(String.join("\n", broken)).contains("ᴄᴏʀʀᴜᴘᴛᴇᴅ"), broken.toString());
+        for (String line : broken) {
+            assertFalse(line.contains("%"), "every placeholder resolved: " + line);
+            assertFalse(Text.strip(line).matches(".*#[0-9a-fA-F]{6}.*"), line);
+        }
+        assertEquals(HologramConfig.DEFAULT_BACKGROUND, config.background(corrupted(false)));
+        assertEquals(0x662A0845, config.background(corrupted(true)));
+    }
+
+    @Test void glitchIsStableWithinAFrameAndMovesBetweenFrames() throws Exception {
+        HologramConfig config = bundled();
+        Spawner spawner = corrupted(true);
+        assertEquals(config.lines(spawner, Map.of(), 0, 0, 7), config.lines(spawner, Map.of(), 0, 0, 7));
+        java.util.Set<String> frames = new java.util.HashSet<>();
+        for (long frame = 0; frame < 12; frame++) frames.add(config.lines(spawner, Map.of(), 0, 0, frame).get(0));
+        assertTrue(frames.size() > 1, "the glitch changes over time");
+        for (String line : frames) {
+            String plain = Text.strip(line);
+            assertTrue(plain.contains("ꜱᴘᴀᴡɴᴇʀ"), plain);
+            assertFalse(plain.chars().anyMatch(c -> c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'),
+                    "no plain Latin letters: " + plain);
+        }
+    }
+
+    @Test void disabledStyleKeepsNormalContentAndBackground() {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("hologram.content", java.util.List.of("%spawner_type_cap% %corruption_status%"));
+        yaml.set("hologram.corrupted-chars", "\u0336");
+        yaml.set("hologram.corrupted.enabled", false);
+        HologramConfig config = HologramConfig.from(yaml);
+        String line = config.lines(corrupted(true), Map.of(), 0, 0, 3).get(0);
+        assertTrue(line.startsWith("ZOMBIE &#8A2BE2&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]\u0336"), line);
+        assertTrue(line.length() <= "ZOMBIE &#8A2BE2&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]".length() + 3, "at most three marks: " + line);
+        assertEquals(HologramConfig.DEFAULT_BACKGROUND, config.background(corrupted(true)));
+        assertFalse(config.corruptedStyle().animated());
+    }
+
+    @Test void shippedHologramsUseUnicodeSmallCapitals() throws Exception {
+        HologramConfig config = bundled();
+        for (boolean corrupt : new boolean[] {false, true}) {
+            for (String line : config.lines(corrupted(corrupt), Map.of(), 10, 10, 1)) {
+                String plain = Text.strip(line);
+                assertFalse(plain.chars().anyMatch(c -> c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'w' || c >= 'y' && c <= 'z'),
+                        "only small capitals (and x): " + plain);
+            }
+        }
+        assertEquals("ᴄᴀᴠᴇ ꜱᴘɪᴅᴇʀ 2", Text.smallCaps("Cave SPIDER 2"));
+    }
+
+    @Test void backgroundAcceptsArgbAndRgb() {
+        assertEquals(0x80112233, HologramConfig.argb("#80112233", 1));
+        assertEquals(0x66112233, HologramConfig.argb("&#112233", 1));
+        assertEquals(1, HologramConfig.argb("purple", 1));
+        assertEquals(1, HologramConfig.argb(null, 1));
+    }
 }

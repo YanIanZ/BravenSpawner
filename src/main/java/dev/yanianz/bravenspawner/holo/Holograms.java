@@ -81,6 +81,7 @@ public final class Holograms {
                 plugin.maximumItems(spawner), plugin.maximumXp(spawner));
         if (lines.isEmpty()) { remove(spawner.id()); return; }
         String line = String.join("\n", lines);
+        org.bukkit.Color background = org.bukkit.Color.fromARGB(config.background(spawner));
 
         Object generation;
         synchronized (lifecycle) {
@@ -114,6 +115,7 @@ public final class Holograms {
                         if (!current(spawner, generation) || displays.get(spawner.id()) != target) return;
                         target.setViewRange(config.viewDistance() / 64.0f);
                         target.text(Text.of(line));
+                        if (!background.equals(target.getBackgroundColor())) target.setBackgroundColor(background);
                     }, () -> displays.remove(spawner.id(), target), 1L);
                     if (!scheduled) displays.remove(spawner.id(), target);
                 } catch (RuntimeException e) {

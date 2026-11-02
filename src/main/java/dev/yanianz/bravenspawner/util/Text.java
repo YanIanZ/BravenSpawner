@@ -89,6 +89,25 @@ public final class Text {
      * Makes an untrusted value (player name, item name…) render literally when it
      * is spliced into a template that later goes through {@link #of(String)}.
      */
+    /** Unicode small capitals for a to z, in alphabet order; x has none and stays x. */
+    private static final String SMALL_CAPS = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ";
+
+    /**
+     * {@code value} with every Latin letter, either case, as a Unicode small
+     * capital ("Cave Spider" becomes "ᴄᴀᴠᴇ ꜱᴘɪᴅᴇʀ"). Other characters are unchanged,
+     * so pass plain text only: colour codes such as {@code &l} would be rewritten too.
+     */
+    public static String smallCaps(String value) {
+        if (value == null || value.isEmpty()) return value;
+        StringBuilder sb = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            char lower = Character.toLowerCase(c);
+            sb.append(lower >= 'a' && lower <= 'z' ? SMALL_CAPS.charAt(lower - 'a') : c);
+        }
+        return sb.toString();
+    }
+
     public static String escape(String value) {
         if (value == null || value.isEmpty()) return "";
         StringBuilder out = new StringBuilder(value.length() + 8);

@@ -50,6 +50,7 @@ public final class BravenSpawner extends JavaPlugin {
     private SpawnerGui gui;
     private CheckpointService checkpoints;
     private CorruptionTask corruption;
+    private dev.yanianz.bravenspawner.corruption.CorruptionEffects corruptionEffects;
     private AuditLog audit;
     private ProductRegistry products;
     private SellWandService wands;
@@ -250,6 +251,7 @@ public final class BravenSpawner extends JavaPlugin {
         new CommandHandler(this).register(this);
         boosters.start(settings);
         corruption = new CorruptionTask(this);
+        corruptionEffects = new dev.yanianz.bravenspawner.corruption.CorruptionEffects(this);
         if (storage == null) {
             getLogger().severe("BravenSpawner is in STORAGE UNAVAILABLE mode: spawner placing, breaking, "
                     + "opening, selling and withdrawing are blocked until databases.yml is fixed and the "
@@ -273,6 +275,7 @@ public final class BravenSpawner extends JavaPlugin {
                 ready = true;
                 checkpoints = new CheckpointService(this, storage, manager::all);
                 corruption.start();
+                corruptionEffects.start();
                 events.start();
                 manager.startAll();
                 holograms.refreshAll();
@@ -291,6 +294,7 @@ public final class BravenSpawner extends JavaPlugin {
         if (boosters != null) boosters.shutdown();
         if (events != null) events.close();
         if (corruption != null) corruption.stop();
+        if (corruptionEffects != null) corruptionEffects.stop();
         if (manager != null) manager.stopAll();
         if (checkpoints != null) { checkpoints.close(); checkpoints = null; }
         if (holograms != null) holograms.removeAll();
