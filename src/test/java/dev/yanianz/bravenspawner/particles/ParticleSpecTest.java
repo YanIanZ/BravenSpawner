@@ -50,6 +50,23 @@ class ParticleSpecTest {
         assertEquals(5, flame.count());
     }
 
+    @Test void shippedCorruptionEffectsResolve() throws Exception {
+        YamlConfiguration config = new YamlConfiguration();
+        try (var stream = ParticleSpecTest.class.getResourceAsStream("/config.yml")) {
+            config.load(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        List<String> warnings = new ArrayList<>();
+        for (SpawnerParticles.Effect effect : SpawnerParticles.Effect.values()) {
+            String path = "particles." + effect.key;
+            assertNotNull(config.getConfigurationSection(path), path + " is shipped");
+            assertNotNull(ParticleSpec.read(config.getConfigurationSection(path), path, effect.defaults, warnings::add), path);
+            assertNotNull(ParticleSpec.read(null, path, effect.defaults, warnings::add), path + " default");
+        }
+        assertEquals(List.of(), warnings);
+        assertEquals(Particle.REVERSE_PORTAL, ParticleSpec.read(config.getConfigurationSection("particles.corrupt"),
+                "particles.corrupt", SpawnerParticles.Effect.CORRUPT.defaults, warnings::add).particle());
+    }
+
     @Test void unknownOrDisabledEffectsAreSkippedWithOneWarning() {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("type", "NOT_A_PARTICLE");

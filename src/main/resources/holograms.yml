@@ -52,3 +52,23 @@ hologram:
   corrupted-color: '#8A2BE2'  # Purple color for corrupted spawners
   corrupted-chars: '҉̸̢̡̛̖̗̘̙̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̀́̂̃̄̅̆̇̈̉̊̋̌̍̎̏̐̑̒̓̔̽̾̿̀́͂̓̈́͆͊͋͌̕̚ͅ' # Characters used for corruption effect
   corrupted-text: '&5&l[CORRUPTED]'  # Text to display when a spawner is corrupted
+
+  # Look of a corrupted spawner's hologram.
+  corrupted:
+    # true: corrupted spawners show the lines below instead of "content".
+    # false: they keep "content" (with %corruption_status%).
+    enabled: true
+    # Extra placeholders:
+    #   %glitch_type%       spawner type, glitched with corrupted-chars, re-rolled each frame
+    #   %corruption_pulse%  colour of the current frame, cycling through pulse-colors
+    content:
+      - '#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %glitch_type% #6e6d6d&lSPAWNER'
+      - '%corruption_pulse%&l☠ ᴄᴏʀʀᴜᴘᴛᴇᴅ ☠'
+      - '#8a7f99✖ ᴘʀᴏᴅᴜᴄᴛɪᴏɴ ʜᴀʟᴛᴇᴅ'
+      - '#b48cff➤ #d9c7ffʀɪɢʜᴛ-ᴄʟɪᴄᴋ ᴛᴏ ʀᴇᴘᴀɪʀ'
+    pulse-colors: ['#8A2BE2', '#B455FF', '#FF3CAC', '#B455FF']
+    # Text background as #AARRGGBB (or #RRGGBB at 40% opacity).
+    background: '#662A0845'
+    # Ticks per glitch frame (5..200); 0 = no animation. Only corrupted spawners
+    # with a player nearby are redrawn.
+    animation-ticks: 10
