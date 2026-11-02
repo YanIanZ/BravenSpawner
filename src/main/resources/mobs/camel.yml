@@ -4,9 +4,11 @@ display-name: Camel
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/58c3833a24d37f143292561a5eb5d5670978b7269916c4db7c8a9b91b2ea1e01
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 22
+  max: 36
 xp:
   min: 5
   max: 5

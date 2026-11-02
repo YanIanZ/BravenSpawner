@@ -4,9 +4,11 @@ display-name: Zombified Piglin
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/9c0ce2e8964db983a81290ea86a289852f448c968d64511f47d9cfb5911dde40
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 25
+  max: 40
 xp:
   min: 5
   max: 5

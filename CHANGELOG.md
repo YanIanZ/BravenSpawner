@@ -5,6 +5,22 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Every spawner has its own speed** instead of a shared 60 s default (and 5–15 s for
+  some). Each product declares `spawn-delays` (min–max seconds): cheap/passive products
+  are fast (cod 10–18 s, chicken 12–22 s), common hostiles moderate (zombie 20–35 s,
+  skeleton 18–32 s), valuable ones slower (blaze 40–60 s, iron golem 60–90 s) and rare
+  ones slowest (evoker 150–240 s, warden 240–360 s). Full table: docs/SPAWNER_SPEEDS.md.
+  Hourly output changes per product; review prices or capacities on economy servers.
+- **Upgrade tiers multiply each product's speed** (`speed`: base 1.0, iron 1.33,
+  gold 2.0, diamond 4.0) instead of capping it at an absolute interval, which made
+  upgrades useless for products already faster than the cap. A tier without `speed`
+  derives it from `interval-ticks` relative to the first tier, so a 60 s product keeps
+  exactly its old 45/30/15 s upgraded timing.
+- Existing servers: product files that still carry exactly their shipped timing are
+  switched to the new speeds once on startup (marker `.speeds-v2`); files you edited
+  are left alone, and only the timing lines change.
+
 ## [1.4.1] - 2026-11-02
 
 ### Fixed

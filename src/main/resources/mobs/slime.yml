@@ -4,9 +4,11 @@ display-name: Slime
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/c06424ec7a196b15f9ad5733a36a6d1f2e6a0d42ffce1e1508f90f312ac4caed
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 20
+  max: 35
 xp:
   min: 5
   max: 5

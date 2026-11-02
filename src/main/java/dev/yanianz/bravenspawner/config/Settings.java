@@ -262,7 +262,8 @@ public final class Settings {
                     String.valueOf(name),
                     raw.get("cost") instanceof Number n ? n.doubleValue() : 0.0,
                     raw.get("interval-ticks") instanceof Number n ? n.longValue() : 1200L,
-                    raw.get("capacity") instanceof Number n ? n.intValue() : 45));
+                    raw.get("capacity") instanceof Number n ? n.intValue() : 45,
+                    raw.get("speed") instanceof Number n ? n.doubleValue() : 0.0));
         }
         if (tiers.isEmpty()) tiers.add(new Tier("base", 0.0, 1200L, 45));
         b.tiers = tiers;
@@ -328,17 +329,31 @@ public final class Settings {
     }
 
     /**
-     * Production period in ticks for a spawner at {@code tierIndex}. The base tier
-     * uses the product delay; an upgraded tier uses {@code min(product, tier)}, so an
-     * upgrade can only make production faster, never slower.
+     * Speed multiplier of a tier. An explicit {@code speed} wins; otherwise it is
+     * derived from interval-ticks relative to the first tier (1200 / 900 = 1.33x),
+     * so older configs keep their timing for 60 s products and scale the rest.
+     * Never below 1: an upgrade never slows production.
+     */
+    public double speedMultiplier(int tierIndex) {
+        if (tiers.isEmpty()) return 1.0;
+        Tier base = tiers.get(0);
+        Tier tier = tiers.get(Math.min(Math.max(0, tierIndex), tiers.size() - 1));
+        double multiplier = tier.speed > 0.0 ? tier.speed / (base.speed > 0.0 ? base.speed : 1.0)
+                : (double) base.intervalTicks / Math.max(20L, tier.intervalTicks);
+        return Double.isFinite(multiplier) ? Math.max(1.0, multiplier) : 1.0;
+    }
+
+    /**
+     * Production period in ticks for a spawner at {@code tierIndex}: the product's own
+     * delay (each mob has its own speed) divided by the tier's speed multiplier. A
+     * product without a delay uses the first tier's interval. At least 20 ticks.
+     *
+     * <p>Before 1.5, an upgraded tier used {@code min(product, tier interval)}, which
+     * made upgrades useless for products already faster than the tier cap.
      */
     public long productionPeriod(int tierIndex, long productDelayTicks) {
-        long product = productDelayTicks > 0 ? productDelayTicks : Long.MAX_VALUE;
-        if (tiers.isEmpty()) return Math.max(20L, product == Long.MAX_VALUE ? 1200L : product);
-        int index = Math.min(Math.max(0, tierIndex), tiers.size() - 1);
-        long tier = tiers.get(index).intervalTicks;
-        long period = index == 0 && product != Long.MAX_VALUE ? product : Math.min(product, tier);
-        return Math.max(20L, period);
+        long base = productDelayTicks > 0 ? productDelayTicks : tiers.isEmpty() ? 1200L : tiers.get(0).intervalTicks;
+        return Math.max(20L, Math.round(base / speedMultiplier(tierIndex)));
     }
 
     /** Configured booster duration in seconds, already clamped to 5..86400 while loading. */
@@ -419,12 +434,19 @@ public final class Settings {
         public final double cost;
         public final long intervalTicks;
         public final int capacity;
+        /** Production speed multiplier; 0 derives it from interval-ticks (see {@link #speedMultiplier}). */
+        public final double speed;
 
         public Tier(String name, double cost, long intervalTicks, int capacity) {
+            this(name, cost, intervalTicks, capacity, 0.0);
+        }
+
+        public Tier(String name, double cost, long intervalTicks, int capacity, double speed) {
             this.name = name;
             this.cost = cost;
             this.intervalTicks = intervalTicks;
             this.capacity = capacity;
+            this.speed = speed;
         }
 
         /**
@@ -434,6 +456,11 @@ public final class Settings {
          * capacity at least 1. Each repair is logged.
          */
         public static Tier validated(String name, double cost, long intervalTicks, int capacity) {
+            return validated(name, cost, intervalTicks, capacity, 0.0);
+        }
+
+        /** As above, with an explicit speed multiplier (0 = derive; otherwise 0.1..20). */
+        public static Tier validated(String name, double cost, long intervalTicks, int capacity, double speed) {
             java.util.logging.Logger log = java.util.logging.Logger.getLogger("BravenSpawner");
             if (!Double.isFinite(cost) || cost < 0.0) {
                 log.warning("upgrades.tiers '" + name + "': cost " + cost + " is invalid; using 0");
@@ -447,7 +474,12 @@ public final class Settings {
                 log.warning("upgrades.tiers '" + name + "': capacity " + capacity + " is below 1; using 1");
                 capacity = 1;
             }
-            return new Tier(name, cost, intervalTicks, capacity);
+            if (speed != 0.0 && (!Double.isFinite(speed) || speed < 0.1 || speed > 20.0)) {
+                double fixed = Double.isFinite(speed) ? Math.max(0.1, Math.min(20.0, speed)) : 1.0;
+                log.warning("upgrades.tiers '" + name + "': speed " + speed + " is outside 0.1..20; using " + fixed);
+                speed = fixed;
+            }
+            return new Tier(name, cost, intervalTicks, capacity, speed);
         }
     }
 

@@ -4,9 +4,11 @@ display-name: Strider
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/8d69ee8312cc7b1cfbd95e41e8971b2b3602cafa1102c1cc88add617f28cfc7d
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 20
+  max: 32
 xp:
   min: 5
   max: 5

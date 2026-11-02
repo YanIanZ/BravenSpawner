@@ -118,6 +118,10 @@ public final class ProductLoader {
         if (!mobsMigrated && firstCatalogue(mobsDir)) saveDefaults(mobsDir, "mobs", DEFAULT_MOBS, List.of());
         else if (!mobsMigrated) offerNewDefaults(mobsDir, "mobs", DEFAULT_MOBS, LEGACY_DEFAULT_MOBS);
         if (!itemsMigrated && firstCatalogue(itemsDir)) saveDefaults(itemsDir, "itemspawners", DEFAULT_ITEMS, List.of());
+        // Catalogues laid down from the bundled defaults get the 1.5.0 per-product
+        // speeds once, for files still carrying their shipped timing.
+        if (!mobsMigrated && fromDefaults(mobsDir)) SpeedMigration.run(plugin, mobsDir, "mobs");
+        if (!itemsMigrated && fromDefaults(itemsDir)) SpeedMigration.run(plugin, itemsDir, "itemspawners");
 
         unavailable.clear();
         disabled.clear();
@@ -151,6 +155,18 @@ public final class ProductLoader {
         List<String> out = new ArrayList<>(first);
         out.addAll(second);
         return List.copyOf(out);
+    }
+
+    /** True when the directory's catalogue was laid down from the bundled defaults. */
+    private static boolean fromDefaults(File directory) {
+        File marker = new File(directory, DEFAULTS_MARKER);
+        if (!marker.isFile()) return false;
+        try {
+            List<String> lines = java.nio.file.Files.readAllLines(marker.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            return !lines.isEmpty() && lines.getFirst().trim().equals(DEFAULTS_HEADER);
+        } catch (IOException error) {
+            return false;
+        }
     }
 
     private static boolean firstCatalogue(File directory) {
