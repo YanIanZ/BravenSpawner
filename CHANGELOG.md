@@ -16,7 +16,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Corruption particles**: `particles.corrupted` is a purple cloud with two rising
   spirals that loops around corrupted spawners near players.
   `particles.corrupt` is a reverse-portal burst at the moment a spawner becomes
-  corrupted. Both run on the spawner's region and are Folia-safe.
+  corrupted. `particles.repair` is an end-rod burst on every spawner a repair fixes.
+  All three run on the spawner's region and are Folia-safe.
+- **Unicode hologram text**: the shipped holograms use Unicode small capitals
+  throughout (`ᴢᴏᴍʙɪᴇ ꜱᴘᴀᴡɴᴇʀ`, `ꜱᴛᴏʀᴀɢᴇ`, `[ᴄᴏʀʀᴜᴘᴛᴇᴅ]`, `4×`). The new
+  `%spawner_type_small%` placeholder gives the type in small capitals, and glitch
+  glyphs are symbols only. An existing holograms.yml keeps its own text.
 - **Custom-item drops**: a drop's `material` may name an item from MMOItems
   (`mmoitems:TYPE:ID`), EcoItems (`ecoitems:id`), ItemsAdder (`itemsadder:ns:id`),
   Oraxen (`oraxen:id`), Nexo (`nexo:id`) or MythicMobs (`mythicmobs:id`). Items are

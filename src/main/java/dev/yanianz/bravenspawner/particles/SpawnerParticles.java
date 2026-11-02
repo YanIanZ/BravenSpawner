@@ -22,7 +22,8 @@ import java.util.Set;
  * <p>{@link Effect#CORRUPTED} is the ambient effect of a corrupted spawner, played
  * every {@code particles.corrupted.interval-ticks} by
  * {@link dev.yanianz.bravenspawner.corruption.CorruptionEffects} on the spawner's
- * region; {@link Effect#CORRUPT} bursts once when a spawner becomes corrupted.
+ * region; {@link Effect#CORRUPT} bursts once when a spawner becomes corrupted and
+ * {@link Effect#REPAIR} once when it is repaired.
  */
 public final class SpawnerParticles {
 
@@ -33,7 +34,8 @@ public final class SpawnerParticles {
         UPGRADE("upgrade", new ParticleSpec.Defaults(true, "ENCHANT", 40, 0.5, 0.6, 16.0, "#C780FA", 1.0f)),
         BOOSTER("booster", new ParticleSpec.Defaults(true, "DUST", 24, 0.45, 0.0, 16.0, "#4D96FF", 1.2f)),
         CORRUPTED("corrupted", new ParticleSpec.Defaults(true, "DUST", 6, 0.45, 0.0, 24.0, "#8A2BE2", 1.3f)),
-        CORRUPT("corrupt", new ParticleSpec.Defaults(true, "REVERSE_PORTAL", 80, 0.45, 0.08, 24.0, "#8A2BE2", 1.0f));
+        CORRUPT("corrupt", new ParticleSpec.Defaults(true, "REVERSE_PORTAL", 80, 0.45, 0.08, 24.0, "#8A2BE2", 1.0f)),
+        REPAIR("repair", new ParticleSpec.Defaults(true, "END_ROD", 40, 0.4, 0.07, 24.0, "#FFFFFF", 1.0f));
 
         final String key;
         final ParticleSpec.Defaults defaults;

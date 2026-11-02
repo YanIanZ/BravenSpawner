@@ -11,6 +11,7 @@
 # Placeholders:
 # %stack% - Number of stacked spawners
 # %spawner_type_cap% - Capitalized spawner type (e.g., ZOMBIE, SKELETON)
+# %spawner_type_small% - Spawner type in Unicode small capitals (e.g., ᴢᴏᴍʙɪᴇ, ᴄᴀᴠᴇ ꜱᴘɪᴅᴇʀ)
 # %storage_bar% - Visual representation of storage progress
 # %xp_bar% - Visual representation of XP progress
 # %color% - Dynamic color based on spawner type
@@ -35,8 +36,8 @@ commands:
 hologram:
   # Content of the hologram, supports placeholders and color codes
   content:
-    - '#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %color%&l%spawner_type_cap% SPAWNER %corruption_status%'  # Displays stack count, spawner type, and corruption status
-    - '#34eb98☁ sᴛoʀᴀɢᴇ #6e6d6d➤ %storage_bar%'  # Shows storage progress
+    - '#c2c2c2(#fff9c2%stack%#969696×#c2c2c2) %color%&l%spawner_type_small% ꜱᴘᴀᴡɴᴇʀ %corruption_status%'  # Displays stack count, spawner type, and corruption status
+    - '#34eb98☁ ꜱᴛᴏʀᴀɢᴇ #6e6d6d➤ %storage_bar%'  # Shows storage progress
     - '#fab170❆ xᴘ #6e6d6d➤ %xp_bar%'  # Shows XP progress
 
   # Progress bar settings
@@ -51,7 +52,7 @@ hologram:
   # Corruption
   corrupted-color: '#8A2BE2'  # Purple color for corrupted spawners
   corrupted-chars: '҉̸̢̡̛̖̗̘̙̜̝̞̟̠̣̤̥̦̩̪̫̬̭̮̯̰̱̲̳̹̺̻̼͇͈͉͍͎̀́̂̃̄̅̆̇̈̉̊̋̌̍̎̏̐̑̒̓̔̽̾̿̀́͂̓̈́͆͊͋͌̕̚ͅ' # Characters used for corruption effect
-  corrupted-text: '&5&l[CORRUPTED]'  # Text to display when a spawner is corrupted
+  corrupted-text: '&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]'  # Text to display when a spawner is corrupted
 
   # Look of a corrupted spawner's hologram.
   corrupted:
@@ -59,10 +60,10 @@ hologram:
     # false: they keep "content" (with %corruption_status%).
     enabled: true
     # Extra placeholders:
-    #   %glitch_type%       spawner type, glitched with corrupted-chars, re-rolled each frame
+    #   %glitch_type%       spawner type in small capitals, glitched with corrupted-chars, re-rolled each frame
     #   %corruption_pulse%  colour of the current frame, cycling through pulse-colors
     content:
-      - '#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %glitch_type% #6e6d6d&lSPAWNER'
+      - '#c2c2c2(#fff9c2%stack%#969696×#c2c2c2) %glitch_type% #6e6d6d&lꜱᴘᴀᴡɴᴇʀ'
       - '%corruption_pulse%&l☠ ᴄᴏʀʀᴜᴘᴛᴇᴅ ☠'
       - '#8a7f99✖ ᴘʀᴏᴅᴜᴄᴛɪᴏɴ ʜᴀʟᴛᴇᴅ'
       - '#b48cff➤ #d9c7ffʀɪɢʜᴛ-ᴄʟɪᴄᴋ ᴛᴏ ʀᴇᴘᴀɪʀ'

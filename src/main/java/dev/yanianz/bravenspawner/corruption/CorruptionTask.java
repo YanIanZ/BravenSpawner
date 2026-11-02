@@ -201,6 +201,9 @@ public final class CorruptionTask {
         countdowns.remove(spawner.id());
         Holograms holograms = plugin.holograms();
         if (holograms != null) holograms.update(spawner);
+        if (plugin.particles() != null) {
+            plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.REPAIR, spawner.location());
+        }
     }
 
     private long delayMs(String path, long fallbackSeconds) {

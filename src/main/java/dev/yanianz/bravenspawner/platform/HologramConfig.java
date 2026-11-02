@@ -22,7 +22,8 @@ import java.util.SplittableRandom;
  *
  * <p>Placeholders resolved per line: {@code %stack%}, {@code %spawner_type_cap%},
  * {@code %storage_bar%}, {@code %xp_bar%}, {@code %color%},
- * {@code %corruption_status%}, {@code %glitch_type%}, {@code %corruption_pulse%}.
+ * {@code %corruption_status%}, {@code %glitch_type%}, {@code %corruption_pulse%},
+ * {@code %spawner_type_small%} (the type in Unicode small capitals).
  *
  * <p>A corrupted spawner shows {@code hologram.corrupted.content} instead of
  * {@code content} (unless {@code hologram.corrupted.enabled} is false). Its glitch
@@ -36,12 +37,12 @@ import java.util.SplittableRandom;
 public final class HologramConfig {
 
     private static final List<String> FALLBACK_CONTENT = List.of(
-            "#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %color%&l%spawner_type_cap% SPAWNER %corruption_status%",
-            "#34eb98☁ ѕᴛoʀᴀɢᴇ #6e6d6d➤ %storage_bar%",
+            "#c2c2c2(#fff9c2%stack%#969696×#c2c2c2) %color%&l%spawner_type_small% ꜱᴘᴀᴡɴᴇʀ %corruption_status%",
+            "#34eb98☁ ꜱᴛᴏʀᴀɢᴇ #6e6d6d➤ %storage_bar%",
             "#fab170❆ xᴘ #6e6d6d➤ %xp_bar%");
 
     private static final List<String> FALLBACK_CORRUPTED_CONTENT = List.of(
-            "#c2c2c2(#fff9c2%stack%#969696x#c2c2c2) %glitch_type% #6e6d6d&lSPAWNER",
+            "#c2c2c2(#fff9c2%stack%#969696×#c2c2c2) %glitch_type% #6e6d6d&lꜱᴘᴀᴡɴᴇʀ",
             "%corruption_pulse%&l☠ ᴄᴏʀʀᴜᴘᴛᴇᴅ ☠",
             "#8a7f99✖ ᴘʀᴏᴅᴜᴄᴛɪᴏɴ ʜᴀʟᴛᴇᴅ",
             "#b48cff➤ #d9c7ffʀɪɢʜᴛ-ᴄʟɪᴄᴋ ᴛᴏ ʀᴇᴘᴀɪʀ");
@@ -50,8 +51,8 @@ public final class HologramConfig {
     public static final int DEFAULT_BACKGROUND = 0x40000000;
     private static final int FALLBACK_CORRUPTED_BACKGROUND = 0x662A0845;
     /** Characters swapped into a glitched name. */
-    private static final String GLITCH_GLYPHS = "▓▒░█▚▞?!$@¿¡※";
-    // No #, & or %: they would merge with the colour codes and placeholders around them.
+    private static final String GLITCH_GLYPHS = "▓▒░█▚▞▙▟◢◣◤◥⌁⌇⍉⍜⎔⏃⏚☍※";
+    // Symbols only: #, & or % would merge with the colour codes and placeholders around them.
 
     /**
      * How a corrupted spawner's hologram looks.
@@ -133,7 +134,7 @@ public final class HologramConfig {
                 clamp(holo == null ? 10 : holo.getInt("activation-radius", 10), 1, 128),
                 holo == null ? "#8A2BE2" : holo.getString("corrupted-color", "#8A2BE2"),
                 holo == null ? "" : holo.getString("corrupted-chars", ""),
-                holo == null ? "&5&l[CORRUPTED]" : holo.getString("corrupted-text", "&5&l[CORRUPTED]"),
+                holo == null ? "&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]" : holo.getString("corrupted-text", "&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]"),
                 corruptedStyle(holo == null ? null : holo.getConfigurationSection("corrupted")));
     }
 
@@ -167,7 +168,7 @@ public final class HologramConfig {
 
     public static HologramConfig defaults() {
         return new HologramConfig(false, "decentholograms", false, FALLBACK_CONTENT,
-                12, "☰", "#00ff00", "#dedede", 10, "#8A2BE2", "", "&5&l[CORRUPTED]", defaultCorruptedStyle());
+                12, "☰", "#00ff00", "#dedede", 10, "#8A2BE2", "", "&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]", defaultCorruptedStyle());
     }
 
     private static int clamp(int value, int min, int max) {
@@ -246,6 +247,9 @@ public final class HologramConfig {
 
         result = result.replace("%stack%", String.valueOf(stack));
         result = result.replace("%spawner_type_cap%", product.toUpperCase(Locale.ROOT));
+        if (result.contains("%spawner_type_small%")) {
+            result = result.replace("%spawner_type_small%", dev.yanianz.bravenspawner.util.Text.smallCaps(product.replace('_', ' ')));
+        }
         result = result.replace("%spawner_type%", product);
         result = result.replace("%color%", colorFor(product));
         result = result.replace("%storage_bar%", bar(spawner == null ? 0 : ratio(spawner.storedCount(), maximumItems)));
@@ -259,7 +263,7 @@ public final class HologramConfig {
         }
         if (result.contains("%corruption_pulse%")) result = result.replace("%corruption_pulse%", pulse(frame));
         if (result.contains("%glitch_type%")) {
-            String name = product.toUpperCase(Locale.ROOT);
+            String name = dev.yanianz.bravenspawner.util.Text.smallCaps(product.replace('_', ' '));
             result = result.replace("%glitch_type%", corrupted ? glitch(name, random, frame) : colorFor(product) + "&l" + name);
         }
 

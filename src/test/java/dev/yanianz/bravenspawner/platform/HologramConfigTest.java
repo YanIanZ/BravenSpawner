@@ -84,8 +84,9 @@ class HologramConfigTest {
         assertTrue(frames.size() > 1, "the glitch changes over time");
         for (String line : frames) {
             String plain = Text.strip(line);
-            assertTrue(plain.contains("SPAWNER"), plain);
-            assertTrue(plain.codePoints().filter(Character::isLetter).count() >= 3, plain);
+            assertTrue(plain.contains("ꜱᴘᴀᴡɴᴇʀ"), plain);
+            assertFalse(plain.chars().anyMatch(c -> c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'),
+                    "no plain Latin letters: " + plain);
         }
     }
 
@@ -96,10 +97,22 @@ class HologramConfigTest {
         yaml.set("hologram.corrupted.enabled", false);
         HologramConfig config = HologramConfig.from(yaml);
         String line = config.lines(corrupted(true), Map.of(), 0, 0, 3).get(0);
-        assertTrue(line.startsWith("ZOMBIE &#8A2BE2&5&l[CORRUPTED]\u0336"), line);
-        assertTrue(line.length() <= "ZOMBIE &#8A2BE2&5&l[CORRUPTED]".length() + 3, "at most three marks: " + line);
+        assertTrue(line.startsWith("ZOMBIE &#8A2BE2&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]\u0336"), line);
+        assertTrue(line.length() <= "ZOMBIE &#8A2BE2&5&l[ᴄᴏʀʀᴜᴘᴛᴇᴅ]".length() + 3, "at most three marks: " + line);
         assertEquals(HologramConfig.DEFAULT_BACKGROUND, config.background(corrupted(true)));
         assertFalse(config.corruptedStyle().animated());
+    }
+
+    @Test void shippedHologramsUseUnicodeSmallCapitals() throws Exception {
+        HologramConfig config = bundled();
+        for (boolean corrupt : new boolean[] {false, true}) {
+            for (String line : config.lines(corrupted(corrupt), Map.of(), 10, 10, 1)) {
+                String plain = Text.strip(line);
+                assertFalse(plain.chars().anyMatch(c -> c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'w' || c >= 'y' && c <= 'z'),
+                        "only small capitals (and x): " + plain);
+            }
+        }
+        assertEquals("ᴄᴀᴠᴇ ꜱᴘɪᴅᴇʀ 2", Text.smallCaps("Cave SPIDER 2"));
     }
 
     @Test void backgroundAcceptsArgbAndRgb() {

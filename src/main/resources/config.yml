@@ -185,6 +185,14 @@ particles:
     offset: 0.45
     speed: 0.08
     view-distance: 24
+  # One burst on every spawner a repair fixes (puzzle, nearby sweep or /bspawner repair).
+  repair:
+    enabled: true
+    type: END_ROD
+    count: 40
+    offset: 0.4
+    speed: 0.07
+    view-distance: 24
 
 spawner-item:
   material: SPAWNER

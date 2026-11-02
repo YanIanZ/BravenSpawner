@@ -411,6 +411,9 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
         spawner.repair();
         plugin.markDirty(spawner);
         plugin.record(spawner, dev.yanianz.bravenspawner.audit.AuditEvent.Action.REPAIR, player, 0, "command");
+        if (plugin.particles() != null) {
+            plugin.particles().burst(dev.yanianz.bravenspawner.particles.SpawnerParticles.Effect.REPAIR, spawner.location());
+        }
         messages().send(player, "repair.done");
     }
 
