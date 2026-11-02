@@ -20,12 +20,26 @@ class TierSettingsTest {
             Map.of("name", "base", "cost", 0.0, "interval-ticks", 1200, "capacity", 45),
             Map.of("name", "iron", "cost", 5000.0, "interval-ticks", 900, "capacity", 90)));
 
-    @Test void upgradeUsesTheFasterOfProductAndTierDelay() {
-        assertEquals(200, DEFAULTS.productionPeriod(1, 200), "a fast product is not slowed by the tier");
-        assertEquals(900, DEFAULTS.productionPeriod(1, 2_000), "a slow product is sped up by the tier");
+    /** Each product keeps its own speed; a tier multiplies it (derived from interval-ticks here). */
+    @Test void tiersScaleEachProductsOwnSpeed() {
         assertEquals(2_000, DEFAULTS.productionPeriod(0, 2_000), "the base tier keeps the product delay");
-        assertEquals(900, DEFAULTS.productionPeriod(1, 0), "no product delay falls back to the tier");
+        assertEquals(1_500, DEFAULTS.productionPeriod(1, 2_000), "iron: 1200/900 = 1.33x faster");
+        assertEquals(150, DEFAULTS.productionPeriod(1, 200), "a fast product still gets faster");
+        assertEquals(900, DEFAULTS.productionPeriod(1, 1_200), "a 60 s product keeps its old 45 s timing");
+        assertEquals(900, DEFAULTS.productionPeriod(1, 0), "no product delay uses the first tier's interval");
         assertEquals(20, DEFAULTS.productionPeriod(0, 3));
+    }
+
+    @Test void explicitSpeedWinsAndNeverSlowsDown() {
+        Settings explicit = settings(List.of(
+                Map.of("name", "base", "speed", 1.0, "capacity", 45),
+                Map.of("name", "iron", "speed", 1.5, "capacity", 90),
+                Map.of("name", "broken", "speed", 0.5, "capacity", 90)));
+        assertEquals(400, explicit.productionPeriod(1, 600));
+        assertEquals(1.0, explicit.speedMultiplier(2), "a tier slower than base is held at 1x");
+        assertEquals(600, explicit.productionPeriod(2, 600));
+        Settings clamped = settings(List.of(Map.of("name", "base"), Map.of("name", "warp", "speed", 500.0)));
+        assertEquals(20.0, clamped.tiers.get(1).speed);
     }
 
     @Test void tierCapacityScalesRelativeToBaseAndNeverShrinks() {

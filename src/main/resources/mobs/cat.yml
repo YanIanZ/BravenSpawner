@@ -4,9 +4,11 @@ display-name: Cat
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/1829130a2935e397c9f21edfedc68973c79c4a6b78684f42b8f4e66e04f57223
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 18
+  max: 30
 xp:
   min: 5
   max: 5

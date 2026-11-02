@@ -8,7 +8,11 @@ head:
   lore:
     - "&aA spawner for nautiluses."
 
-interval-ticks: 1200
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
+spawn-delays:
+  min: 40
+  max: 60
 xp: 5
 
 # Drops follow the vanilla loot table; chance is a percentage.

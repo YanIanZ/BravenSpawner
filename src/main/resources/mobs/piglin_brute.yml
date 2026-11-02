@@ -4,9 +4,11 @@ display-name: Piglin Brute
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/96fcdd1e71fdd3d0a171fd50f9f5e26133a0e8c879514bae69c7922043054d2c
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 45
+  max: 70
 xp:
   min: 5
   max: 5

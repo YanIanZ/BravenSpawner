@@ -4,9 +4,11 @@ display-name: Bat
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/a7365536f978323b52c5de45d8f28e1646815d59078f527a732839a388beb49c
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 14
+  max: 24
 xp:
   min: 5
   max: 5
