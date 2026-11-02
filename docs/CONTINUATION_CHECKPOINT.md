@@ -1,3 +1,9 @@
+# Release 1.5.0 — 2026-11-02
+
+- PRs #22 (per-spawner speeds, custom-item drops, `libraries:` loader, alias cleanup) and #23 (corrupted hologram style, corruption/repair particles, Unicode small caps) merged after owner live tests on Paper.
+- Released 1.5.0 from `release/1.5.0`: version bump, changelog section, docs status; stacking/API milestone moved to 1.6.0. 329 tests pass; CI green.
+- Next: Folia/SSB2/provider/MySQL/Mongo qualification; 1.5.x fixes; 1.6.0 per roadmap.
+
 # Release 1.4.0 — 2026-11-01
 
 - PRs #15 to #18 reviewed (independent review, 10 findings, 9 fixed, 1 accepted) and merged; `main` equals the tested #18 tree.
