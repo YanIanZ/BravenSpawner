@@ -16,8 +16,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   is enabled. See docs/CUSTOM_ITEMS.md.
 
 ### Fixed
-- Tab completion no longer offers the legacy `/vspawner`, `/virtualspawner` and
-  `/vmodify` aliases; use `/bspawner` (`/bs`, `/vs`, `/bravenspawner`) and `/bmodify`.
+- Tab completion no longer offers the legacy `/vspawner`, `/virtualspawner`, `/vs` and
+  `/vmodify` aliases; use `/bspawner` (`/bs`, `/bravenspawner`) and `/bmodify` (`/bsmodify`).
 
 ### Changed
 - **Jar shrinks from ~20 MB to ~0.7 MB.** MongoDB driver, SQLite JDBC, HikariCP and

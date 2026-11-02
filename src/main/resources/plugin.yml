@@ -44,7 +44,7 @@ softdepend:
 commands:
   bspawner:
     description: Manage BravenSpawner
-    aliases: [bravenspawner, vs, bs]
+    aliases: [bravenspawner, bs]
     permission: bravenspawner.admin
   bmodify:
     description: Toggle trust on a spawner

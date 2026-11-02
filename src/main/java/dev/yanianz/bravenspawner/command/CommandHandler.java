@@ -66,7 +66,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     private static String canonical(String name) {
         if (name == null) return "";
         return switch (name.toLowerCase(Locale.ROOT)) {
-            case "bravenspawner", "vs", "bs" -> "bspawner";
+            case "bravenspawner", "bs" -> "bspawner";
             case "bsmodify" -> "bmodify";
             case "bstoggle" -> "bhtoggle";
             default -> name.toLowerCase(Locale.ROOT);
