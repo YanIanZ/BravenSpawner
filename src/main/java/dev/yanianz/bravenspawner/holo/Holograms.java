@@ -26,6 +26,10 @@ public final class Holograms {
     private final Map<UUID, TextDisplay> displays = new ConcurrentHashMap<>();
     private final Map<UUID, Object> generations = new ConcurrentHashMap<>();
     private final Object lifecycle = new Object();
+    /** Spawners with a refresh already queued; coalesces bursts of data changes. */
+    private final java.util.Set<UUID> refreshQueued = ConcurrentHashMap.newKeySet();
+    /** Ticks a queued refresh waits so a burst (sell, withdraw, hopper) costs one update. */
+    static final long REFRESH_DELAY_TICKS = 10L;
     private volatile boolean stopped;
     private final NamespacedKey key;
     private volatile dev.yanianz.bravenspawner.platform.HologramConfig config;
@@ -39,6 +43,28 @@ public final class Holograms {
     /** The active {@code holograms.yml}. */
     public dev.yanianz.bravenspawner.platform.HologramConfig config() {
         return config;
+    }
+
+    /**
+     * Refreshes the hologram after any data change (sale, withdrawal, XP collection,
+     * hopper transfer, escrow resolution), at most once per spawner per
+     * {@value #REFRESH_DELAY_TICKS} ticks. Safe from any thread.
+     *
+     * <p>Live finding (1.4.1): holograms were refreshed only by production, place
+     * and stack, so a storage bar stayed full after "Sell all" until the next cycle,
+     * or indefinitely with {@code no-activation-range} and no player nearby.
+     */
+    public void refreshSoon(Spawner spawner) {
+        if (spawner == null || stopped || !config.enabled() || !spawner.hologram()) return;
+        if (!refreshQueued.add(spawner.id())) return;
+        try {
+            Schedulers.later(plugin, REFRESH_DELAY_TICKS, () -> {
+                refreshQueued.remove(spawner.id());
+                update(spawner);
+            });
+        } catch (RuntimeException e) {
+            refreshQueued.remove(spawner.id());
+        }
     }
 
     public void update(Spawner spawner) {
@@ -67,6 +93,12 @@ public final class Holograms {
                 synchronized (lifecycle) {
                     if (!current(spawner, generation)) return;
                     display = displays.get(spawner.id());
+                    // Nonpersistent displays die with their chunk; respawn at once
+                    // rather than failing this update and waiting for the next one.
+                    if (display != null && !display.isValid()) {
+                        displays.remove(spawner.id(), display);
+                        display = null;
+                    }
                     if (display == null) {
                         display = location.getWorld().spawn(location.clone().add(0, 1.3, 0), TextDisplay.class);
                         display.setPersistent(false);

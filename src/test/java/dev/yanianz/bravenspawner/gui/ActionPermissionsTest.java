@@ -55,7 +55,9 @@ class ActionPermissionsTest {
             assertEquals(Boolean.TRUE, yaml.get("permissions/" + permission.node() + "/default"), permission.node());
             assertEquals(Boolean.TRUE, yaml.get("permissions/bravenspawner.action.*/children/" + permission.node()));
         }
-        assertEquals(Boolean.TRUE, yaml.get("permissions/bravenspawner.action.*/default"));
+        // Live finding (1.4.0): a default-true wildcard re-grants its children and
+        // defeats a single node defaulted to false in permissions.yml.
+        assertEquals(Boolean.FALSE, yaml.get("permissions/bravenspawner.action.*/default"));
     }
 
     @Test void deniedBuyNodeNeverReachesTheCurrency() throws Exception {

@@ -72,6 +72,25 @@ class SellCurrencyTest {
         EscrowFixtures.live(plugin, spawner, player);
     }
 
+    /** Live finding (1.4.0): payouts held in player data are saved right after the payment. */
+    @Test void playerDataCurrencySavesThePayeeAfterPayment() {
+        points.online = true;
+        assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
+        verify(player).saveData();
+    }
+
+    @Test void providerCurrencyDoesNotSavePlayerData() {
+        assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());
+        verify(player, never()).saveData();
+    }
+
+    @Test void refusedPaymentSavesNothing() {
+        points.online = true;
+        points.acceptDeposits = false;
+        assertEquals(SellService.Status.FAILED, service.sell(player, spawner).status());
+        verify(player, never()).saveData();
+    }
+
     @Test void paysTheConfiguredCurrencyNotVault() {
         SellService.Sale sale = service.sell(player, spawner);
         assertEquals(SellService.Status.SOLD, sale.status());
