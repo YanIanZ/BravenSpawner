@@ -11,6 +11,7 @@ Server: Paper 1.21.1-133, Java 21, SQLite, the disposable `bspawner-smoke` serve
 | Crash after payment | FAIL on 1.4.0 (payout lost with unsaved player data); PASS with the fix: level kept (619 + 202 = 821), escrow held as v3, startup warning, `escrow confirm` resolved once, record back to v2 |
 | `permissions.yml` negation of `action.sell` | FAIL on 1.4.0 (wildcard default re-granted it); PASS with the fix: "You don't have permission…", nothing sold |
 | Hopper placed by `/setblock` | PASS after back-off; hopper filled, no errors |
+| Hologram after a sale (cap 2,000, no production) | FAIL on 1.4.0 by code inspection (no refresh outside production); PASS with the fix: storage bar 1/12 → 0/12 right after "Sold 97 item(s)", XP and stock unchanged otherwise |
 
 Not run in this phase: Folia/SourbyCraft, SuperiorSkyblock2, AWF/ASP worlds, Vault/shop providers, MySQL/Mongo, Paper 26.2 players (Mineflayer has no 26.2 support).
 

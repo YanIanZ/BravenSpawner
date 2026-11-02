@@ -171,6 +171,8 @@ public final class BravenSpawner extends JavaPlugin {
 
     public void markDirty(Spawner spawner) {
         if (checkpoints != null && spawner != null) storage.upsert(spawner);
+        // Every data change also refreshes the hologram (coalesced).
+        if (holograms != null && spawner != null) holograms.refreshSoon(spawner);
     }
     public void markDeleted(java.util.UUID spawnerId) {
         if (checkpoints != null && spawnerId != null) storage.delete(spawnerId);

@@ -10,6 +10,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   payee's player data right after the confirmed payment. Found by live crash testing:
   after a `kill -9`, the store was reduced but the payout was lost with the unsaved
   player data. Provider-backed currencies are unchanged.
+- Holograms refresh after every data change (sale, XP collection, withdrawal, hopper
+  transfer, autosell, escrow resolution), coalesced to one update per spawner per half
+  second. They were refreshed only by production, place and stack, so a storage bar
+  stayed full after "Sell all", indefinitely with `no-activation-range` and nobody near.
+- A hologram whose display died with its chunk is respawned on the next update instead
+  of failing that update.
 - `bravenspawner.action.*` now defaults to `false`. With `true`, its children re-granted
   every action node, so a single node defaulted to `false` in `permissions.yml` never took
   effect. The individual nodes still default to `true`; grant the wildcard explicitly.
