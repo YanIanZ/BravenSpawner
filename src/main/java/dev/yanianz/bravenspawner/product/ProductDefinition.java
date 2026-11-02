@@ -154,23 +154,46 @@ public final class ProductDefinition {
      * <p>{@code chance} is stored as a probability in {@code (0, 1]} rather than a
      * percentage, so production code multiplies once and never re-parses the
      * units. The loader translates the YAML percent form at the boundary.
+     *
+     * <p>A drop is either a vanilla {@code material} or a {@code customItem} from a
+     * custom-item plugin; exactly one is set. {@code displayName} and
+     * {@code customModelData} only decorate vanilla drops.
      */
     public record Drop(Material material, int minAmount, int maxAmount, double chance,
-                       double sellPrice, String displayName, int customModelData) {
+                       double sellPrice, String displayName, int customModelData,
+                       dev.yanianz.bravenspawner.item.CustomItemRef customItem) {
         public Drop(Material material, int minAmount, int maxAmount, double chance) {
             this(material, minAmount, maxAmount, chance, -1.0);
         }
         public Drop(Material material, int minAmount, int maxAmount, double chance, double sellPrice) {
             this(material, minAmount, maxAmount, chance, sellPrice, null, -1);
         }
+        public Drop(Material material, int minAmount, int maxAmount, double chance,
+                    double sellPrice, String displayName, int customModelData) {
+            this(material, minAmount, maxAmount, chance, sellPrice, displayName, customModelData, null);
+        }
+
+        /** A drop of a custom-item plugin's item. */
+        public static Drop custom(dev.yanianz.bravenspawner.item.CustomItemRef item, int minAmount, int maxAmount,
+                                  double chance, double sellPrice) {
+            return new Drop(null, minAmount, maxAmount, chance, sellPrice, null, -1,
+                    Objects.requireNonNull(item, "item"));
+        }
 
         public Drop {
-            Objects.requireNonNull(material, "material");
+            if ((material == null) == (customItem == null)) {
+                throw new IllegalArgumentException("a drop needs exactly one of material or customItem");
+            }
             if (minAmount < 1) throw new IllegalArgumentException("minAmount must be >= 1");
             if (maxAmount < minAmount) throw new IllegalArgumentException("maxAmount must be >= minAmount");
             if (!(chance > 0.0) || chance > 1.0) {
                 throw new IllegalArgumentException("chance must be in (0,1]");
             }
+        }
+
+        /** The configured name: the custom reference or the material. */
+        public String label() {
+            return customItem != null ? customItem.toString() : material.name();
         }
 
         /** Rolls one drop, returning {@code 0} when the chance misses. */

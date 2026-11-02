@@ -241,9 +241,13 @@ sell:
 
 # Upgrade tiers, cheapest first. The first tier is the base every spawner starts at.
 #   cost            money for this tier (negative values are treated as 0)
-#   interval-ticks  production delay cap: an upgraded spawner uses the FASTER of the
-#                   product's spawn delay and this value, so upgrading never slows it
-#                   (minimum 20)
+#   speed           production speed multiplier. Every product has its own delay
+#                   (spawn-delays in mobs/*.yml and itemspawners/*.yml); a tier divides
+#                   that delay by this value, so 2.0 produces twice as often. Never
+#                   below the first tier's speed; 0.1..20.
+#   interval-ticks  used only when a tier has no speed: its speed is then
+#                   first-tier interval / this interval (1200 / 900 = 1.33x). The first
+#                   tier's value is also the delay of a product that declares none.
 #   capacity        storage size relative to the first tier: maximum-items is
 #                   multiplied by capacity / first-tier capacity (never below 1x;
 #                   minimum 1)
@@ -251,19 +255,20 @@ upgrades:
   tiers:
     - name: base
       cost: 0.0
+      speed: 1.0
       interval-ticks: 1200
       capacity: 45
     - name: iron
       cost: 5000.0
-      interval-ticks: 900
+      speed: 1.33
       capacity: 90
     - name: gold
       cost: 15000.0
-      interval-ticks: 600
+      speed: 2.0
       capacity: 135
     - name: diamond
       cost: 50000.0
-      interval-ticks: 300
+      speed: 4.0
       capacity: 180
 
 boosters:

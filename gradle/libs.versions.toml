@@ -9,13 +9,21 @@ economyshopgui = "1.11.0"
 modrinth-dky9btbd = "J66QOTLZ"
 worldedit = "7.3.9"
 superiorskyblock = "2026.3"
+# Custom-item plugins (compile-only APIs). MMOItems and MythicLib publish snapshots
+# only, so exact timestamped builds are pinned for reproducible builds.
+mmoitems = "6.10.1-20261012.174819-69"
+mythiclib = "1.7.1-20260821.190929-108"
+eco = "2026.44.1"
+itemsadder = "3.6.3-beta-14"
+oraxen = "1.220.1"
+nexo = "1.29.1"
+mythicmobs = "5.14.0"
 mongodb = "5.14.0"
 sqlite = "3.54.1.0"
 hikari = "7.1.0"
 mysql = "26.10.0"
 junit = "6.1.3"
 mockito = "5.24.0"
-shadow = "9.6.1"
 
 [libraries]
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
@@ -29,6 +37,13 @@ modrinth-dky9btbd = { module = "maven.modrinth:DKY9btbd", version.ref = "modrint
 worldedit-bukkit = { module = "com.sk89q.worldedit:worldedit-bukkit", version.ref = "worldedit" }
 worldedit-core = { module = "com.sk89q.worldedit:worldedit-core", version.ref = "worldedit" }
 superiorskyblock-api = { module = "com.bgsoftware:SuperiorSkyblockAPI", version.ref = "superiorskyblock" }
+mmoitems-api = { module = "net.Indyuce:MMOItems-API", version.ref = "mmoitems" }
+mythiclib = { module = "io.lumine:MythicLib-dist", version.ref = "mythiclib" }
+eco = { module = "com.willfp:eco", version.ref = "eco" }
+itemsadder-api = { module = "com.github.LoneDev6:API-ItemsAdder", version.ref = "itemsadder" }
+oraxen = { module = "io.th0rgal:oraxen", version.ref = "oraxen" }
+nexo = { module = "com.nexomc:nexo", version.ref = "nexo" }
+mythicmobs = { module = "io.lumine:Mythic-Dist", version.ref = "mythicmobs" }
 mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version.ref = "mongodb" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
@@ -38,5 +53,3 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 
-[plugins]
-shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

@@ -4,9 +4,11 @@ display-name: Squid
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/8351b7d9a4f36cfe31fd59d8c900e419a135144105e7a981caa5a168dcff325b
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 12
+  max: 20
 xp:
   min: 5
   max: 5

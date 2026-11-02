@@ -1,5 +1,6 @@
 package dev.yanianz.bravenspawner.product;
 
+import dev.yanianz.bravenspawner.item.CustomItemRef;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -118,6 +119,10 @@ public final class ProductLoader {
         if (!mobsMigrated && firstCatalogue(mobsDir)) saveDefaults(mobsDir, "mobs", DEFAULT_MOBS, List.of());
         else if (!mobsMigrated) offerNewDefaults(mobsDir, "mobs", DEFAULT_MOBS, LEGACY_DEFAULT_MOBS);
         if (!itemsMigrated && firstCatalogue(itemsDir)) saveDefaults(itemsDir, "itemspawners", DEFAULT_ITEMS, List.of());
+        // Catalogues laid down from the bundled defaults get the 1.5.0 per-product
+        // speeds once, for files still carrying their shipped timing.
+        if (!mobsMigrated && fromDefaults(mobsDir)) SpeedMigration.run(plugin, mobsDir, "mobs");
+        if (!itemsMigrated && fromDefaults(itemsDir)) SpeedMigration.run(plugin, itemsDir, "itemspawners");
 
         unavailable.clear();
         disabled.clear();
@@ -151,6 +156,18 @@ public final class ProductLoader {
         List<String> out = new ArrayList<>(first);
         out.addAll(second);
         return List.copyOf(out);
+    }
+
+    /** True when the directory's catalogue was laid down from the bundled defaults. */
+    private static boolean fromDefaults(File directory) {
+        File marker = new File(directory, DEFAULTS_MARKER);
+        if (!marker.isFile()) return false;
+        try {
+            List<String> lines = java.nio.file.Files.readAllLines(marker.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            return !lines.isEmpty() && lines.getFirst().trim().equals(DEFAULTS_HEADER);
+        } catch (IOException error) {
+            return false;
+        }
     }
 
     private static boolean firstCatalogue(File directory) {
@@ -385,9 +402,17 @@ public final class ProductLoader {
     }
 
     private void addDrop(List<ProductDefinition.Drop> target, Map<?, ?> map, String id) {
-        Material material = material(map.get("material"));
-        if (material == null) {
-            unknownDropMaterials.add(id + ":" + map.get("material"));
+        Object rawMaterial = map.get("material") != null ? map.get("material") : map.get("item");
+        CustomItemRef custom;
+        try {
+            custom = rawMaterial == null ? null : CustomItemRef.parse(String.valueOf(rawMaterial));
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("product " + id + ": " + e.getMessage() + " — drop skipped");
+            return;
+        }
+        Material material = custom == null ? material(rawMaterial) : null;
+        if (custom == null && material == null) {
+            unknownDropMaterials.add(id + ":" + rawMaterial);
             return;
         }
 
@@ -408,12 +433,16 @@ public final class ProductLoader {
 
         double chance = probability(map.get("chance"));
         if (chance <= 0.0) {
-            plugin.getLogger().warning("product " + id + ": drop " + material.name()
+            plugin.getLogger().warning("product " + id + ": drop " + (custom != null ? custom : material.name())
                     + " has a zero chance — drop skipped");
             return;
         }
         double price = map.get("sell-price") instanceof Number n && Double.isFinite(n.doubleValue())
                 ? Math.max(-1.0, n.doubleValue()) : -1.0;
+        if (custom != null) {
+            target.add(ProductDefinition.Drop.custom(custom, min, max, chance, price));
+            return;
+        }
         String display = map.get("display-name") instanceof String text && !text.equalsIgnoreCase("none") ? text : null;
         int model = map.get("custom-model-data") instanceof Number n ? n.intValue() : -1;
         target.add(new ProductDefinition.Drop(material, min, max, chance, price, display, model));

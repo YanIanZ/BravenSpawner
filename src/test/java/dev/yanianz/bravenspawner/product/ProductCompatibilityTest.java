@@ -104,6 +104,44 @@ class ProductCompatibilityTest {
         assertEquals(1, log.stream().filter(r -> r.getLevel() == java.util.logging.Level.WARNING).count());
     }
 
+    @Test void customItemDropsAreParsedAndMalformedOnesSkipped() throws Exception {
+        Files.createDirectories(data.resolve("mobs"));
+        Files.createDirectories(data.resolve("itemspawners"));
+        Files.writeString(data.resolve("mobs/.migrated"), "");
+        Files.writeString(data.resolve("itemspawners/.migrated"), "");
+        Files.writeString(data.resolve("mobs/zombie.yml"), mob("ZOMBIE", "ROTTEN_FLESH") + """
+                  2:
+                    material: "mmoitems:sword:cutlass"
+                    amount: {min: 1, max: 2}
+                    chance: 5.0
+                    sell-price: 12.5
+                  3:
+                    item: "ia:myitems:ruby"
+                    chance: 10.0
+                  4:
+                    material: "mmoitems:SWORD"
+                    chance: 10.0
+                """);
+        var log = new java.util.ArrayList<java.util.logging.LogRecord>();
+        Material material = mock(Material.class);
+        when(material.isItem()).thenReturn(true);
+        try (MockedStatic<Material> materials = mockStatic(Material.class)) {
+            materials.when(() -> Material.matchMaterial(anyString())).thenReturn(material);
+            var result = new ProductLoader(plugin(log), false).load();
+            var drops = result.mobs().get("zombie").drops();
+            assertEquals(3, drops.size(), "malformed mmoitems reference skipped");
+            var cutlass = drops.get(1);
+            assertNull(cutlass.material());
+            assertEquals(new dev.yanianz.bravenspawner.item.CustomItemRef("mmoitems", "SWORD:CUTLASS"), cutlass.customItem());
+            assertEquals(2, cutlass.maxAmount());
+            assertEquals(0.05, cutlass.chance(), 1e-9);
+            assertEquals(12.5, cutlass.sellPrice(), 1e-9);
+            assertEquals("itemsadder:myitems:ruby", drops.get(2).label());
+            assertEquals(-1.0, drops.get(2).sellPrice(), 1e-9);
+        }
+        assertEquals(1, log.stream().filter(r -> r.getMessage().contains("must be mmoitems:TYPE:ID")).count());
+    }
+
     @Test void legacyDefaultsMarkerReceivesNewBundledMobsButNotDeletedOnes() throws Exception {
         Files.createDirectories(data.resolve("mobs"));
         Files.createDirectories(data.resolve("itemspawners"));

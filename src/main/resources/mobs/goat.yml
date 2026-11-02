@@ -4,9 +4,11 @@ display-name: Goat
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/9f4ea9649aa7a9737e228b65151dbd9ec5e69543d0882c4b5ad99a7f4a1efa16
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 20
+  max: 32
 xp:
   min: 5
   max: 5

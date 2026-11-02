@@ -472,8 +472,15 @@ public final class SpawnerManager {
         for (var drop : product.drops()) {
             int amount = ProductRoller.amount(drop, credits, random);
             if (amount <= 0) continue;
-            ItemStack output = new ItemStack(drop.material(), 1);
-            if (drop.displayName() != null || drop.customModelData() >= 0) {
+            ItemStack output;
+            if (drop.customItem() != null) {
+                // Custom-item drops come from their plugin; unavailable means skipped, never substituted.
+                output = plugin.customItems() == null ? null : plugin.customItems().create(drop.customItem(), product.id());
+                if (output == null) continue;
+            } else {
+                output = new ItemStack(drop.material(), 1);
+            }
+            if (drop.customItem() == null && (drop.displayName() != null || drop.customModelData() >= 0)) {
                 var meta = output.getItemMeta();
                 if (meta != null) {
                     if (drop.displayName() != null) meta.displayName(Text.item(drop.displayName()));

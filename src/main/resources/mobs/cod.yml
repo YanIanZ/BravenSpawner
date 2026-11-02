@@ -4,9 +4,11 @@ display-name: Cod
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/f246e19b32cf784549447e07b96072e1f656d78e93ccca5637485e6749734652
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 10
+  max: 18
 xp:
   min: 5
   max: 5

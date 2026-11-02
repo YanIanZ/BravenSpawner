@@ -7,7 +7,11 @@ head:
   lore:
     - "&aA spawner for wheat."
 
-interval-ticks: 1200
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
+spawn-delays:
+  min: 15
+  max: 25
 xp: 0
 
 drops:

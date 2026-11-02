@@ -4,9 +4,11 @@ display-name: Horse
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/e1131ae9f6cf79560e08326827511457c99c2866bfa25d68284d4a1679c3e626
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 22
+  max: 36
 xp:
   min: 5
   max: 5

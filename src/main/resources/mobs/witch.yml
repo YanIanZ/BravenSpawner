@@ -4,9 +4,11 @@ display-name: Witch
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/a520f12c63c7912186c4be4e30c33c5acaec0db0b6abd836d517d74a62275d4b
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 30
+  max: 50
 xp:
   min: 5
   max: 5

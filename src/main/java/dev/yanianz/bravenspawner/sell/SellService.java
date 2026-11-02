@@ -78,10 +78,13 @@ public final class SellService {
     /** A shop-plugin unit quote for one item identity, fetched before the spawner lock. */
     private record ShopQuote(ItemStack template, double unit) {}
 
-    private record PriceTable(Map<String, Double> unitPrices, double multiplier, Player viewer,
-                              List<ShopQuote> shopQuotes, int roundTo, Currency currency) {
+    /** A custom-item drop and its configured unit price; {@code null} price means not sellable. */
+    private record CustomPrice(dev.yanianz.bravenspawner.item.CustomItemRef item, Double unit) {}
+
+    private record PriceTable(Map<String, Double> unitPrices, List<CustomPrice> customPrices, double multiplier,
+                              Player viewer, List<ShopQuote> shopQuotes, int roundTo, Currency currency) {
         PriceTable withMultiplier(double value) {
-            return new PriceTable(unitPrices, value, viewer, shopQuotes, roundTo, currency);
+            return new PriceTable(unitPrices, customPrices, value, viewer, shopQuotes, roundTo, currency);
         }
     }
 
@@ -434,11 +437,16 @@ public final class SellService {
 
         // An explicit product zero disables selling that drop; an unset (-1)
         // price inherits the global default. Products can price drops absent there.
+        // Custom-item drops are priced by their plugin identity, never by base material.
         var product = plugin.product(spawner);
+        List<CustomPrice> customPrices = new ArrayList<>();
         if (product != null) {
             for (var drop : product.drops()) {
                 double value = drop.sellPrice();
-                if (Double.isFinite(value) && value >= 0.0) {
+                boolean priced = Double.isFinite(value) && value >= 0.0;
+                if (drop.customItem() != null) {
+                    customPrices.add(new CustomPrice(drop.customItem(), priced ? Double.valueOf(value) : null));
+                } else if (priced) {
                     units.put(drop.material().name(), value);
                 }
             }
@@ -450,7 +458,8 @@ public final class SellService {
         if (plugin.events() != null) multiplier *= plugin.events().cashMultiplier();
         if (viewer != null && plugin.boosters() != null) multiplier *= plugin.boosters().personalMultiplier(
                 dev.yanianz.bravenspawner.boosters.Boosters.Type.CASH, viewer.getUniqueId());
-        return new PriceTable(Map.copyOf(units), multiplier, viewer, shopQuotes(spawner, viewer), roundTo(), currency);
+        return new PriceTable(Map.copyOf(units), List.copyOf(customPrices), multiplier, viewer,
+                shopQuotes(spawner, viewer), roundTo(), currency);
     }
 
     /**
@@ -473,7 +482,8 @@ public final class SellService {
     }
 
     private Double unitPrice(PriceTable table, ItemStack stack) {
-        Double unit = table.unitPrices().get(stack.getType().name());
+        CustomPrice custom = customDrop(table, stack);
+        Double unit = custom != null ? custom.unit() : table.unitPrices().get(stack.getType().name());
         if (plugin.shops() == null) return unit;
         double quote = Double.NaN;
         boolean cached = false;
@@ -484,7 +494,18 @@ public final class SellService {
         return Double.isFinite(quote) && quote >= 0.0 ? Double.valueOf(quote) : unit;
     }
 
-    /** Decimal places for payouts; {@code economy.round-to}, default 2, clamped to 0..6. */
+      /** The product's custom drop {@code stack} is, or {@code null} for anything else. */
+    private CustomPrice customDrop(PriceTable table, ItemStack stack) {
+        if (table.customPrices().isEmpty()) return null;
+        var items = plugin.customItems();
+        if (items == null) return null;
+        for (CustomPrice price : table.customPrices()) {
+            if (items.matches(price.item(), stack)) return price;
+        }
+        return null;
+    }
+
+  /** Decimal places for payouts; {@code economy.round-to}, default 2, clamped to 0..6. */
     private int roundTo() {
         return Math.max(0, Math.min(6, plugin.getConfig().getInt("economy.round-to", 2)));
     }

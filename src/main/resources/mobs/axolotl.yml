@@ -4,9 +4,11 @@ display-name: Axolotl
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/ab16c98210a10da0f8a9b25a4e11d9fc157fed29a290b4c4430f9b6e6f3965ec
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 25
+  max: 40
 xp:
   min: 5
   max: 5

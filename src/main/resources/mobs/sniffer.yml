@@ -4,9 +4,11 @@ display-name: Sniffer
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/297c5c686cc4ac4be04f21b23631804a5cac30ff537f5b532440c8e4e25481b3
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 30
+  max: 50
 xp:
   min: 5
   max: 5

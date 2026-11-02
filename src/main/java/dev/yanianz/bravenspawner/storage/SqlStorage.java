@@ -152,9 +152,10 @@ public final class SqlStorage implements Storage {
     /**
      * Drives static references to the JDBC drivers.
      *
-     * <p>Both drivers are normally found through {@code DriverManager} using a
-     * class name, which a shrinking step cannot see. Referencing the classes here
-     * keeps them in the jar and registers them before Hikari touches the pool.
+     * <p>The drivers arrive through the server's library loader (plugin.yml
+     * {@code libraries:}), a class loader {@code DriverManager}'s service scan does
+     * not search. Registering them explicitly makes them visible before Hikari
+     * touches the pool.
      */
     private void registerDrivers() {
         try {

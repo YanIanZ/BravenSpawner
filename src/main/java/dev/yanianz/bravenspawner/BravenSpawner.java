@@ -57,6 +57,7 @@ public final class BravenSpawner extends JavaPlugin {
     private PlatformDetector platform;
     private Placeholders placeholders;
     private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
+    private dev.yanianz.bravenspawner.item.CustomItems customItems;
     private dev.yanianz.bravenspawner.protection.ProtectionService protection;
     private volatile dev.yanianz.bravenspawner.hook.IslandHook islands = dev.yanianz.bravenspawner.hook.IslandHook.NONE;
     private dev.yanianz.bravenspawner.restrictions.RestrictedSpawners restrictions;
@@ -85,6 +86,8 @@ public final class BravenSpawner extends JavaPlugin {
     public PlatformDetector platform() { return platform; }
     public Placeholders placeholders() { return placeholders; }
     public dev.yanianz.bravenspawner.commerce.ShopBridge shops() { return shops; }
+    /** Custom-item plugin drops (MMOItems, EcoItems, ItemsAdder, Oraxen, Nexo, MythicMobs). */
+    public dev.yanianz.bravenspawner.item.CustomItems customItems() { return customItems; }
     public dev.yanianz.bravenspawner.protection.ProtectionService protection() { return protection; }
     /** Island plugin integration; {@link dev.yanianz.bravenspawner.hook.IslandHook#NONE} when none is installed. */
     public dev.yanianz.bravenspawner.hook.IslandHook islands() {
@@ -213,6 +216,7 @@ public final class BravenSpawner extends JavaPlugin {
         itemKindKey = new NamespacedKey(this, "kind");
         itemProductKey = new NamespacedKey(this, "product");
         itemStackKey = new NamespacedKey(this, "stack");
+        customItems = new dev.yanianz.bravenspawner.item.CustomItems(this);
         products = new ProductRegistry(new ProductLoader(this, existingConfig));
         settings = Settings.load(getConfig(), databases, null, products);
         storage = openStorage();
@@ -393,6 +397,7 @@ public final class BravenSpawner extends JavaPlugin {
         reloadConfig();
         loadDatabases();
         products.reload();
+        customItems.reload();
         dev.yanianz.bravenspawner.util.HeadTextures.clearCache();
         settings = Settings.load(getConfig(), databases, null, products);
         platform = new PlatformDetector(this);

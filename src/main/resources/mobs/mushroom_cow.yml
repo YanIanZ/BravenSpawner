@@ -4,9 +4,11 @@ display-name: Mushroom Cow
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/da80606e82c642f141587733e3180ae57f646442c9fffd4e5997457e34311a29
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 18
+  max: 30
 xp:
   min: 5
   max: 5

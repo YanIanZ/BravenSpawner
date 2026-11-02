@@ -66,7 +66,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
     private static String canonical(String name) {
         if (name == null) return "";
         return switch (name.toLowerCase(Locale.ROOT)) {
-            case "bravenspawner", "vs", "bs" -> "bspawner";
+            case "bravenspawner", "bs" -> "bspawner";
             case "bsmodify" -> "bmodify";
             case "bstoggle" -> "bhtoggle";
             default -> name.toLowerCase(Locale.ROOT);
@@ -221,6 +221,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 + (p.settings().tiers.isEmpty() ? "" : " (base interval " + p.settings().tiers.get(0).intervalTicks + "t)"));
         m.sendPlain(sender, "doctor.line", "key", "holograms", "value",
                 p.holograms() != null && p.holograms().config().enabled() ? "enabled" : "disabled");
+        if (p.customItems() != null) {
+            List<String> itemPlugins = p.customItems().status().stream()
+                    .filter(line -> !line.endsWith(": not installed")).toList();
+            m.sendPlain(sender, "doctor.line", "key", "item plugins", "value",
+                    itemPlugins.isEmpty() ? "none installed" : String.join(", ", itemPlugins));
+        }
         var firstMob = p.products().allMobs().stream().findFirst().orElse(null);
         m.sendPlain(sender, "doctor.line", "key", "sample", "value", firstMob == null ? "none — catalogue empty"
                 : firstMob.id() + " -> " + firstMob.entityType() + " every " + firstMob.intervalTicks() + "t");

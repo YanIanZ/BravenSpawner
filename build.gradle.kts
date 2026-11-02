@@ -1,6 +1,5 @@
 plugins {
     java
-    alias(libs.plugins.shadow)
 }
 
 group = "dev.yanianz"
@@ -19,7 +18,17 @@ repositories {
     // time; PlatformDetector and Placeholders guard the runtime link.
     maven("https://repo.opencollab.dev/main/")
     maven("https://repo.extendedclip.com/releases/")
+    // Custom-item plugins, each repository limited to its own group.
+    maven("https://nexus.phoenixdevt.fr/repository/maven-public/") {
+        content { includeModule("net.Indyuce", "MMOItems-API"); includeModule("io.lumine", "MythicLib-dist") }
+    }
+    maven("https://repo.auxilor.io/repository/maven-public/") { content { includeModule("com.willfp", "eco") } }
+    maven("https://repo.oraxen.com/releases") { content { includeModule("io.th0rgal", "oraxen") } }
+    maven("https://repo.nexomc.com/releases") { content { includeModule("com.nexomc", "nexo") } }
+    maven("https://mvn.lumine.io/repository/maven-public/") { content { includeModule("io.lumine", "Mythic-Dist") } }
 }
+
+val runtimeLibraries = listOf(libs.mongodb.driver.sync, libs.sqlite.jdbc, libs.hikaricp, libs.mysql.connector.j)
 
 dependencies {
     compileOnly(libs.paper.api)
@@ -35,6 +44,15 @@ dependencies {
     compileOnly(libs.worldedit.bukkit) { isTransitive = false }
     compileOnly(libs.worldedit.core) { isTransitive = false }
     compileOnly(libs.superiorskyblock.api) { isTransitive = false }
+    // Custom-item plugins: called directly from item/ adapters that load only after
+    // the plugin is confirmed enabled. Never shaded.
+    compileOnly(libs.mmoitems.api) { isTransitive = false }
+    compileOnly(libs.mythiclib) { isTransitive = false }
+    compileOnly(libs.eco) { isTransitive = false }
+    compileOnly(libs.itemsadder.api) { isTransitive = false }
+    compileOnly(libs.oraxen) { isTransitive = false }
+    compileOnly(libs.nexo) { isTransitive = false }
+    compileOnly(libs.mythicmobs) { isTransitive = false }
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.mockito.core)
@@ -42,10 +60,13 @@ dependencies {
     testImplementation(libs.vault.api) { isTransitive = false }
     testImplementation(libs.superiorskyblock.api) { isTransitive = false }
     testRuntimeOnly(libs.junit.platform.launcher)
-    implementation(libs.mongodb.driver.sync)
-    implementation(libs.sqlite.jdbc)
-    implementation(libs.hikaricp)
-    implementation(libs.mysql.connector.j)
+    // Runtime libraries are not bundled: plugin.yml `libraries:` makes the server
+    // download them from Maven Central on first start (Spigot/Paper library loader).
+    // The versions below are written into plugin.yml by processResources.
+    for (library in runtimeLibraries) {
+        compileOnly(library)
+        testImplementation(library)
+    }
 }
 
 java {
@@ -60,50 +81,27 @@ tasks.withType<JavaCompile> {
 
 tasks.processResources {
     val pluginVersion = project.version.toString()
+    val libraries = runtimeLibraries.map { provider ->
+        val dependency = provider.get()
+        "${dependency.module.group}:${dependency.module.name}:${dependency.versionConstraint.requiredVersion}"
+    }
     inputs.property("pluginVersion", pluginVersion)
-    filesMatching("plugin.yml") { expand("version" to pluginVersion) }
+    inputs.property("libraries", libraries)
+    filesMatching("plugin.yml") {
+        expand("version" to pluginVersion, "libraries" to libraries.joinToString("\n") { "  - $it" })
+    }
 }
 
-tasks.shadowJar {
+tasks.jar {
     archiveBaseName.set("BravenSpawner")
-    archiveClassifier.set("")
     archiveVersion.set("")
-    // Shadow 9 drops duplicate entries before transformers run unless they are included.
-    filesMatching("META-INF/services/**") { duplicatesStrategy = DuplicatesStrategy.INCLUDE }
-    mergeServiceFiles()
-    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.EC")
-    exclude("module-info.class", "META-INF/versions/*/module-info.class")
-    dependencies {
-        // Paper ships SLF4J and the plugin class loader resolves it parent-first, so
-        // HikariCP logs through the server's binding; a bundled copy would be dead weight.
-        exclude(dependency("org.slf4j:.*:.*"))
-    }
-    minimize {
-        // JDBC drivers are instantiated by DriverManager from a string, so the
-        // shrinker cannot see the reference and would strip them.
-        exclude(dependency("org.mongodb:.*:.*"))
-        exclude(dependency("org.xerial:sqlite-jdbc:.*"))
-        exclude(dependency("com.mysql:mysql-connector-j:.*"))
-    }
-    relocate("com.mongodb", "dev.yanianz.bravenspawner.libs.mongodb")
-    relocate("org.bson", "dev.yanianz.bravenspawner.libs.bson")
-    relocate("com.zaxxer.hikari", "dev.yanianz.bravenspawner.libs.hikari")
-    // sqlite-jdbc loads its native library from a resource path derived from its own
-    // package. Relocating the classes does not rename the .so resources, so the
-    // lookup fails with UnsatisfiedLinkError at the first connection. The package
-    // stays untouched; only the pool and the MySQL driver are relocated.
-    relocate("com.mysql", "dev.yanianz.bravenspawner.libs.mysql")
-    // Pulled in by mysql-connector-j; other plugins commonly bundle their own copy.
-    relocate("com.google.protobuf", "dev.yanianz.bravenspawner.libs.protobuf")
 }
-
-tasks.build { dependsOn(tasks.shadowJar) }
 
 tasks.test {
     useJUnitPlatform()
-    // ShadedSqliteTest opens SQLite through the shipped jar to catch relocation breakage.
-    dependsOn(tasks.shadowJar)
-    val shaded = tasks.shadowJar.flatMap { it.archiveFile }
-    inputs.file(shaded)
-    systemProperty("bravenspawner.shadedJar", shaded.get().asFile.absolutePath)
+    // PluginJarTest checks the shipped jar: libraries declared, none bundled.
+    dependsOn(tasks.jar)
+    val pluginJar = tasks.jar.flatMap { it.archiveFile }
+    inputs.file(pluginJar)
+    systemProperty("bravenspawner.pluginJar", pluginJar.get().asFile.absolutePath)
 }

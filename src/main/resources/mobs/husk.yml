@@ -4,9 +4,11 @@ display-name: Husk
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/7338318bc91a36cd5ab6aa885c9a4ee2bdacdaa5c66b2a99dfb0a560983f2480
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 20
+  max: 35
 xp:
   min: 5
   max: 5

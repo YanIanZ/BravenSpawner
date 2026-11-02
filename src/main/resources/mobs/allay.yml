@@ -4,9 +4,11 @@ display-name: Allay
 head:
   material: PLAYER_HEAD
   head-texture: https://textures.minecraft.net/texture/cb225bb461d61102ca38e8f772639ca08a359652379cce4ae8edcc50ce53b9e7
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
 spawn-delays:
-  min: 5
-  max: 15
+  min: 60
+  max: 90
 xp:
   min: 5
   max: 5

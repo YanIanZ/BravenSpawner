@@ -8,8 +8,11 @@ head:
   lore:
     - "&aA spawner for zombies."
 
-# Production period in ticks (20 ticks = 1 second); 1200 is once a minute.
-interval-ticks: 1200
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
+spawn-delays:
+  min: 20
+  max: 35
 xp: 5
 
 # chance is a percentage: 100.0 always drops, 0.5 is half a percent.

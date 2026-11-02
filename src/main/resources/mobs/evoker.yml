@@ -8,7 +8,11 @@ head:
   lore:
     - "&aA spawner for evokers."
 
-interval-ticks: 2400
+# Production delay in seconds, picked between min and max each cycle.
+# Upgrade tiers multiply this speed; boosters speed it up further.
+spawn-delays:
+  min: 150
+  max: 240
 xp: 10
 
 # Drops follow the vanilla loot table; chance is a percentage.
