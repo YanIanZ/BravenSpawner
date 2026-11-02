@@ -5,12 +5,35 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Custom-item drops**: a drop's `material` may name an item from MMOItems
+  (`mmoitems:TYPE:ID`), EcoItems (`ecoitems:id`), ItemsAdder (`itemsadder:ns:id`),
+  Oraxen (`oraxen:id`), Nexo (`nexo:id`) or MythicMobs (`mythicmobs:id`). Items are
+  priced by their plugin identity with the drop's `sell-price`, never by base
+  material; a missing or incompatible plugin skips that drop with one warning.
+  `/bspawner doctor` lists item plugin status. Adapters call each plugin's API
+  directly (compile-only, not shaded, no reflection) and load only when that plugin
+  is enabled. See docs/CUSTOM_ITEMS.md.
+
+### Fixed
+- Tab completion no longer offers the legacy `/vspawner`, `/virtualspawner` and
+  `/vmodify` aliases; use `/bspawner` (`/bs`, `/vs`, `/bravenspawner`) and `/bmodify`.
+
 ### Changed
+- **Jar shrinks from ~20 MB to ~0.7 MB.** MongoDB driver, SQLite JDBC, HikariCP and
+  MySQL Connector/J are no longer shaded; plugin.yml `libraries:` makes the server
+  download them from Maven Central on first start into `libraries/`. The first start
+  needs internet access to Maven Central (or the server's configured mirror). The
+  libraries are no longer relocated; each plugin's libraries load in their own class
+  loader.
 - **Every spawner has its own speed** instead of a shared 60 s default (and 5–15 s for
   some). Each product declares `spawn-delays` (min–max seconds): cheap/passive products
   are fast (cod 10–18 s, chicken 12–22 s), common hostiles moderate (zombie 20–35 s,
   skeleton 18–32 s), valuable ones slower (blaze 40–60 s, iron golem 60–90 s) and rare
-  ones slowest (evoker 150–240 s, warden 240–360 s). Full table: docs/SPAWNER_SPEEDS.md.
+  ones slowest (evoker 150–240 s, warden 240–360 s). The disabled-by-default mobs get
+  their own ranges too (giant 30–50 s, illusioner 40–60 s, wither 2400–3600 s, ender
+  dragon 3000–3600 s); no bundled file uses `interval-ticks` any more. Full table:
+  docs/SPAWNER_SPEEDS.md.
   Hourly output changes per product; review prices or capacities on economy servers.
 - **Upgrade tiers multiply each product's speed** (`speed`: base 1.0, iron 1.33,
   gold 2.0, diamond 4.0) instead of capping it at an absolute interval, which made

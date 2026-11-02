@@ -66,13 +66,15 @@ class SpeedMigrationTest {
         assertEquals(0, SpeedMigration.run(plugin, mobs, "mobs"), "runs once");
     }
 
-    /** Every bundled product except the disabled bosses has its own speed range now. */
+    /** Every bundled product, disabled ones included, has its own speed range now. */
     @Test void bundledProductsHaveIndividualSpeeds() throws Exception {
         java.util.Set<String> ranges = new java.util.HashSet<>();
-        for (File file : new File("src/main/resources/mobs").listFiles((d, n) -> n.endsWith(".yml"))) {
+        List<File> files = new java.util.ArrayList<>();
+        files.addAll(List.of(new File("src/main/resources/mobs").listFiles((d, n) -> n.endsWith(".yml"))));
+        files.addAll(List.of(new File("src/main/resources/itemspawners").listFiles((d, n) -> n.endsWith(".yml"))));
+        for (File file : files) {
             String sig = SpeedMigration.signature(Files.readAllLines(file.toPath()));
-            String id = file.getName().replace(".yml", "");
-            if (List.of("ender_dragon", "wither", "giant", "illusioner").contains(id)) continue;
+            String id = file.getParentFile().getName() + "/" + file.getName().replace(".yml", "");
             assertNotNull(sig, id);
             assertTrue(sig.startsWith("sd:"), id + " uses spawn-delays");
             assertNotEquals("sd:60-60", sig, id);

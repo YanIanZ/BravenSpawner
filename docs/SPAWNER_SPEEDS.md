@@ -1,6 +1,6 @@
 # Spawner speeds
 
-Since 1.5.0 every product has its own production delay. Each cycle picks a delay between `min` and `max` seconds (`spawn-delays` in `mobs/*.yml` and `itemspawners/*.yml`). Upgrade tiers divide the delay by their `speed` (bundled: base 1.0, iron 1.33, gold 2.0, diamond 4.0), and speed boosters divide it further. The minimum period is one second.
+Since 1.5.0 every product has its own production delay. Each cycle picks a delay between `min` and `max` seconds (`spawn-delays` in `mobs/*.yml` and `itemspawners/*.yml`). Upgrade tiers divide the delay by their `speed` (bundled: base 1.0, iron 1.33, gold 2.0, diamond 4.0), and speed boosters divide it further. The minimum period is one second and the maximum one hour (3600 s).
 
 Rule of thumb: cheap or passive products are fast, and products with valuable drops are slow, so hourly value stays balanced across spawners.
 
@@ -32,14 +32,14 @@ On upgrade, files that still have exactly their old shipped timing are switched 
 | donkey | 22–36 | 124 cycles |
 | drowned | 22–38 | 120 cycles |
 | elder_guardian | 150–240 | 18 cycles |
-| ender_dragon | disabled by default | — |
+| ender_dragon | 3000–3600 (disabled by default) | 1.1 cycles |
 | enderman | 35–55 | 80 cycles |
 | endermite | 30–50 | 90 cycles |
 | evoker | 150–240 | 18 cycles |
 | fox | 18–30 | 150 cycles |
 | frog | 16–28 | 164 cycles |
 | ghast | 50–80 | 55 cycles |
-| giant | disabled by default | — |
+| giant | 30–50 (disabled by default) | 90 cycles |
 | glow_squid | 16–28 | 164 cycles |
 | goat | 20–32 | 138 cycles |
 | guardian | 35–55 | 80 cycles |
@@ -47,7 +47,7 @@ On upgrade, files that still have exactly their old shipped timing are switched 
 | hoglin | 35–55 | 80 cycles |
 | horse | 22–36 | 124 cycles |
 | husk | 20–35 | 131 cycles |
-| illusioner | disabled by default | — |
+| illusioner | 40–60 (disabled by default) | 72 cycles |
 | iron_golem | 60–90 | 48 cycles |
 | llama | 22–36 | 124 cycles |
 | magma_cube | 25–40 | 111 cycles |
@@ -91,7 +91,7 @@ On upgrade, files that still have exactly their old shipped timing are switched 
 | wandering_trader | 60–90 | 48 cycles |
 | warden | 240–360 | 12 cycles |
 | witch | 30–50 | 90 cycles |
-| wither | disabled by default | — |
+| wither | 2400–3600 (disabled by default) | 1.2 cycles |
 | wither_skeleton | 45–70 | 63 cycles |
 | wolf | 45–75 | 60 cycles |
 | zoglin | 25–40 | 111 cycles |

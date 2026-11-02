@@ -55,22 +55,28 @@ place spawner ──▶ tick (tier interval) ──▶ produce (stack × cycle)
 # → build/libs/BravenSpawner.jar
 ```
 
-Drop the jar in `plugins/`, start the server, edit `plugins/BravenSpawner/config.yml`,
-then `/vspawner give ZOMBIE`.
+Drop the jar (~0.7 MB) in `plugins/`, start the server, edit `plugins/BravenSpawner/config.yml`,
+then `/bspawner give ZOMBIE`.
+
+Database drivers (SQLite, MySQL, MongoDB, HikariCP) are not inside the jar. On first
+start Paper/Folia downloads them from Maven Central into the server's `libraries/`
+folder (plugin.yml `libraries:`) and reuses that cache afterwards. The first start
+therefore needs outbound HTTPS access to Maven Central (or the mirror the server is
+configured to use).
 
 ## Commands
 
 | Command | Permission | Purpose |
 |---|---|---|
-| `/vspawner give <mob\|item:ID> [player] [stack]` | `bravenspawner.admin` | hand out a spawner item |
-| `/vspawner list` | `bravenspawner.admin` | your spawners, stacks and stored totals |
-| `/vspawner reload` | `bravenspawner.admin` | reload config, rebuild schedules |
-| `/vspawner doctor` | `bravenspawner.admin` | storage, catalogue and currency health |
-| `/vspawner economy` | `bravenspawner.admin` | currency per action, every detected currency, active shop |
-| `/vspawner booster <player> <mult> [sec]` | `bravenspawner.admin` | grant a production multiplier |
-| `/vspawner menu` | `bravenspawner.admin` | open the GUI for the targeted managed spawner |
-| `/vspawner corrupt\|repair` | `bravenspawner.admin` | drive the corruption system |
-| `/vmodify <player>` | `bravenspawner.use` | toggle trust on the spawner you look at |
+| `/bspawner give <mob\|item:ID> [player] [stack]` | `bravenspawner.admin` | hand out a spawner item |
+| `/bspawner list` | `bravenspawner.admin` | your spawners, stacks and stored totals |
+| `/bspawner reload` | `bravenspawner.admin` | reload config, rebuild schedules |
+| `/bspawner doctor` | `bravenspawner.admin` | storage, catalogue and currency health |
+| `/bspawner economy` | `bravenspawner.admin` | currency per action, every detected currency, active shop |
+| `/bspawner booster <player> <mult> [sec]` | `bravenspawner.admin` | grant a production multiplier |
+| `/bspawner menu` | `bravenspawner.admin` | open the GUI for the targeted managed spawner |
+| `/bspawner corrupt\|repair` | `bravenspawner.admin` | drive the corruption system |
+| `/bmodify <player>` | `bravenspawner.use` | toggle trust on the spawner you look at |
 | `/shtoggle` | `bravenspawner.use` | toggle holograms on your spawners |
 
 ## Configuration
@@ -88,6 +94,11 @@ active-boosters.properties   runtime timed-effect ledger (generated on save)
 Every switch in `config.yml` is documented inline. The full surface is large by
 design — a server that wants only "spawn mobs, store loot" can leave everything
 else at defaults.
+
+### Custom-item drops
+
+Drops can come from MMOItems, EcoItems, ItemsAdder, Oraxen, Nexo or MythicMobs:
+`material: "mmoitems:SWORD:CUTLASS"`. See [docs/CUSTOM_ITEMS.md](docs/CUSTOM_ITEMS.md).
 
 ## Economy
 
@@ -173,7 +184,7 @@ Target design principles (runtime qualification pending):
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). CI builds and runs the automated suite, including a SQLite probe against the shaded JAR. See [verification](docs/VERIFICATION.md) for the current test count and runtime limits.
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI builds and runs the automated suite, including a check that the shipped JAR declares its libraries and bundles none. See [verification](docs/VERIFICATION.md) for the current test count and runtime limits.
 
 ## Security
 

@@ -1,5 +1,6 @@
 package dev.yanianz.bravenspawner.product;
 
+import dev.yanianz.bravenspawner.item.CustomItemRef;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -401,9 +402,17 @@ public final class ProductLoader {
     }
 
     private void addDrop(List<ProductDefinition.Drop> target, Map<?, ?> map, String id) {
-        Material material = material(map.get("material"));
-        if (material == null) {
-            unknownDropMaterials.add(id + ":" + map.get("material"));
+        Object rawMaterial = map.get("material") != null ? map.get("material") : map.get("item");
+        CustomItemRef custom;
+        try {
+            custom = rawMaterial == null ? null : CustomItemRef.parse(String.valueOf(rawMaterial));
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("product " + id + ": " + e.getMessage() + " — drop skipped");
+            return;
+        }
+        Material material = custom == null ? material(rawMaterial) : null;
+        if (custom == null && material == null) {
+            unknownDropMaterials.add(id + ":" + rawMaterial);
             return;
         }
 
@@ -424,12 +433,16 @@ public final class ProductLoader {
 
         double chance = probability(map.get("chance"));
         if (chance <= 0.0) {
-            plugin.getLogger().warning("product " + id + ": drop " + material.name()
+            plugin.getLogger().warning("product " + id + ": drop " + (custom != null ? custom : material.name())
                     + " has a zero chance — drop skipped");
             return;
         }
         double price = map.get("sell-price") instanceof Number n && Double.isFinite(n.doubleValue())
                 ? Math.max(-1.0, n.doubleValue()) : -1.0;
+        if (custom != null) {
+            target.add(ProductDefinition.Drop.custom(custom, min, max, chance, price));
+            return;
+        }
         String display = map.get("display-name") instanceof String text && !text.equalsIgnoreCase("none") ? text : null;
         int model = map.get("custom-model-data") instanceof Number n ? n.intValue() : -1;
         target.add(new ProductDefinition.Drop(material, min, max, chance, price, display, model));

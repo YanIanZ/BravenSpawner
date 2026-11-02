@@ -159,6 +159,34 @@ class SellMultiplierTest {
         verify(economy, never()).deposit(any(), anyDouble());
     }
 
+    @Test void customItemDropIsPricedByIdentityNotBaseMaterial() {
+        var ref = dev.yanianz.bravenspawner.item.CustomItemRef.parse("mmoitems:MATERIAL:RUNE");
+        var items = mock(dev.yanianz.bravenspawner.item.CustomItems.class);
+        ItemStack stored = spawner.stock().getFirst().template();
+        when(items.matches(ref, stored)).thenReturn(true);
+        when(plugin.customItems()).thenReturn(items);
+        var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
+        when(product.drops()).thenReturn(List.of(
+                dev.yanianz.bravenspawner.product.ProductDefinition.Drop.custom(ref, 1, 1, 1.0, 5.0)));
+        when(plugin.product(spawner)).thenReturn(product);
+        // 4 units x 5.0 custom price x 2.0 server multiplier, not the STONE price of 2.0.
+        assertEquals(40.0, service.value(spawner));
+    }
+
+    @Test void unpricedCustomItemDropDoesNotInheritBaseMaterialPrice() {
+        var ref = dev.yanianz.bravenspawner.item.CustomItemRef.parse("nexo:onyx");
+        var items = mock(dev.yanianz.bravenspawner.item.CustomItems.class);
+        when(items.matches(ref, spawner.stock().getFirst().template())).thenReturn(true);
+        when(plugin.customItems()).thenReturn(items);
+        var product = mock(dev.yanianz.bravenspawner.product.ProductDefinition.class);
+        when(product.drops()).thenReturn(List.of(
+                dev.yanianz.bravenspawner.product.ProductDefinition.Drop.custom(ref, 1, 1, 1.0, -1.0)));
+        when(plugin.product(spawner)).thenReturn(product);
+        assertEquals(0.0, service.value(spawner));
+        assertEquals(SellService.Status.NOTHING_TO_SELL, service.sell(player, spawner).status());
+        verify(economy, never()).deposit(any(), anyDouble());
+    }
+
     @Test void recordsSuccessfulSettlementExactlyOnceWithPlayerActor() {
         when(economy.deposit(player, 16.0)).thenReturn(true);
         assertEquals(SellService.Status.SOLD, service.sell(player, spawner).status());

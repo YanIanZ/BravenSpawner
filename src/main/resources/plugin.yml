@@ -6,6 +6,9 @@ author: yanianz
 description: Virtual spawners with stacking, chest GUI, upgrades, boosters, corruption and Folia support.
 load: POSTWORLD
 folia-supported: true
+# Downloaded by the server from Maven Central on first start and cached in libraries/.
+libraries:
+${libraries}
 softdepend:
   - sourbyapi
   - SourbyCraft
@@ -30,14 +33,22 @@ softdepend:
   - PlaceholderAPI
   - floodgate
   - Geyser-Spigot
+  - MythicLib
+  - MMOItems
+  - eco
+  - EcoItems
+  - ItemsAdder
+  - Oraxen
+  - Nexo
+  - MythicMobs
 commands:
   bspawner:
     description: Manage BravenSpawner
-    aliases: [bravenspawner, vspawner, virtualspawner, vs, bs]
+    aliases: [bravenspawner, vs, bs]
     permission: bravenspawner.admin
   bmodify:
     description: Toggle trust on a spawner
-    aliases: [bsmodify, vmodify]
+    aliases: [bsmodify]
     permission: bravenspawner.use
   bhtoggle:
     description: Toggle holograms on your spawners

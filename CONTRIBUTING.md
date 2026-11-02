@@ -49,12 +49,12 @@ Body explains **why**, not what — the diff already shows what.
 ## Testing
 
 ```bash
-./gradlew --no-daemon build --console=plain  # compile, tests and shaded JAR
+./gradlew --no-daemon build --console=plain  # compile, tests and plugin JAR
 ```
 
 Manual checklist before a PR that touches runtime behaviour:
 
-1. `/vspawner give ZOMBIE` → place → wait one interval → storage fills.
+1. `/bspawner give ZOMBIE` → place → wait one interval → storage fills.
 2. Break it → contents drop, item returns.
 3. Restart → spawner and contents survive.
 4. Repeat on Folia if the change touches scheduling.

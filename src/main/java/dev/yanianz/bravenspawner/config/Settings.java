@@ -278,7 +278,8 @@ public final class Settings {
     }
 
     private static Product legacyProduct(dev.yanianz.bravenspawner.product.ProductDefinition product) {
-        List<Drop> drops = product.drops().stream()
+        // The legacy view only knows vanilla materials; custom-item drops live on the definition.
+        List<Drop> drops = product.drops().stream().filter(d -> d.material() != null)
                 .map(d -> new Drop(d.material(), d.minAmount(), d.chance())).toList();
         return new Product(product.id().toUpperCase(Locale.ROOT), product.displayName(), drops, product.xp());
     }
