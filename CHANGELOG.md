@@ -5,6 +5,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-02
+
 ### Added
 - **Corrupted spawner visuals**: a corrupted spawner's hologram switches to
   `hologram.corrupted.content` in holograms.yml. It has a glitching spawner name
