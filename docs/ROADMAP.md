@@ -1,6 +1,6 @@
 # BravenSpawner Roadmap
 
-Updated 2026-11-01. Latest published release: **1.4.0**.
+Updated 2026-11-01. Latest published release: **1.4.1**.
 Targets below are proposed milestones, not delivery promises. Source, tests and owner qualification determine completion.
 
 ## Shipped and in progress
@@ -19,7 +19,7 @@ Targets below are proposed milestones, not delivery promises. Source, tests and 
 | Milestone | Scope | Acceptance gate |
 | --- | --- | --- |
 | 1.3.x maintenance | Remaining audit findings and runtime qualification | Evidence-backed fixes; Paper/Folia player flows, live providers and databases, restart/failure scenarios |
-| 1.4.x maintenance | Live qualification of 1.4.0 (OWN-13, OWN-17..26) and any fixes it finds | Recorded runtime evidence on Paper, Folia/SourbyCraft, SSB2 and each storage backend |
+| 1.4.x maintenance | Live qualification (phase 1 on Paper 1.21.1 done in 1.4.1; remaining OWN-13, OWN-17..26) and any fixes it finds | Recorded runtime evidence on Paper, Folia/SourbyCraft, SSB2 and each storage backend |
 | 1.5.0 stacking and API | [STAC-01](features/VIRTUAL_STACKING.md), [UX-01](features/GUI_UX.md), [API-01](features/API_SPEC.md) | Durable issuance/idempotency across backends, replay tests, API compile tests and per-action authorization |
 | Later, unscheduled | [Upgrade, evolution, network, automation, progression, insight and balancing proposals](features/proposals/README.md) | Stable vault/ledger and measured runtime budgets |
 

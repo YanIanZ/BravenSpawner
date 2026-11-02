@@ -5,6 +5,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-02
+
 ### Fixed
 - Sales paid in a currency held in player data (EXP levels/points, items) now save the
   payee's player data right after the confirmed payment. Found by live crash testing:

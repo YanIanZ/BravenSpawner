@@ -1,6 +1,6 @@
 # BravenSpawner documentation
 
-Updated 2026-11-01. Published **1.4.0**. Implementation, historical audit evidence and future designs are separated below.
+Updated 2026-11-01. Published **1.4.1**. Implementation, historical audit evidence and future designs are separated below.
 
 | Document | Purpose |
 | --- | --- |
