@@ -5,6 +5,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- WuretaMC build `1.5.0-wureta`: compiled against Paper API `26.2.build.135-stable` with a
+  Java 25 toolchain and Java 25 bytecode; `api-version: '26.2'`. Needs a 26.2 server on Java 25.
+
 ## [1.5.0] - 2026-11-02
 
 ### Added

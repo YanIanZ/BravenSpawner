@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.yanianz"
-version = "1.5.0"
+version = "1.5.0-wureta"
 
 repositories {
     mavenCentral()
@@ -70,11 +70,11 @@ dependencies {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
 tasks.withType<JavaCompile> {
-    options.release.set(21)
+    options.release.set(25)
     options.encoding = "UTF-8"
     options.compilerArgs.addAll(listOf("-Xlint:deprecation", "-Xlint:unchecked"))
 }

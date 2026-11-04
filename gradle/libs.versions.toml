@@ -1,5 +1,5 @@
 [versions]
-paper = "1.21.1-R0.1-SNAPSHOT"
+paper = "26.2.build.135-stable"
 vault = "1.7"
 floodgate = "2.2.5-SNAPSHOT"
 placeholderapi = "2.12.3"
