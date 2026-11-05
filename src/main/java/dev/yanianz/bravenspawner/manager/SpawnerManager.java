@@ -294,6 +294,18 @@ public final class SpawnerManager {
         return live;
     }
 
+    /**
+     * True when the last production pass found no spawner block for this record.
+     *
+     * <p>Set by {@link #blockPresent} on the spawner's region thread when the world
+     * block is no longer a spawner, and cleared on the next pass that finds it. It
+     * is the registry's own cached verdict, so a reader on any thread (the
+     * PlaceholderAPI snapshot) can consult it without touching block state.
+     */
+    public boolean blockMissing(Spawner spawner) {
+        return spawner != null && reportedMissing.contains(spawner.id());
+    }
+
     public boolean guiThrottled(UUID player, long cooldownMs) {
         if (player == null) return false;
         long now = System.currentTimeMillis();

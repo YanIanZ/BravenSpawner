@@ -57,6 +57,7 @@ public final class BravenSpawner extends JavaPlugin {
     private dev.yanianz.bravenspawner.particles.SpawnerParticles particles;
     private PlatformDetector platform;
     private Placeholders placeholders;
+    private dev.yanianz.bravenspawner.papi.PapiHook papi;
     private dev.yanianz.bravenspawner.commerce.ShopBridge shops;
     private dev.yanianz.bravenspawner.item.CustomItems customItems;
     private dev.yanianz.bravenspawner.protection.ProtectionService protection;
@@ -258,6 +259,10 @@ public final class BravenSpawner extends JavaPlugin {
                     + "server restarts. Cause: " + storageFailure);
             return;
         }
+        // PlaceholderAPI expansion: reads the registry's cached state only, so its
+        // 30 s snapshot task can run on the async scheduler and every request is
+        // thread-agnostic. Not installed when PlaceholderAPI is absent.
+        papi = dev.yanianz.bravenspawner.papi.PapiHook.install(this);
         Schedulers.async(this, () -> {
             List<Spawner> loaded;
             try { loaded = storage.loadAll(); }
@@ -299,6 +304,7 @@ public final class BravenSpawner extends JavaPlugin {
         if (checkpoints != null) { checkpoints.close(); checkpoints = null; }
         if (holograms != null) holograms.removeAll();
         if (audit != null) audit.close();
+        if (papi != null) { papi.close(); papi = null; }
         if (storage != null) storage.close();
         instance = null;
     }

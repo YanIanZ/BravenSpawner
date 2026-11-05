@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "dev.yanianz"
-version = "1.5.0-wureta"
+version = "1.5.1-wureta"
 
 repositories {
     mavenCentral()

@@ -5,9 +5,24 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **PlaceholderAPI expansion `bravenspawner`**: per-request values describe the
+  requester's own SuperiorSkyblock2 island (`SuperiorSkyblockAPI.getPlayer(uuid)
+  .getIsland()`): `%bravenspawner_spawners_total%`, `%bravenspawner_spawners_active%`,
+  `%bravenspawner_spawners_broken%` and `%bravenspawner_spawners_status%`
+  (`8/8` green, or `7/8 ⚠ corrupt` in red when a record is not active). Counts come
+  from an immutable per-island snapshot of the plugin's in-memory registry, rebuilt
+  every 30 s on the async scheduler; a request only reads that snapshot, so it is
+  safe from any thread (chat, scoreboard, tab, hologram) and never touches world
+  state. Active = registered, not corrupted, stack > 0, product definition still
+  resolves and the last production pass did not report a missing block; broken =
+  total − active. No island reads `0` with an empty status. PlaceholderAPI stays
+  optional (`softdepend`); the expansion is not linked without it.
+
 ### Changed
-- WuretaMC build `1.5.0-wureta`: compiled against Paper API `26.2.build.135-stable` with a
-  Java 25 toolchain and Java 25 bytecode; `api-version: '26.2'`. Needs a 26.2 server on Java 25.
+- WuretaMC build `1.5.1-wureta`: version bump for the expansion above; still compiled against
+  Paper API `26.2.build.135-stable` with a Java 25 toolchain and Java 25 bytecode;
+  `api-version: '26.2'`. Needs a 26.2 server on Java 25.
 
 ## [1.5.0] - 2026-11-02
 
