@@ -1,13 +1,13 @@
 [versions]
-paper = "1.21.1-R0.1-SNAPSHOT"
-vault = "1.7"
+paper = "26.3.build.245-stable"
+vault = "1.7.1"
 floodgate = "2.2.5-SNAPSHOT"
 placeholderapi = "2.12.3"
 essentialsx = "2.21.2"
 shopgui = "3.2.0"
 economyshopgui = "1.11.0"
 modrinth-dky9btbd = "J66QOTLZ"
-worldedit = "7.3.9"
+worldedit = "7.4.6"
 superiorskyblock = "2026.3"
 # Custom-item plugins (compile-only APIs). MMOItems and MythicLib publish snapshots
 # only, so exact timestamped builds are pinned for reproducible builds.
