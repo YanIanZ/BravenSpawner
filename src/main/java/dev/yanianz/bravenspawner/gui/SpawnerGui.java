@@ -231,8 +231,10 @@ public final class SpawnerGui implements Listener {
                 List.of("&7Stored: &f" + values.get("xp_value"), "", "&#F7B733» &7Click: &fcollect")));
         inv.setItem(13, button(Material.HOPPER, "&#4D96FF&lTake all",
                 List.of("&7Moves everything that fits", "&7into your inventory.", "", "&#F7B733» &7Click: &ftake all")));
-        inv.setItem(14, button(Material.ANVIL, "&#FF9F45&lUpgrade",
-                List.of("&7Tier: &f" + spawner.tier(), "", "&#F7B733» &7Click: &fupgrade")));
+        if (plugin.settings().upgradesEnabled) {
+            inv.setItem(14, button(Material.ANVIL, "&#FF9F45&lUpgrade",
+                    List.of("&7Tier: &f" + spawner.tier(), "", "&#F7B733» &7Click: &fupgrade")));
+        }
         inv.setItem(15, button(Material.NAME_TAG, "&#C780FA&lTrusted players",
                 List.of("&7Look at the spawner and use", "&f/bmodify <player>")));
         inv.setItem(16, button(Material.BARRIER, "&#FF7B72&lClose", List.of()));
@@ -1042,7 +1044,7 @@ public final class SpawnerGui implements Listener {
             case 11 -> GuiAction.SELL_ALL;
             case 12 -> GuiAction.COLLECT_XP;
             case 13 -> GuiAction.TAKE_ALL;
-            case 14 -> GuiAction.UPGRADE;
+            case 14 -> plugin.settings().upgradesEnabled ? GuiAction.UPGRADE : null;
             case 15 -> GuiAction.TRUSTED;
             case 16 -> GuiAction.CLOSE;
             case 22 -> GuiAction.LOG;
@@ -1200,6 +1202,10 @@ public final class SpawnerGui implements Listener {
     private void upgrade(Player player, Spawner spawner) {
         if (!permitted(player, ActionPermissions.UPGRADE)) return;
         Settings s = plugin.settings();
+        if (!s.upgradesEnabled) {
+            messages().send(player, "gui.upgrade.disabled");
+            return;
+        }
         int next = spawner.tier() + 1;
         if (next >= s.tiers.size()) {
             messages().send(player, "gui.upgrade.max");

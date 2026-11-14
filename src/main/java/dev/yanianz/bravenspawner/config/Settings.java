@@ -47,6 +47,14 @@ public final class Settings {
     /** True when {@code spawner-limit-in-chunk-mode: stacks}; the default counts spawner blocks. */
     public final boolean chunkLimitCountsStacks;
     public final boolean convertSpawners;
+    /** Master switch for automatic conversion (chunk load, join scan, live admin scan). */
+    public final boolean convertEnabled;
+    /** Server-wide conversion budget per tick, clamped to 1..64 while loading. */
+    public final int convertMaxPerTick;
+    /** Convert vanilla spawners found when a chunk loads. */
+    public final boolean convertChunkLoad;
+    /** Swap spawner items in joining players' inventories and ender chests. */
+    public final boolean convertJoinScan;
     public final boolean allowHoppers;
     public final boolean enableMending;
     public final boolean dropXpAsOrbs;
@@ -93,6 +101,8 @@ public final class Settings {
     public final Map<String, Product> items;
     public final Map<String, Double> sellPrices;
     public final List<Tier> tiers;
+    /** {@code upgrades.enabled}: false hides the menu's Upgrade button and refuses tier purchases. */
+    public final boolean upgradesEnabled;
 
     private Settings(Builder b) {
         this.useItemSpawners = b.useItemSpawners;
@@ -117,6 +127,10 @@ public final class Settings {
         this.spawnerLimitInChunk = b.spawnerLimitInChunk;
         this.chunkLimitCountsStacks = b.chunkLimitCountsStacks;
         this.convertSpawners = b.convertSpawners;
+        this.convertEnabled = b.convertEnabled;
+        this.convertMaxPerTick = b.convertMaxPerTick;
+        this.convertChunkLoad = b.convertChunkLoad;
+        this.convertJoinScan = b.convertJoinScan;
         this.allowHoppers = b.allowHoppers;
         this.enableMending = b.enableMending;
         this.dropXpAsOrbs = b.dropXpAsOrbs;
@@ -152,6 +166,7 @@ public final class Settings {
         this.items = Map.copyOf(b.items);
         this.sellPrices = Map.copyOf(b.sellPrices);
         this.tiers = List.copyOf(b.tiers);
+        this.upgradesEnabled = b.upgradesEnabled;
     }
 
     public static Settings load(ConfigurationSection root, ConfigurationSection databases, ConfigurationSection hooks) {
@@ -190,6 +205,10 @@ public final class Settings {
         b.spawnerLimitInChunk = root.getInt("spawner-limit-in-chunk", 100);
         b.chunkLimitCountsStacks = "stacks".equalsIgnoreCase(root.getString("spawner-limit-in-chunk-mode", "blocks"));
         b.convertSpawners = root.getBoolean("convert-spawners", false);
+        b.convertEnabled = root.getBoolean("convert.enabled", true);
+        b.convertMaxPerTick = Math.max(1, Math.min(64, root.getInt("convert.max-per-tick", 4)));
+        b.convertChunkLoad = root.getBoolean("convert.chunk-load", true);
+        b.convertJoinScan = root.getBoolean("convert.join-scan", true);
         b.allowHoppers = root.getBoolean("allow-hoppers", false);
         b.enableMending = root.getBoolean("enable-mending", false);
         b.dropXpAsOrbs = root.getBoolean("drop-xp-as-orbs", false);
@@ -267,6 +286,7 @@ public final class Settings {
         }
         if (tiers.isEmpty()) tiers.add(new Tier("base", 0.0, 1200L, 45));
         b.tiers = tiers;
+        b.upgradesEnabled = root.getBoolean("upgrades.enabled", true);
 
         if (catalogue != null) {
             b.mobs.clear();
@@ -532,12 +552,13 @@ public final class Settings {
         boolean chunkLimitCountsStacks;
         int maxDistinctItems;
         long maxPerItem;
-        boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, allowHoppers,
+        boolean blockCollectionInInventory, unlimitedStorage, convertSpawners, convertEnabled,
+                convertChunkLoad, convertJoinScan, allowHoppers,
                 enableMending, dropXpAsOrbs, placeholdersInGui, removeDurabilityOnBreak, silkTouchOnly,
                 disableExplosionDamage, enableBoosters, disableAutosellNotifications,
                 disableSellFeature, ownershipEnabled, corruptionEnabled,
                 corruptionAllowBreaking, ninjaEnabled, moneyEnabled, moneyApplyOnAmount;
-        int spawnerLimitInChunk, stackLimit, corruptionSolveRadius, corruptionDelayMin, corruptionDelayMax,
+        int spawnerLimitInChunk, stackLimit, convertMaxPerTick, corruptionSolveRadius, corruptionDelayMin, corruptionDelayMax,
                 ninjaStartDistance, ninjaVisibilityDistance, storageThreadPool, storageBatchSize;
         Material spawnerMaterial;
         String spawnerName, storageType;
@@ -546,5 +567,6 @@ public final class Settings {
         Map<String, Product> mobs, items;
         Map<String, Double> sellPrices;
         List<Tier> tiers;
+        boolean upgradesEnabled = true;
     }
 }

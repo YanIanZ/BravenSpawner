@@ -122,6 +122,7 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "corrupt" -> corrupt(sender);
             case "repair" -> repair(sender);
             case "escrow" -> escrow(sender, args);
+            case "convert" -> convert(sender, args);
             default -> messages().send(sender, "general.unknown-subcommand", "sub", args[0]);
         }
         return true;
@@ -477,6 +478,28 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
                 "id", escrow.id().toString().substring(0, 8), "items", String.format(Locale.ROOT, "%,d", escrow.quantity()));
     }
 
+    /**
+     * {@code /bspawner convert scan [--dry-run] [world]}: a throttled
+     * region-by-region scan of loaded chunks, with a receipt. A dry run only
+     * counts; a live run converts and needs {@code convert.enabled}. Console-usable.
+     */
+    private void convert(CommandSender sender, String[] args) {
+        if (args.length < 2 || !args[1].equalsIgnoreCase("scan")) {
+            messages().send(sender, "convert.scan-usage");
+            return;
+        }
+        boolean dryRun = false;
+        String world = null;
+        for (int i = 2; i < args.length; i++) {
+            if (args[i].equalsIgnoreCase("--dry-run")) {
+                dryRun = true;
+            } else if (world == null) {
+                world = args[i];
+            }
+        }
+        plugin.convert().scan(sender, world, dryRun);
+    }
+
     private boolean modify(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             messages().send(sender, "general.players-only");
@@ -544,7 +567,12 @@ public final class CommandHandler implements CommandExecutor, TabCompleter {
             case "bspawner" -> {
                 if (!sender.hasPermission("bravenspawner.admin")) return List.of();
                 if (args.length == 1) {
-                    out.addAll(List.of("help", "give", "list", "doctor", "economy", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair", "escrow"));
+                    out.addAll(List.of("help", "give", "list", "doctor", "economy", "reload", "booster", "boosteritem", "sellwand", "modifier", "menu", "corrupt", "repair", "escrow", "convert"));
+                } else if (args.length == 2 && args[0].equalsIgnoreCase("convert")) {
+                    out.add("scan");
+                } else if (args.length >= 3 && args[0].equalsIgnoreCase("convert") && args[1].equalsIgnoreCase("scan")) {
+                    out.add("--dry-run");
+                    Bukkit.getWorlds().forEach(w -> out.add(w.getName()));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("escrow")) {
                     out.addAll(List.of("list", "refund", "confirm"));
                 } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {

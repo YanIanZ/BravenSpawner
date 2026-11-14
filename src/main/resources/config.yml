@@ -79,6 +79,25 @@ superiorskyblock:
 spawner-limit-in-chunk: 100
 spawner-limit-in-chunk-mode: blocks
 convert-spawners: true
+# Automatic conversion of vanilla spawners into managed Braven spawners.
+# convert-spawners above only converts a spawner a player PLACES; this section
+# covers the spawners that are already in the world or in inventories.
+# Conversions are one-way by design; disabling these switches stops future
+# conversions but never turns a managed spawner back into a vanilla one.
+convert:
+  # Master switch for chunk-load conversion, join inventory conversion and live
+  # admin scans. Dry-run scans (/bspawner convert scan --dry-run) always work.
+  enabled: true
+  # Server-wide conversion budget per tick. Leftovers stay vanilla: chunk-load
+  # leftovers are retried a bounded number of times, scan leftovers are picked
+  # up by re-running the scan. 1..64.
+  max-per-tick: 4
+  # Convert vanilla spawners found when a chunk loads (dungeon spawners included).
+  chunk-load: true
+  # Swap spawner items (vanilla with a mob, SilkSpawners NBT) in joining players'
+  # inventories and ender chests for Braven items of the same mob. The world
+  # blacklist does not apply to items; placing them still enforces world rules.
+  join-scan: true
 allow-hoppers: false
 enable-mending: false
 drop-xp-as-orbs: false
@@ -283,6 +302,9 @@ sell:
 #                   multiplied by capacity / first-tier capacity (never below 1x;
 #                   minimum 1)
 upgrades:
+  # false: no Upgrade button in the spawner menu and no tier purchases. Spawners keep
+  # the tier they already have; tiers below still define base speed/capacity.
+  enabled: true
   tiers:
     - name: base
       cost: 0.0

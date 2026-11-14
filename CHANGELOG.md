@@ -3,6 +3,44 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-11-14
+
+### Added
+- `upgrades.enabled` (default `true`). When `false` the spawner menu shows no
+  Upgrade button, slot 14 does nothing, and a tier purchase is refused with
+  `gui.upgrade.disabled`. Existing spawner tiers and the tier table are unchanged.
+
+## [1.6.0] - 2026-11-12
+
+### Added
+- **Automatic vanilla-spawner conversion** (see docs/CONVERT.md). Every path
+  shares one guard chain (ready, master switch, world blacklist, already
+  managed, product exists, chunk cap with same-pass accounting, throttle
+  budget) and audits each conversion as `CONVERT`.
+  - Chunk-load conversion: vanilla spawners (dungeon spawners included) in a
+    loading chunk become managed spawners on the chunk's region thread. Throttle
+    leftovers are retried by a bounded delayed task (3 attempts, 20 ticks
+    apart); anything still vanilla is picked up on the next load or scan.
+  - Join inventory conversion: once per join, on the player's entity thread,
+    spawner items in the inventory and ender chest — vanilla items with a mob
+    (BlockEntityTag) and SilkSpawners-NBT items (detected by PDC namespace,
+    without depending on SilkSpawners) — are swapped for Braven items of the
+    same mob, preserving the item count. Plain spawner items with no mob info
+    and mobs without a product stay untouched and are logged.
+  - `/bspawner convert scan [--dry-run] [world]` (permission
+    `bravenspawner.admin`, console-usable): throttled region-by-region scan of
+    loaded chunks only — nothing is ever force-loaded. The receipt reports
+    coverage (chunks scanned vs total), converted/convertible, already-managed
+    and skipped-by-reason counts; throttled leftovers are picked up by
+    re-running the scan.
+  - `convert:` config section (`enabled` master switch default true,
+    `max-per-tick` default 4, `chunk-load`, `join-scan`) and `convert.*`
+    messages.yml keys. Conversions found in the world are owned by the nil
+    system UUID, never attributed to a random player; only administrators can
+    use or break them while ownership is enforced.
+- Conversions are one-way by design: disabling the switches stops future
+  conversions but never turns a managed spawner back into a vanilla one.
+
 ## [Unreleased]
 
 ### Added

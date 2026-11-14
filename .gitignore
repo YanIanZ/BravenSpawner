@@ -31,3 +31,7 @@ artifacts/**/*.jar
 
 # Local agent instructions
 AGENTS.md
+.classpath
+.project
+.settings/
+bin/

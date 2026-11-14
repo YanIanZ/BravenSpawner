@@ -47,6 +47,7 @@ help:
   - " {usage}/bspawner modifier {muted}<player> <type> <value> [amount]"
   - " {usage}/bspawner corrupt {muted}| {usage}repair {info}— on the spawner you are looking at"
   - " {usage}/bspawner escrow {muted}[list|refund <id>|confirm <id>] {info}— resolve sales interrupted by a crash"
+  - " {usage}/bspawner convert scan {muted}[--dry-run] [world] {info}— convert vanilla spawners in loaded chunks"
   - " {usage}/bspawner doctor {info}— storage and catalogue health check"
   - " {usage}/bspawner economy {info}— currencies and shop pricing in use"
   - " {usage}/bspawner reload {info}— reload configuration, menus and messages"
@@ -166,6 +167,16 @@ escrow:
   refunded: "{success}Returned {highlight}%items%{success} item(s) of sale #%id% to storage."
   confirmed: "{success}Confirmed sale #%id%; {highlight}%items%{success} item(s) were removed."
 
+convert:
+  disabled: "{error}Automatic spawner conversion is disabled ({highlight}convert.enabled{error})."
+  scan-usage: "{usage}Usage: /bspawner convert scan [--dry-run] [world]"
+  unknown-world: "{error}World {highlight}%world%{error} is not loaded."
+  scan-started: "{info}Scanning {highlight}%chunks%{info} loaded chunk(s)..."
+  join: "{success}Converted {highlight}%count%{success} spawner item(s) in your inventory."
+  receipt-header: "{accent}Convert scan {muted}(%mode%)"
+  receipt-line: " {muted}%label%: {highlight}%value%"
+  rerun-hint: "{muted}Some spawners were throttled; re-run the scan to continue."
+
 lock:
   unavailable: "{error}That spawner is not available."
   settling: "{info}This spawner was just closed. You can open it again in {highlight}%seconds%s{info}."
@@ -220,6 +231,7 @@ gui:
     success: "{success}Bought {highlight}%amount%{success} spawner(s) for {highlight}%price%{success}."
   upgrade:
     max: "{muted}This spawner is already at the highest tier."
+    disabled: "{muted}Spawner upgrades are disabled on this server."
     no-economy: "{error}%currency% is not available right now; nothing was charged."
     insufficient: "{error}You need {highlight}%cost%{error} to upgrade to {highlight}%tier%{error}."
     success: "{success}Upgraded to {highlight}%tier%{success}."

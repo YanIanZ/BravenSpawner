@@ -54,6 +54,7 @@ public final class BravenSpawner extends JavaPlugin {
     private AuditLog audit;
     private ProductRegistry products;
     private SellWandService wands;
+    private dev.yanianz.bravenspawner.convert.ConvertManager convertManager;
     private dev.yanianz.bravenspawner.particles.SpawnerParticles particles;
     private PlatformDetector platform;
     private Placeholders placeholders;
@@ -84,6 +85,8 @@ public final class BravenSpawner extends JavaPlugin {
     public AuditLog audit() { return audit; }
     public ProductRegistry products() { return products; }
     public SellWandService wands() { return wands; }
+    /** Automatic vanilla-spawner conversion; null only before boot wires it. */
+    public dev.yanianz.bravenspawner.convert.ConvertManager convert() { return convertManager; }
     public dev.yanianz.bravenspawner.particles.SpawnerParticles particles() { return particles; }
     public PlatformDetector platform() { return platform; }
     public Placeholders placeholders() { return placeholders; }
@@ -228,6 +231,7 @@ public final class BravenSpawner extends JavaPlugin {
         getServer().getPluginManager().registerEvents(currencies, this);
         boosters = new Boosters(this);
         manager = new SpawnerManager(this, settings);
+        convertManager = new dev.yanianz.bravenspawner.convert.ConvertManager(this);
         audit = new AuditLog(this);
         platform = new PlatformDetector(this);
         placeholders = new Placeholders();
@@ -244,6 +248,7 @@ public final class BravenSpawner extends JavaPlugin {
         particles = new dev.yanianz.bravenspawner.particles.SpawnerParticles(this);
         gui = new SpawnerGui(this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.yanianz.bravenspawner.convert.ConvertListener(this), this);
         new dev.yanianz.bravenspawner.platform.WorldLifecycle(this).register();
         getServer().getPluginManager().registerEvents(new EntityListener(this), this);
         getServer().getPluginManager().registerEvents(gui, this);
@@ -421,6 +426,7 @@ public final class BravenSpawner extends JavaPlugin {
         shops = new dev.yanianz.bravenspawner.commerce.ShopBridge(this);
         if (currencies != null) currencies.reload();
         manager.settings(settings);
+        if (convertManager != null) convertManager.reload();
         holograms.reload();
     }
 }
